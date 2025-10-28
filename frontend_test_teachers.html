@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Teachers CRUD</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .teacher-list {
+            margin-top: 20px;
+        }
+        .teacher-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .teacher-item h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .teacher-item p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .teacher-actions {
+            margin-top: 10px;
+        }
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            flex: 1;
+        }
+        .stat-card h3 {
+            margin: 0;
+            color: #007bff;
+        }
+        .stat-card p {
+            margin: 5px 0 0 0;
+            color: #666;
+        }
+        .log {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Teachers CRUD Operations</h1>
+        
+        <!-- Statistics -->
+        <div class="stats">
+            <div class="stat-card">
+                <h3 id="totalTeachers">0</h3>
+                <p>Tổng giáo viên</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="withAddress">0</h3>
+                <p>Có địa chỉ</p>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <input type="text" id="searchInput" class="search-box" placeholder="Tìm kiếm giáo viên...">
+
+        <!-- Create Form -->
+        <div class="test-section">
+            <h3>📝 Tạo giáo viên mới</h3>
+            <form id="createForm">
+                <div class="form-group">
+                    <label for="name">Tên *</label>
+                    <input type="text" id="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email *</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Số điện thoại</label>
+                    <input type="tel" id="phone">
+                </div>
+                <div class="form-group">
+                    <label for="address">Địa chỉ</label>
+                    <textarea id="address" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="role">Vai trò *</label>
+                    <select id="role" required>
+                        <option value="teacher">Giáo viên</option>
+                        <option value="admin">Quản trị viên</option>
+                        <option value="student">Học sinh</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success">Tạo giáo viên</button>
+            </form>
+        </div>
+
+        <!-- Teachers List -->
+        <div class="test-section">
+            <h3>📋 Danh sách giáo viên</h3>
+            <div id="teacherList" class="teacher-list">
+                <!-- Teachers will be displayed here -->
+            </div>
+        </div>
+
+        <!-- Test Actions -->
+        <div class="test-section">
+            <h3>🧪 Test Actions</h3>
+            <button onclick="runAllTests()" class="btn">Chạy tất cả tests</button>
+            <button onclick="clearAll()" class="btn btn-danger">Xóa tất cả</button>
+            <button onclick="loadSampleData()" class="btn">Tải dữ liệu mẫu</button>
+        </div>
+
+        <!-- Log -->
+        <div class="test-section">
+            <h3>📝 Test Log</h3>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Mock data storage
+        let teachers = [];
+        let nextId = 1;
+
+        // DOM elements
+        const createForm = document.getElementById('createForm');
+        const teacherList = document.getElementById('teacherList');
+        const searchInput = document.getElementById('searchInput');
+        const log = document.getElementById('log');
+
+        // Logging function
+        function logMessage(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            log.innerHTML += `[${timestamp}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Generate teacher code
+        function generateTeacherCode() {
+            return `GV${Date.now().toString().slice(-6)}`;
+        }
+
+        // Validate teacher data
+        function validateTeacher(data) {
+            if (!data.name || data.name.trim().length < 2) {
+                logMessage('❌ Tên phải có ít nhất 2 ký tự');
+                return false;
+            }
+            if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+                logMessage('❌ Email không hợp lệ');
+                return false;
+            }
+            if (!data.role || !['admin', 'teacher', 'student'].includes(data.role)) {
+                logMessage('❌ Vai trò không hợp lệ');
+                return false;
+            }
+            return true;
+        }
+
+        // Create teacher
+        function createTeacher(data) {
+            if (!validateTeacher(data)) {
+                return null;
+            }
+
+            const teacher = {
+                id: `teacher-${nextId++}`,
+                user_id: `user-${nextId}`,
+                teacher_code: generateTeacherCode(),
+                name: data.name,
+                email: data.email,
+                phone: data.phone || '',
+                address: data.address || '',
+                role: data.role,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            teachers.push(teacher);
+            logMessage(`✅ Tạo giáo viên: ${teacher.name} (${teacher.teacher_code})`);
+            updateDisplay();
+            return teacher;
+        }
+
+        // Update teacher
+        function updateTeacher(id, data) {
+            const index = teachers.findIndex(t => t.id === id);
+            if (index === -1) {
+                logMessage('❌ Không tìm thấy giáo viên');
+                return null;
+            }
+
+            if (!validateTeacher(data)) {
+                return null;
+            }
+
+            teachers[index] = {
+                ...teachers[index],
+                name: data.name,
+                email: data.email,
+                phone: data.phone || '',
+                address: data.address || '',
+                role: data.role,
+                updated_at: new Date().toISOString()
+            };
+
+            logMessage(`✅ Cập nhật giáo viên: ${teachers[index].name}`);
+            updateDisplay();
+            return teachers[index];
+        }
+
+        // Delete teacher
+        function deleteTeacher(id) {
+            const index = teachers.findIndex(t => t.id === id);
+            if (index === -1) {
+                logMessage('❌ Không tìm thấy giáo viên');
+                return false;
+            }
+
+            const teacher = teachers[index];
+            teachers.splice(index, 1);
+            logMessage(`✅ Xóa giáo viên: ${teacher.name}`);
+            updateDisplay();
+            return true;
+        }
+
+        // Search teachers
+        function searchTeachers(query) {
+            if (!query) return teachers;
+            
+            return teachers.filter(teacher => 
+                teacher.name.toLowerCase().includes(query.toLowerCase()) ||
+                teacher.email.toLowerCase().includes(query.toLowerCase()) ||
+                teacher.teacher_code.toLowerCase().includes(query.toLowerCase())
+            );
+        }
+
+        // Update display
+        function updateDisplay() {
+            const query = searchInput.value;
+            const filteredTeachers = searchTeachers(query);
+            
+            teacherList.innerHTML = '';
+            
+            if (filteredTeachers.length === 0) {
+                teacherList.innerHTML = '<p>Không có giáo viên nào</p>';
+            } else {
+                filteredTeachers.forEach(teacher => {
+                    const teacherDiv = document.createElement('div');
+                    teacherDiv.className = 'teacher-item';
+                    teacherDiv.innerHTML = `
+                        <h4>${teacher.name} (${teacher.teacher_code})</h4>
+                        <p><strong>Email:</strong> ${teacher.email}</p>
+                        <p><strong>Số điện thoại:</strong> ${teacher.phone || 'Chưa cập nhật'}</p>
+                        <p><strong>Địa chỉ:</strong> ${teacher.address || 'Chưa cập nhật'}</p>
+                        <p><strong>Vai trò:</strong> ${teacher.role}</p>
+                        <div class="teacher-actions">
+                            <button onclick="editTeacher('${teacher.id}')" class="btn">Sửa</button>
+                            <button onclick="deleteTeacher('${teacher.id}')" class="btn btn-danger">Xóa</button>
+                        </div>
+                    `;
+                    teacherList.appendChild(teacherDiv);
+                });
+            }
+
+            // Update statistics
+            document.getElementById('totalTeachers').textContent = teachers.length;
+            document.getElementById('withAddress').textContent = teachers.filter(t => t.address && t.address.trim()).length;
+        }
+
+        // Edit teacher
+        function editTeacher(id) {
+            const teacher = teachers.find(t => t.id === id);
+            if (!teacher) return;
+
+            document.getElementById('name').value = teacher.name;
+            document.getElementById('email').value = teacher.email;
+            document.getElementById('phone').value = teacher.phone;
+            document.getElementById('address').value = teacher.address;
+            document.getElementById('role').value = teacher.role;
+
+            // Change form to update mode
+            createForm.onsubmit = (e) => {
+                e.preventDefault();
+                const formData = {
+                    name: document.getElementById('name').value,
+                    email: document.getElementById('email').value,
+                    phone: document.getElementById('phone').value,
+                    address: document.getElementById('address').value,
+                    role: document.getElementById('role').value
+                };
+                
+                updateTeacher(id, formData);
+                createForm.reset();
+                createForm.onsubmit = handleCreate;
+            };
+        }
+
+        // Handle create form
+        function handleCreate(e) {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                address: document.getElementById('address').value,
+                role: document.getElementById('role').value
+            };
+            
+            createTeacher(formData);
+            createForm.reset();
+        }
+
+        // Load sample data
+        function loadSampleData() {
+            const sampleTeachers = [
+                {
+                    name: 'Nguyễn Văn A',
+                    email: 'nguyenvana@example.com',
+                    phone: '0901234567',
+                    address: '123 Đường ABC, Quận 1, TP.HCM',
+                    role: 'teacher'
+                },
+                {
+                    name: 'Trần Thị B',
+                    email: 'tranthib@example.com',
+                    phone: '0907654321',
+                    address: '456 Đường XYZ, Quận 2, TP.HCM',
+                    role: 'teacher'
+                }
+            ];
+
+            sampleTeachers.forEach(teacher => {
+                createTeacher(teacher);
+            });
+        }
+
+        // Run all tests
+        function runAllTests() {
+            logMessage('🚀 Bắt đầu test CRUD...');
+            
+            // Test CREATE
+            logMessage('📝 Test CREATE...');
+            const newTeacher = createTeacher({
+                name: 'Test User',
+                email: 'test@example.com',
+                phone: '0901111111',
+                address: 'Test Address',
+                role: 'teacher'
+            });
+            
+            if (newTeacher) {
+                logMessage('✅ CREATE test passed');
+                
+                // Test UPDATE
+                logMessage('✏️ Test UPDATE...');
+                const updated = updateTeacher(newTeacher.id, {
+                    name: 'Test User Updated',
+                    email: 'testupdated@example.com',
+                    phone: '0902222222',
+                    address: 'Updated Address',
+                    role: 'teacher'
+                });
+                
+                if (updated) {
+                    logMessage('✅ UPDATE test passed');
+                }
+                
+                // Test DELETE
+                logMessage('🗑️ Test DELETE...');
+                const deleted = deleteTeacher(newTeacher.id);
+                if (deleted) {
+                    logMessage('✅ DELETE test passed');
+                }
+            }
+            
+            // Test SEARCH
+            logMessage('🔍 Test SEARCH...');
+            const searchResults = searchTeachers('Nguyễn');
+            logMessage(`✅ SEARCH test passed - Found ${searchResults.length} results`);
+            
+            logMessage('🎉 Tất cả tests hoàn thành!');
+        }
+
+        // Clear all data
+        function clearAll() {
+            teachers = [];
+            updateDisplay();
+            logMessage('🗑️ Đã xóa tất cả dữ liệu');
+        }
+
+        // Initialize
+        createForm.onsubmit = handleCreate;
+        searchInput.oninput = updateDisplay;
+        
+        logMessage('🧪 Teachers CRUD Test Interface đã sẵn sàng!');
+        updateDisplay();
+    </script>
+</body>
+</html>
+
