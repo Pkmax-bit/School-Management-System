@@ -22,6 +22,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Building2,
 } from 'lucide-react';
 import { cn } from './ui/utils';
 
@@ -41,9 +42,10 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout }: AdminSidebar
     { icon: UserCircle, label: 'Học sinh', page: 'students', color: 'text-purple-600' },
     { icon: BookOpen, label: 'Môn học', page: 'subjects', color: 'text-orange-600' },
     { icon: School, label: 'Lớp học', page: 'classes', color: 'text-indigo-600' },
+    { icon: Building2, label: 'Cơ sở', page: 'campuses', color: 'text-teal-600' },
+    { icon: Calendar, label: 'Lịch học', page: 'schedule', color: 'text-pink-600' },
     { icon: DollarSign, label: 'Tài chính', page: 'finance', color: 'text-emerald-600' },
     { icon: BarChart, label: 'Báo cáo', page: 'reports', color: 'text-cyan-600' },
-    { icon: Calendar, label: 'Lịch học', page: 'schedule', color: 'text-pink-600' },
     { icon: ClipboardCheck, label: 'Điểm danh', page: 'attendance', color: 'text-red-600' },
     { icon: Award, label: 'Điểm số', page: 'grades', color: 'text-yellow-600' },
     { icon: FileText, label: 'Tài liệu', page: 'documents', color: 'text-gray-600' },
