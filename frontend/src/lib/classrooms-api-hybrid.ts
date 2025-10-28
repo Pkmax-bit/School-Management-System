@@ -1,7 +1,6 @@
 /**
  * Classrooms API - Hybrid Authentication with Debug Logs
  * Uses JWT token (backend auth) or Supabase OAuth2 token, whichever is available
- * NO MOCK DATA
  */
 
 import { supabase } from './supabase';
@@ -13,33 +12,18 @@ async function apiRequest(url: string, options: {
   headers?: Record<string, string>
   body?: unknown
 } = {}): Promise<any> {
-  // Grab tokens
   const jwtToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-  console.log('Hybrid API Request Debug (classrooms):', {
-    url,
-    method: options.method || 'GET',
-    hasJwtToken: !!jwtToken,
-    hasSupabaseSession: !!session,
-    hasAccessToken: !!session?.access_token,
-    sessionError
-  });
+  const { data: { session } } = await supabase.auth.getSession();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
 
-  // Priority: JWT token, then Supabase token
   if (jwtToken) {
     headers.Authorization = `Bearer ${jwtToken}`;
-    console.log('🔍 Using JWT token for authentication');
   } else if (session?.access_token) {
     headers.Authorization = `Bearer ${session.access_token}`;
-    console.log('🔍 Using Supabase OAuth2 token for authentication');
-  } else {
-    console.warn('🔍 No authentication token found');
   }
 
   const requestOptions: RequestInit = {
@@ -48,30 +32,16 @@ async function apiRequest(url: string, options: {
     ...(options.body ? { body: JSON.stringify(options.body) } : {}),
   };
 
-  console.log('Request Options (classrooms):', requestOptions);
-
   const response = await fetch(url, requestOptions);
-
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Classrooms API Error:', {
-      status: response.status,
-      statusText: response.statusText,
-      url,
-      method: requestOptions.method,
-      errorText,
-    });
-
+    const text = await response.text();
     if (response.status === 401) throw new Error('Authentication required (401)');
     if (response.status === 403) throw new Error('Forbidden (403)');
     if (response.status === 404) throw new Error('Not Found (404)');
     if (response.status === 500) throw new Error('Server Error (500)');
-    throw new Error(`HTTP ${response.status}: ${errorText}`);
+    throw new Error(`HTTP ${response.status}: ${text}`);
   }
-
-  const json = await response.json();
-  console.log('Classrooms API Response:', json);
-  return json;
+  return await response.json();
 }
 
 function buildUrl(path: string, params?: Record<string, string | number | undefined>) {
@@ -88,6 +58,9 @@ export interface ClassroomPayload {
   description?: string | null
   capacity?: number
   teacher_id?: string | null
+  student_ids?: string[]
+  open_date?: string | null
+  close_date?: string | null
 }
 
 export const classroomsHybridApi = {
@@ -104,6 +77,14 @@ export const classroomsHybridApi = {
 
   remove: (id: string) =>
     apiRequest(`${API_BASE_URL}/api/classrooms/${id}`, { method: 'DELETE' }),
+
+  // Add students into an existing classroom
+  addStudents: (id: string, studentIds: string[]) =>
+    apiRequest(`${API_BASE_URL}/api/classrooms/${id}/students`, { method: 'POST', body: { student_ids: studentIds } }),
+
+  // Get next class code
+  getNextCode: () =>
+    apiRequest(`${API_BASE_URL}/api/classrooms/next-code`, { method: 'GET' }),
 };
 
 export default classroomsHybridApi;

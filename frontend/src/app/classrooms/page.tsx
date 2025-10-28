@@ -1,13 +1,8 @@
-/**
- * Classrooms Page
- * Trang quản lý lớp học
- */
+"use client";
 
-'use client';
-
-import { useContext, useEffect, useMemo, useState } from 'react';
-import { AuthContext } from '@/contexts/AuthContext';
-import { classroomsHybridApi } from '@/lib/classrooms-api-hybrid';
+import { useEffect, useMemo, useState } from 'react';
+import { useApiAuth } from '@/hooks/useApiAuth';
+import classroomsHybridApi from '../../lib/classrooms-api-hybrid';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,8 +12,7 @@ import { Label } from '@/components/ui/label';
 import { AlertCircle, Loader2, Plus, Edit, Trash2, Search } from 'lucide-react';
 
 export default function ClassroomsPage() {
-  const authContext = useContext(AuthContext);
-  const user = authContext?.user;
+  const { user, loading: authLoading } = useApiAuth();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -29,8 +23,36 @@ export default function ClassroomsPage() {
   const [formCapacity, setFormCapacity] = useState<number>(30);
   const [formTeacherId, setFormTeacherId] = useState<string>('');
   const [formDescription, setFormDescription] = useState<string>('');
+  const [formOpenDate, setFormOpenDate] = useState<string>('');
+  const [formCloseDate, setFormCloseDate] = useState<string>('');
+  const [sessionsPerWeek, setSessionsPerWeek] = useState<number>(2);
+  const [autoCode, setAutoCode] = useState<boolean>(true);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [teachers, setTeachers] = useState<Array<{ id: string; name?: string; email?: string }>>([]);
+  const [loadingTeachers, setLoadingTeachers] = useState<boolean>(false);
+  const [students, setStudents] = useState<Array<{ id: string; name?: string; email?: string }>>([]);
+  const [loadingStudents, setLoadingStudents] = useState<boolean>(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [studentSearch, setStudentSearch] = useState<string>('');
+
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  const getNextCodeFromList = (list: Array<{ code?: string }>) => {
+    let maxNum = 0;
+    for (const c of list) {
+      const code = (c.code || '').trim();
+      if (code.startsWith('Class')) {
+        const suffix = code.slice(5);
+        if (/^\d{4}$/.test(suffix)) {
+          const n = parseInt(suffix, 10);
+          if (!Number.isNaN(n)) maxNum = Math.max(maxNum, n);
+        }
+      }
+    }
+    const next = maxNum + 1;
+    return `Class${String(next).padStart(4, '0')}`;
+  };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -41,17 +63,52 @@ export default function ClassroomsPage() {
     );
   }, [items, search]);
 
-  const handleOpenCreate = () => {
-    console.log('[Classrooms] Clicked add button');
+  const handleOpenCreate = async () => {
     setEditing(null);
     setFormName('');
-    setFormCode('');
+    setFormCode('Class0001'); // Default fallback
     setFormCapacity(30);
     setFormTeacherId('');
     setFormDescription('');
+    setFormOpenDate('');
+    setFormCloseDate('');
+    setAutoCode(true);
     setErrorMsg('');
+    setSelectedStudentIds([]);
+    
+    // Lấy mã lớp tiếp theo trước khi mở dialog
+    try {
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${API_BASE_URL}/api/classrooms/next-code`, {
+        headers: {
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setFormCode(data.next_code || 'Class0001');
+      } else {
+        setFormCode(getNextCodeFromList(items));
+      }
+    } catch (error) {
+      console.error('Error getting next class code:', error);
+      setFormCode(getNextCodeFromList(items));
+    }
+    
     setIsDialogOpen(true);
   };
+  const generateClassCode = (name: string): string => {
+    const base = (name || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '')
+      .toUpperCase()
+      .slice(0, 10);
+    const suffix = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+    return base ? `${base}` : `CLS${suffix}`;
+  };
+
 
   const loadData = async () => {
     try {
@@ -66,11 +123,115 @@ export default function ClassroomsPage() {
     }
   };
 
+  const loadTeachers = async () => {
+    try {
+      setLoadingTeachers(true);
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${API_BASE_URL}/api/teachers?limit=1000`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to load teachers (${res.status})`);
+      }
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+      const mapped = list.map((t: any) => ({ id: t.id, name: t.users?.full_name || t.name, email: t.users?.email }));
+      setTeachers(mapped);
+    } catch (e) {
+      console.error('Failed to load teachers list', e);
+      setTeachers([]);
+    } finally {
+      setLoadingTeachers(false);
+    }
+  };
+
+  const loadStudents = async () => {
+    try {
+      setLoadingStudents(true);
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${API_BASE_URL}/api/students?limit=1000`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to load students (${res.status})`);
+      }
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+      const mapped = list.map((s: any) => ({
+        id: s.id,
+        name: s.name || s.users?.full_name,
+        email: s.email || s.users?.email,
+        date_of_birth: s.date_of_birth || null,
+      }));
+      setStudents(mapped);
+    } catch (e) {
+      console.error('Failed to load students list', e);
+      setStudents([]);
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  const formatDob = (dob?: string | null) => {
+    if (!dob) return '';
+    const d = new Date(dob);
+    if (isNaN(d.getTime())) return '';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
+  const filteredStudents = useMemo(() => {
+    const q = studentSearch.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter((s: any) =>
+      (s.name && s.name.toLowerCase().includes(q)) ||
+      (s.email && s.email.toLowerCase().includes(q))
+    );
+  }, [students, studentSearch]);
+
+  const scheduleHint = useMemo(() => {
+    if (!formOpenDate || !formCloseDate) return '';
+    const start = new Date(formOpenDate);
+    const end = new Date(formCloseDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return '';
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const days = Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+    const weeks = Math.ceil(days / 7);
+    const sessions = weeks * (sessionsPerWeek || 0);
+    return `Khoảng thời gian: ${days} ngày • Ước tính số buổi: ${sessions} (≈ ${weeks} tuần, ${sessionsPerWeek} buổi/tuần)`;
+  }, [formOpenDate, formCloseDate, sessionsPerWeek]);
+
+  // Auto-sync capacity with selected students count (when > 0)
+  useEffect(() => {
+    const count = selectedStudentIds.length;
+    if (count > 0) {
+      setFormCapacity(count);
+    }
+  }, [selectedStudentIds]);
+
   useEffect(() => {
     if (user) {
       loadData();
+      loadTeachers();
+      loadStudents();
     }
   }, [user]);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
 
   if (!user || !['admin', 'teacher'].includes(user.role)) {
     return (
@@ -94,41 +255,12 @@ export default function ClassroomsPage() {
         </div>
         {user.role === 'admin' && (
           <div className="flex gap-2">
-            <Button onClick={handleOpenCreate} data-testid="open-create-classroom">
+            <Button type="button" onClick={handleOpenCreate} data-testid="open-create-classroom" aria-haspopup="dialog" aria-expanded={isDialogOpen}>
               <Plus className="w-4 h-4 mr-2" /> Thêm lớp học
             </Button>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const ts = Date.now();
-                  await classroomsHybridApi.create({
-                    name: `Lớp mẫu ${ts}`,
-                    code: `SAMPLE-${ts}`,
-                    description: 'Lớp học mẫu (dev) tạo tự động',
-                    capacity: 30,
-                    teacher_id: null,
-                  });
-                  await loadData();
-                } catch (e) {
-                  console.error('Create sample classroom failed:', e);
-                }
-              }}
-            >Tạo lớp học mẫu</Button>
           </div>
         )}
       </div>
-
-      {/* Debug user info to verify logged-in user is received */}
-      {user && (
-        <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-3">
-          <span className="font-semibold">User hiện tại:</span>
-          <span className="ml-2">{user.name || 'N/A'}</span>
-          <span className="ml-2 text-gray-500">({user.email || 'no-email'})</span>
-          <span className="ml-2 px-2 py-0.5 rounded bg-blue-100 text-blue-700">{user.role}</span>
-          <span className="ml-4 text-xs text-gray-500">Dialog open: {String(isDialogOpen)}</span>
-        </div>
-      )}
 
       <Card>
         <CardHeader>
@@ -155,7 +287,7 @@ export default function ClassroomsPage() {
                     <TableHead>Sĩ số</TableHead>
                     <TableHead>Giáo viên</TableHead>
                     <TableHead>Mô tả</TableHead>
-                    {user.role === 'admin' && <TableHead className="w-[140px]">Hành động</TableHead>}
+                    {user.role === 'admin' && <TableHead className="w-[200px]">Hành động</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -164,11 +296,16 @@ export default function ClassroomsPage() {
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell>{c.code}</TableCell>
                       <TableCell>{c.capacity ?? 30}</TableCell>
-                      <TableCell>{c.teacher_id ? c.teacher_id : 'N/A'}</TableCell>
+                      <TableCell>{(() => {
+                        if (!c.teacher_id) return 'N/A';
+                        const t = teachers.find((t) => t.id === c.teacher_id);
+                        return t ? (t.name || t.email || c.teacher_id) : c.teacher_id;
+                      })()}</TableCell>
                       <TableCell>{c.description || '—'}</TableCell>
                       {user.role === 'admin' && (
                         <TableCell>
                           <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => { window.location.href = `/classrooms/${c.id}`; }}>Xem</Button>
                             <Button variant="outline" size="sm" onClick={() => {
                               setEditing(c);
                               setFormName(c.name || '');
@@ -176,6 +313,8 @@ export default function ClassroomsPage() {
                               setFormCapacity(typeof c.capacity === 'number' ? c.capacity : 30);
                               setFormTeacherId(c.teacher_id || '');
                               setFormDescription(c.description || '');
+                              setFormOpenDate(c.open_date ? c.open_date.slice(0, 10) : '');
+                              setFormCloseDate(c.close_date ? c.close_date.slice(0, 10) : '');
                               setErrorMsg('');
                               setIsDialogOpen(true);
                             }}>
@@ -222,32 +361,123 @@ export default function ClassroomsPage() {
             )}
             <div className="space-y-2">
               <Label htmlFor="name">Tên lớp</Label>
-              <Input id="name" value={formName} onChange={(e) => setFormName(e.target.value)} />
+              <Input
+                id="name"
+                value={formName}
+                onChange={(e) => {
+                  setFormName(e.target.value);
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="code">Mã lớp</Label>
-              <Input id="code" value={formCode} onChange={(e) => setFormCode(e.target.value)} />
+              <Input
+                id="code"
+                value={formCode}
+                onChange={(e) => {
+                  setFormCode(e.target.value.toUpperCase());
+                  setAutoCode(false);
+                }}
+                placeholder="Tự động tạo mã Class0001, Class0002... (gõ 'class' để tự động)"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="capacity">Sĩ số</Label>
               <Input id="capacity" type="number" min={1} value={formCapacity} onChange={(e) => setFormCapacity(Number(e.target.value) || 0)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="teacher_id">Giáo viên (ID)</Label>
-              <Input id="teacher_id" value={formTeacherId} onChange={(e) => setFormTeacherId(e.target.value)} />
+              <Label htmlFor="teacher_id">Giáo viên</Label>
+              <select
+                id="teacher_id"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                value={formTeacherId}
+                onChange={(e) => setFormTeacherId(e.target.value)}
+                disabled={loadingTeachers}
+              >
+                <option value="">-- Không gán giáo viên --</option>
+                {teachers.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name || t.email || t.id}</option>
+                ))}
+              </select>
+              {loadingTeachers && (
+                <div className="text-xs text-gray-500">Đang tải danh sách giáo viên...</div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Mô tả</Label>
               <Input id="description" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} />
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="open_date">Ngày mở lớp</Label>
+                <Input id="open_date" type="date" value={formOpenDate} onChange={(e) => setFormOpenDate(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="close_date">Ngày đóng lớp</Label>
+                <Input id="close_date" type="date" value={formCloseDate} onChange={(e) => setFormCloseDate(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-xs text-gray-600">
+              <div>
+                {scheduleHint}
+              </div>
+              <div className="flex items-center gap-2">
+                <span>Số buổi/tuần:</span>
+                <select
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  value={sessionsPerWeek}
+                  onChange={(e) => setSessionsPerWeek(Number(e.target.value) || 2)}
+                >
+                  <option value={2}>2 buổi</option>
+                  <option value={3}>3 buổi</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="student_search">Học sinh</Label>
+              <Input id="student_search" placeholder="Tìm theo tên/email" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} />
+              <div className="w-full border border-gray-300 rounded-md h-48 overflow-y-auto p-2">
+                {loadingStudents ? (
+                  <div className="text-xs text-gray-500 px-1 py-2">Đang tải danh sách học sinh...</div>
+                ) : (
+                  filteredStudents.map((s: any) => {
+                    const label = `${s.name || s.email || s.id}${s.date_of_birth ? '-' + formatDob(s.date_of_birth) : ''}`;
+                    const checked = selectedStudentIds.includes(s.id);
+                    return (
+                      <label key={s.id} className="flex items-center gap-2 py-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedStudentIds((prev) => Array.from(new Set([...prev, s.id])));
+                            else setSelectedStudentIds((prev) => prev.filter((id) => id !== s.id));
+                          }}
+                        />
+                        <span className="text-sm text-gray-800">{label}</span>
+                      </label>
+                    );
+                  })
+                )}
+                {(!loadingStudents && filteredStudents.length === 0) && (
+                  <div className="text-xs text-gray-500 px-1 py-2">Không có học sinh phù hợp</div>
+                )}
+              </div>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={saving}>Hủy</Button>
+              <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)} disabled={saving}>Hủy</Button>
               <Button
+                type="button"
                 onClick={async () => {
                   try {
                     setErrorMsg('');
                     if (!formName.trim() || !formCode.trim()) {
                       setErrorMsg('Tên lớp và Mã lớp là bắt buộc.');
+                      return;
+                    }
+                    // Kiểm tra format mã lớp Class0001, Class0002, ...
+                    if (!/^Class\d{4}$/.test(formCode.trim())) {
+                      setErrorMsg('Mã lớp phải có định dạng Class0001, Class0002, ...');
                       return;
                     }
                     setSaving(true);
@@ -257,6 +487,9 @@ export default function ClassroomsPage() {
                       capacity: formCapacity && formCapacity > 0 ? formCapacity : 30,
                       teacher_id: formTeacherId.trim() || null,
                       description: formDescription.trim() || null,
+                      student_ids: selectedStudentIds,
+                      open_date: formOpenDate || null,
+                      close_date: formCloseDate || null,
                     };
                     if (editing) {
                       await classroomsHybridApi.update(editing.id, payload);
@@ -266,7 +499,7 @@ export default function ClassroomsPage() {
                     setIsDialogOpen(false);
                     loadData();
                   } catch (err: any) {
-                    const apiMsg = err?.response?.data?.detail || 'Thao tác thất bại. Vui lòng thử lại.';
+                    const apiMsg = err?.response?.data?.detail || err?.message || 'Thao tác thất bại. Vui lòng thử lại.';
                     setErrorMsg(apiMsg);
                   } finally {
                     setSaving(false);

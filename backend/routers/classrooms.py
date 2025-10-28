@@ -25,6 +25,11 @@ class ClassroomCreate(BaseModel):
     capacity: Optional[conint(strict=True, ge=1)] = 30
     # teacher_id: uuid null (FK)
     teacher_id: Optional[str] = None
+    # optional list of students to assign to this classroom upon creation
+    student_ids: Optional[List[str]] = None
+    # dates
+    open_date: Optional[str] = None
+    close_date: Optional[str] = None
 
 
 class ClassroomUpdate(BaseModel):
@@ -33,6 +38,8 @@ class ClassroomUpdate(BaseModel):
     description: Optional[str] = None
     capacity: Optional[int] = None
     teacher_id: Optional[str] = None
+    open_date: Optional[str] = None
+    close_date: Optional[str] = None
 
 
 class ClassroomResponse(BaseModel):
@@ -42,6 +49,8 @@ class ClassroomResponse(BaseModel):
     description: Optional[str] = None
     capacity: Optional[int] = 30
     teacher_id: Optional[str] = None
+    open_date: Optional[str] = None
+    close_date: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -66,10 +75,40 @@ async def create_classroom(
     normalized_capacity = classroom_data.capacity or 30
     normalized_teacher_id = classroom_data.teacher_id or None
 
-    # Kiểm tra code đã tồn tại chưa (unique constraint)
-    existing = supabase.table("classrooms").select("id").eq("code", normalized_code).execute()
-    if existing.data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Classroom code already exists")
+    # Tạo code tự động nếu client gửi Class
+    if normalized_code.lower() == "class":
+        # Lấy tất cả code dạng Class#### (giới hạn để an toàn)
+        codes_res = supabase.table("classrooms").select("code").ilike("code", "Class%").limit(1000).execute()
+        max_num = 0
+        if codes_res.data:
+            for row in codes_res.data:
+                code = (row.get("code") or "").strip()
+                if code.startswith("Class"):
+                    suffix = code[5:]
+                    if suffix.isdigit() and len(suffix) == 4:  # Đảm bảo đúng format 4 chữ số
+                        try:
+                            max_num = max(max_num, int(suffix))
+                        except Exception:
+                            pass
+        # Bắt đầu từ Class0001, tăng dần
+        attempt = 1
+        while True:
+            candidate = f"Class{attempt:04d}"
+            dup = supabase.table("classrooms").select("id").eq("code", candidate).execute()
+            if not dup.data:
+                normalized_code = candidate
+                break
+            attempt += 1
+    else:
+        # Kiểm tra format mã lớp (Class0001, Class0002, ...)
+        import re
+        if not re.match(r'^Class\d{4}$', normalized_code):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Classroom code must be in format Class0001, Class0002, etc.")
+        
+        # Kiểm tra code đã tồn tại chưa (unique constraint)
+        existing = supabase.table("classrooms").select("id").eq("code", normalized_code).execute()
+        if existing.data:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Classroom code already exists")
 
     # Kiểm tra teacher có tồn tại không (nếu có)
     if normalized_teacher_id:
@@ -83,12 +122,23 @@ async def create_classroom(
         "description": normalized_description,
         "capacity": normalized_capacity,
         "teacher_id": normalized_teacher_id,
+        "open_date": classroom_data.open_date or None,
+        "close_date": classroom_data.close_date or None,
     }
 
     result = supabase.table("classrooms").insert(insert_payload).execute()
     if not result.data:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create classroom")
-    return result.data[0]
+    created_classroom = result.data[0]
+
+    # Assign students to this classroom if provided
+    if classroom_data.student_ids:
+        # Only keep non-empty ids
+        ids = [sid for sid in classroom_data.student_ids if sid and sid.strip()]
+        if ids:
+            supabase.table("students").update({"classroom_id": created_classroom["id"]}).in_("id", ids).execute()
+
+    return created_classroom
 
 
 @router.get("/", response_model=List[ClassroomResponse])
@@ -138,6 +188,11 @@ async def update_classroom(
 
     # Kiểm tra code trùng nếu thay đổi
     if classroom_data.code:
+        # Kiểm tra format mã lớp (Class0001, Class0002, ...)
+        import re
+        if not re.match(r'^Class\d{4}$', classroom_data.code):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Classroom code must be in format Class0001, Class0002, etc.")
+        
         code_check = (
             supabase.table("classrooms").select("id").eq("code", classroom_data.code).neq("id", classroom_id).execute()
         )
@@ -175,3 +230,70 @@ async def delete_classroom(
     if not result.data:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete classroom")
     return {"message": "Classroom deleted successfully"}
+
+
+# ----- Students management within classroom -----
+class ClassroomAssignStudents(BaseModel):
+    student_ids: List[str]
+
+
+@router.get("/next-code")
+async def get_next_class_code(
+    current_user = Depends(get_current_user),
+    supabase: Client = Depends(get_db),
+):
+    """Lấy mã lớp tiếp theo (chỉ admin)"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    # Lấy tất cả code dạng Class#### (giới hạn để an toàn)
+    codes_res = supabase.table("classrooms").select("code").ilike("code", "Class%").limit(1000).execute()
+    max_num = 0
+    if codes_res.data:
+        for row in codes_res.data:
+            code = (row.get("code") or "").strip()
+            if code.startswith("Class"):
+                suffix = code[5:]  # Lấy phần sau "Class"
+                if suffix.isdigit() and len(suffix) == 4:  # Đảm bảo đúng format 4 chữ số
+                    try:
+                        max_num = max(max_num, int(suffix))
+                    except Exception:
+                        pass
+    
+    # Tìm mã tiếp theo có sẵn
+    attempt = 1
+    while True:
+        candidate = f"Class{attempt:04d}"
+        dup = supabase.table("classrooms").select("id").eq("code", candidate).execute()
+        if not dup.data:
+            return {"next_code": candidate}
+        attempt += 1
+
+@router.post("/{classroom_id}/students")
+async def add_students_to_classroom(
+    classroom_id: str,
+    payload: ClassroomAssignStudents,
+    current_user = Depends(get_current_user),
+    supabase: Client = Depends(get_db),
+):
+    """Thêm nhiều học sinh vào lớp (chỉ admin)"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    # Check classroom exists
+    existing = supabase.table("classrooms").select("id").eq("id", classroom_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+
+    ids = [sid for sid in (payload.student_ids or []) if sid and sid.strip()]
+    if not ids:
+        return {"updated": 0}
+
+    # Update students' classroom_id
+    update_result = supabase.table("students").update({"classroom_id": classroom_id}).in_("id", ids).execute()
+
+    # Supabase python client doesn't return affected count reliably; fetch to count
+    updated_students = supabase.table("students").select("id").eq("classroom_id", classroom_id).in_("id", ids).execute()
+    return {"updated": len(updated_students.data or [])}
+
+

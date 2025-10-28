@@ -103,18 +103,7 @@ export const subjectsAPI = {
     api.delete(`/api/subjects/${id}`),
 };
 
-export const classroomsAPI = {
-  getClassrooms: (params?: any) =>
-    api.get('/api/classrooms', { params }),
-  getClassroom: (id: string) =>
-    api.get(`/api/classrooms/${id}`),
-  createClassroom: (data: any) =>
-    api.post('/api/classrooms', data),
-  updateClassroom: (id: string, data: any) =>
-    api.put(`/api/classrooms/${id}`, data),
-  deleteClassroom: (id: string) =>
-    api.delete(`/api/classrooms/${id}`),
-};
+// Classrooms API removed
 
 export const schedulesAPI = {
   getSchedules: (params?: any) =>
