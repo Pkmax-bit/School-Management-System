@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS classrooms (
     description TEXT,
     capacity INTEGER DEFAULT 30,
     teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL,
+    subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -70,6 +71,9 @@ CREATE TABLE IF NOT EXISTS classrooms (
 -- Add foreign key constraint for students.classroom_id
 ALTER TABLE students ADD CONSTRAINT fk_students_classroom 
     FOREIGN KEY (classroom_id) REFERENCES classrooms(id) ON DELETE SET NULL;
+
+-- Add subject_id column to classrooms table if it doesn't exist
+ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL;
 
 -- Schedules table
 CREATE TABLE IF NOT EXISTS schedules (
@@ -165,6 +169,7 @@ CREATE INDEX IF NOT EXISTS idx_students_student_code ON students(student_code);
 CREATE INDEX IF NOT EXISTS idx_students_classroom_id ON students(classroom_id);
 CREATE INDEX IF NOT EXISTS idx_subjects_code ON subjects(code);
 CREATE INDEX IF NOT EXISTS idx_classrooms_teacher_id ON classrooms(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_classrooms_subject_id ON classrooms(subject_id);
 CREATE INDEX IF NOT EXISTS idx_schedules_classroom_id ON schedules(classroom_id);
 CREATE INDEX IF NOT EXISTS idx_schedules_teacher_id ON schedules(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_assignments_classroom_id ON assignments(classroom_id);

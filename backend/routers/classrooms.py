@@ -25,6 +25,8 @@ class ClassroomCreate(BaseModel):
     capacity: Optional[conint(strict=True, ge=1)] = 30
     # teacher_id: uuid null (FK)
     teacher_id: Optional[str] = None
+    # subject_id: uuid null (FK)
+    subject_id: Optional[str] = None
     # optional list of students to assign to this classroom upon creation
     student_ids: Optional[List[str]] = None
     # dates
@@ -38,6 +40,7 @@ class ClassroomUpdate(BaseModel):
     description: Optional[str] = None
     capacity: Optional[int] = None
     teacher_id: Optional[str] = None
+    subject_id: Optional[str] = None
     open_date: Optional[str] = None
     close_date: Optional[str] = None
 
@@ -49,6 +52,7 @@ class ClassroomResponse(BaseModel):
     description: Optional[str] = None
     capacity: Optional[int] = 30
     teacher_id: Optional[str] = None
+    subject_id: Optional[str] = None
     open_date: Optional[str] = None
     close_date: Optional[str] = None
     created_at: Optional[str] = None
@@ -74,6 +78,7 @@ async def create_classroom(
     normalized_description = (classroom_data.description or None)
     normalized_capacity = classroom_data.capacity or 30
     normalized_teacher_id = classroom_data.teacher_id or None
+    normalized_subject_id = classroom_data.subject_id or None
 
     # Tạo code tự động nếu client gửi Class
     if normalized_code.lower() == "class":
@@ -116,12 +121,19 @@ async def create_classroom(
         if not teacher.data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Teacher not found")
 
+    # Kiểm tra subject có tồn tại không (nếu có)
+    if normalized_subject_id:
+        subject = supabase.table("subjects").select("id").eq("id", normalized_subject_id).execute()
+        if not subject.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
+
     insert_payload = {
         "name": normalized_name,
         "code": normalized_code,
         "description": normalized_description,
         "capacity": normalized_capacity,
         "teacher_id": normalized_teacher_id,
+        "subject_id": normalized_subject_id,
         "open_date": classroom_data.open_date or None,
         "close_date": classroom_data.close_date or None,
     }
@@ -204,6 +216,12 @@ async def update_classroom(
         teacher = supabase.table("teachers").select("id").eq("id", classroom_data.teacher_id).execute()
         if not teacher.data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Teacher not found")
+
+    # Kiểm tra subject tồn tại nếu thay đổi subject_id
+    if classroom_data.subject_id:
+        subject = supabase.table("subjects").select("id").eq("id", classroom_data.subject_id).execute()
+        if not subject.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
 
     update_data = classroom_data.dict(exclude_unset=True)
     result = supabase.table("classrooms").update(update_data).eq("id", classroom_id).execute()

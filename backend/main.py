@@ -20,6 +20,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "message": "Server is running"}
+
 # CORS middleware
 cors_origins = settings.CORS_ORIGINS.split(",") if settings.CORS_ORIGINS else ["http://localhost:3000"]
 app.add_middleware(

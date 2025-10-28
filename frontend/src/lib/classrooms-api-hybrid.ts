@@ -32,16 +32,23 @@ async function apiRequest(url: string, options: {
     ...(options.body ? { body: JSON.stringify(options.body) } : {}),
   };
 
-  const response = await fetch(url, requestOptions);
-  if (!response.ok) {
-    const text = await response.text();
-    if (response.status === 401) throw new Error('Authentication required (401)');
-    if (response.status === 403) throw new Error('Forbidden (403)');
-    if (response.status === 404) throw new Error('Not Found (404)');
-    if (response.status === 500) throw new Error('Server Error (500)');
-    throw new Error(`HTTP ${response.status}: ${text}`);
+  try {
+    const response = await fetch(url, requestOptions);
+    if (!response.ok) {
+      const text = await response.text();
+      if (response.status === 401) throw new Error('Authentication required (401)');
+      if (response.status === 403) throw new Error('Forbidden (403)');
+      if (response.status === 404) throw new Error('Not Found (404)');
+      if (response.status === 500) throw new Error('Server Error (500)');
+      throw new Error(`HTTP ${response.status}: ${text}`);
+    }
+    return await response.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và đảm bảo backend server đang chạy.');
+    }
+    throw error;
   }
-  return await response.json();
 }
 
 function buildUrl(path: string, params?: Record<string, string | number | undefined>) {
@@ -58,6 +65,7 @@ export interface ClassroomPayload {
   description?: string | null
   capacity?: number
   teacher_id?: string | null
+  subject_id?: string | null
   student_ids?: string[]
   open_date?: string | null
   close_date?: string | null

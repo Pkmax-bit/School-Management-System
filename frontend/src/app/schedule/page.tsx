@@ -583,21 +583,20 @@ export default function SchedulePage() {
                     </p>
                   )}
                 </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="day_of_week">Thứ trong tuần *</Label>
-                    <select
-                      id="day_of_week"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      value={formData.day_of_week}
-                      onChange={(e) => setFormData({ ...formData, day_of_week: Number(e.target.value) })}
-                    >
-                      {DAYS_OF_WEEK.map((day, index) => (
-                        <option key={index} value={index}>
-                          {day}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="day_of_week">Thứ trong tuần *</Label>
+                  <select
+                    id="day_of_week"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={formData.day_of_week}
+                    onChange={(e) => setFormData({ ...formData, day_of_week: Number(e.target.value) })}
+                  >
+                    {DAYS_OF_WEEK.map((day, index) => (
+                      <option key={index} value={index}>
+                        {day}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">

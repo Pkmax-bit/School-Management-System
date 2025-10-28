@@ -27,6 +27,7 @@ export default function ClassesPage() {
     code: '',
     capacity: 30,
     teacher_id: '',
+    subject_id: '',
     description: '',
     open_date: '',
     close_date: ''
@@ -37,6 +38,8 @@ export default function ClassesPage() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [teachers, setTeachers] = useState<Array<{ id: string; name?: string; email?: string }>>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
+  const [subjects, setSubjects] = useState<Array<{ id: string; name?: string; code?: string }>>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [students, setStudents] = useState<Array<{ id: string; name?: string; email?: string }>>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -71,6 +74,29 @@ export default function ClassesPage() {
       setTeachers([]);
     } finally {
       setLoadingTeachers(false);
+    }
+  }, []);
+
+  const loadSubjects = useCallback(async () => {
+    try {
+      setLoadingSubjects(true);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${API_BASE_URL}/api/subjects?limit=1000`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error('Failed to fetch subjects');
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+      setSubjects(list);
+    } catch (e) {
+      console.error('Load subjects failed', e);
+      setSubjects([]);
+    } finally {
+      setLoadingSubjects(false);
     }
   }, []);
 
@@ -109,6 +135,7 @@ export default function ClassesPage() {
     if (user && user.role === 'admin' && !hasLoaded) {
       loadClasses();
       loadTeachers();
+      loadSubjects();
       (async () => {
         try {
           setLoadingStudents(true);
@@ -210,11 +237,24 @@ export default function ClassesPage() {
         code: formData.code.trim(),
         capacity: Number(formData.capacity) || 30,
         teacher_id: (formData.teacher_id || '').trim() || null,
+        subject_id: (formData.subject_id || '').trim() || null,
         description: (formData.description || '').trim() || null,
         student_ids: selectedStudentIds,
         open_date: formData.open_date || null,
         close_date: formData.close_date || null,
       };
+      
+      // Check if backend is available before attempting to create
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      try {
+        const healthCheck = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+        if (!healthCheck.ok) {
+          throw new Error('Backend server không phản hồi');
+        }
+      } catch (healthError) {
+        throw new Error('Không thể kết nối đến backend server. Vui lòng kiểm tra:\n1. Backend server đang chạy\n2. URL API đúng: ' + API_BASE_URL + '\n3. CORS được cấu hình đúng');
+      }
+      
       await classroomsHybridApi.create(payload);
       await loadClasses();
       setIsDialogOpen(false);
@@ -237,11 +277,24 @@ export default function ClassesPage() {
         code: formData.code.trim(),
         capacity: Number(formData.capacity) || 30,
         teacher_id: (formData.teacher_id || '').trim() || null,
+        subject_id: (formData.subject_id || '').trim() || null,
         description: (formData.description || '').trim() || null,
         student_ids: selectedStudentIds,
         open_date: formData.open_date || null,
         close_date: formData.close_date || null,
       };
+      
+      // Check if backend is available before attempting to update
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      try {
+        const healthCheck = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+        if (!healthCheck.ok) {
+          throw new Error('Backend server không phản hồi');
+        }
+      } catch (healthError) {
+        throw new Error('Không thể kết nối đến backend server. Vui lòng kiểm tra:\n1. Backend server đang chạy\n2. URL API đúng: ' + API_BASE_URL + '\n3. CORS được cấu hình đúng');
+      }
+      
       await classroomsHybridApi.update(editingClass.id, payload);
       await loadClasses();
       setIsDialogOpen(false);
@@ -275,12 +328,13 @@ export default function ClassesPage() {
       code: cls.code || '',
       capacity: typeof cls.capacity === 'number' ? cls.capacity : 30,
       teacher_id: cls.teacher_id || '',
+      subject_id: cls.subject_id || '',
       description: cls.description || '',
       open_date: cls.open_date ? String(cls.open_date).slice(0, 10) : '',
       close_date: cls.close_date ? String(cls.close_date).slice(0, 10) : ''
     });
     setErrors({});
-      setIsDialogOpen(true);
+    setIsDialogOpen(true);
       setSelectedStudentIds([]);
   };
 
@@ -289,32 +343,15 @@ export default function ClassesPage() {
     resetForm();
     setAutoCode(true);
     
-    // Lấy mã lớp tiếp theo trước khi mở dialog
-    try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-      const res = await fetch(`${API_BASE_URL}/api/classrooms/next-code`, {
-        headers: {
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        }
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        setFormData((prev: any) => ({ ...prev, code: data.next_code || 'Class0001' }));
-      } else {
-        setFormData((prev: any) => ({ ...prev, code: getNextCodeFromList(classes) }));
-      }
-    } catch (error) {
-      console.error('Error getting next class code:', error);
-      setFormData((prev: any) => ({ ...prev, code: getNextCodeFromList(classes) }));
-    }
-    
+    // Prefill next code on client to avoid network dependency
+    const nextCode = getNextCodeFromList(classes) || 'Class0001';
+    setFormData((prev: any) => ({ ...prev, code: nextCode }));
+
     setIsDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', code: 'class', capacity: 30, teacher_id: '', description: '', open_date: '', close_date: '' });
+    setFormData({ name: '', code: 'class', capacity: 30, teacher_id: '', subject_id: '', description: '', open_date: '', close_date: '' });
     setErrors({});
   };
 
@@ -412,7 +449,7 @@ export default function ClassesPage() {
                         Thêm lớp học
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>
                           {editingClass ? 'Chỉnh sửa lớp học' : 'Thêm lớp học mới'}
@@ -421,16 +458,21 @@ export default function ClassesPage() {
                           {editingClass ? 'Cập nhật thông tin lớp học' : 'Thêm lớp học mới vào hệ thống'}
                         </DialogDescription>
                       </DialogHeader>
-                      <div className="space-y-4 py-4">
+                      <div className="space-y-6 py-4">
+                        {/* Basic Information - 2 columns */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold">Thông tin cơ bản</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="name">Tên lớp *</Label>
                           <Input
                             id="name"
                             value={formData.name}
-                            onChange={(e) => {
-                              setFormData({ ...formData, name: e.target.value });
-                            }}
+                                onChange={(e) => {
+                                  setFormData({ ...formData, name: e.target.value });
+                                }}
                             className={errors.name ? 'border-red-500' : ''}
+                                placeholder="Nhập tên lớp học"
                           />
                           {errors.name && (
                             <p className="text-sm text-red-500 flex items-center gap-1">
@@ -441,12 +483,24 @@ export default function ClassesPage() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="code">Mã lớp *</Label>
+                              <div className="flex gap-2">
                           <Input
                             id="code"
                             value={formData.code}
-                            onChange={(e) => { setFormData({ ...formData, code: e.target.value.toUpperCase() }); setAutoCode(false); }}
+                                  onChange={(e) => { setFormData({ ...formData, code: e.target.value.toUpperCase() }); setAutoCode(false); }}
                             className={errors.code ? 'border-red-500' : ''}
-                          />
+                                  placeholder="Class0001, Class0002..."
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setFormData({ ...formData, code: 'class' })}
+                                  className="whitespace-nowrap"
+                                >
+                                  Tự động
+                                </Button>
+                              </div>
                           {errors.code && (
                             <p className="text-sm text-red-500 flex items-center gap-1">
                               <AlertCircle className="w-4 h-4" />
@@ -463,6 +517,7 @@ export default function ClassesPage() {
                             value={formData.capacity}
                             onChange={(e) => setFormData({ ...formData, capacity: Number(e.target.value) || 0 })}
                             className={errors.capacity ? 'border-red-500' : ''}
+                                placeholder="30"
                           />
                           {errors.capacity && (
                             <p className="text-sm text-red-500 flex items-center gap-1">
@@ -471,6 +526,12 @@ export default function ClassesPage() {
                             </p>
                           )}
                         </div>
+                          </div>
+                        </div>
+                        {/* Teacher and Subject - 2 columns */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold">Giảng dạy</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="teacher_id">Giáo viên</Label>
                           <select
@@ -490,78 +551,113 @@ export default function ClassesPage() {
                           )}
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="description">Mô tả</Label>
+                              <Label htmlFor="subject_id">Môn học</Label>
+                              <select
+                                id="subject_id"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                value={formData.subject_id}
+                                onChange={(e) => setFormData({ ...formData, subject_id: e.target.value })}
+                                disabled={loadingSubjects}
+                              >
+                                <option value="">-- Không gán môn học --</option>
+                                {subjects.map((s) => (
+                                  <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                                ))}
+                              </select>
+                              {loadingSubjects && (
+                                <div className="text-xs text-gray-500">Đang tải danh sách môn học...</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Schedule Information - 2 columns */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold">Thời gian học</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="open_date">Ngày bắt đầu</Label>
+                              <Input id="open_date" type="date" value={formData.open_date} onChange={(e) => setFormData({ ...formData, open_date: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="close_date">Ngày kết thúc</Label>
+                              <Input id="close_date" type="date" value={formData.close_date} onChange={(e) => setFormData({ ...formData, close_date: e.target.value })} />
+                            </div>
+                          </div>
+                          
+                          {/* Schedule hint - compact */}
+                          {scheduleHint() && (
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                              <p className="text-sm text-blue-700 mb-2">{scheduleHint()}</p>
+                              <div className="flex gap-4">
+                                <label className="flex items-center text-sm">
+                                  <input
+                                    type="radio"
+                                    name="sessionsPerWeek"
+                                    value="2"
+                                    checked={sessionsPerWeek === 2}
+                                    onChange={(e) => setSessionsPerWeek(Number(e.target.value))}
+                                    className="mr-2"
+                                  />
+                                  2 buổi/tuần
+                                </label>
+                                <label className="flex items-center text-sm">
+                                  <input
+                                    type="radio"
+                                    name="sessionsPerWeek"
+                                    value="3"
+                                    checked={sessionsPerWeek === 3}
+                                    onChange={(e) => setSessionsPerWeek(Number(e.target.value))}
+                                    className="mr-2"
+                                  />
+                                  3 buổi/tuần
+                                </label>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {/* Student Selection - compact */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold">Danh sách học sinh</h3>
+                          <div className="space-y-3">
                           <Input
-                            id="description"
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            className={errors.description ? 'border-red-500' : ''}
-                          />
-                          <div className="flex justify-between items-center">
-                            {errors.description && (
-                              <p className="text-sm text-red-500 flex items-center gap-1">
-                                <AlertCircle className="w-4 h-4" />
-                                {errors.description}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-500 ml-auto">{(formData.description || '').length}/500 ký tự</p>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="open_date">Ngày mở lớp</Label>
-                            <Input id="open_date" type="date" value={formData.open_date} onChange={(e) => setFormData({ ...formData, open_date: e.target.value })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="close_date">Ngày đóng lớp</Label>
-                            <Input id="close_date" type="date" value={formData.close_date} onChange={(e) => setFormData({ ...formData, close_date: e.target.value })} />
-                          </div>
-                        </div>
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-xs text-gray-600">
-                          <div>
-                            {scheduleHint()}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span>Số buổi/tuần:</span>
-                            <select
-                              className="border border-gray-300 rounded px-2 py-1 text-sm"
-                              value={sessionsPerWeek}
-                              onChange={(e) => setSessionsPerWeek(Number(e.target.value) || 2)}
-                            >
-                              <option value={2}>2 buổi</option>
-                              <option value={3}>3 buổi</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="student_search">Học sinh</Label>
-                          <Input id="student_search" placeholder="Tìm theo tên/email" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} />
-                          <div className="w-full border border-gray-300 rounded-md h-48 overflow-y-auto p-2">
-                            {loadingStudents ? (
-                              <div className="text-xs text-gray-500 px-1 py-2">Đang tải danh sách học sinh...</div>
-                            ) : (
-                              filteredStudents.map((s: any) => {
+                              placeholder="Tìm kiếm học sinh..." 
+                              value={studentSearch} 
+                              onChange={(e) => setStudentSearch(e.target.value)} 
+                            />
+                            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2">
+                              {filteredStudents.map((s: any) => {
                                 const label = `${s.name || s.email || s.id}${s.date_of_birth ? '-' + formatDob(s.date_of_birth) : ''}`;
                                 const checked = selectedStudentIds.includes(s.id);
                                 return (
-                                  <label key={s.id} className="flex items-center gap-2 py-1 cursor-pointer">
+                                  <label key={s.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded">
                                     <input
                                       type="checkbox"
-                                      className="h-4 w-4"
+                                      className="rounded"
                                       checked={checked}
                                       onChange={(e) => {
                                         if (e.target.checked) setSelectedStudentIds((prev) => Array.from(new Set([...prev, s.id])));
                                         else setSelectedStudentIds((prev) => prev.filter((id) => id !== s.id));
                                       }}
                                     />
-                                    <span className="text-sm text-gray-800">{label}</span>
+                                    <div className="flex-1">
+                                      <div className="font-medium text-sm">{s.name || s.email || s.id}</div>
+                                      <div className="text-xs text-gray-500">
+                                        {s.date_of_birth ? formatDob(s.date_of_birth) : 'N/A'}
+                                      </div>
+                                    </div>
                                   </label>
                                 );
-                              })
-                            )}
-                            {(!loadingStudents && filteredStudents.length === 0) && (
-                              <div className="text-xs text-gray-500 px-1 py-2">Không có học sinh phù hợp</div>
-                            )}
+                              })}
+                              {loadingStudents && (
+                                <div className="text-center py-4 text-gray-500 text-sm">Đang tải danh sách học sinh...</div>
+                              )}
+                              {!loadingStudents && filteredStudents.length === 0 && (
+                                <div className="text-center py-4 text-gray-500 text-sm">Không tìm thấy học sinh nào</div>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded">
+                              Đã chọn: <span className="font-medium">{selectedStudentIds.length}</span> học sinh
+                            </div>
                           </div>
                         </div>
                         <div className="flex gap-2 pt-2">

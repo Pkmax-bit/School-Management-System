@@ -22,6 +22,7 @@ export default function ClassroomsPage() {
   const [formCode, setFormCode] = useState('');
   const [formCapacity, setFormCapacity] = useState<number>(30);
   const [formTeacherId, setFormTeacherId] = useState<string>('');
+  const [formSubjectId, setFormSubjectId] = useState<string>('');
   const [formDescription, setFormDescription] = useState<string>('');
   const [formOpenDate, setFormOpenDate] = useState<string>('');
   const [formCloseDate, setFormCloseDate] = useState<string>('');
@@ -31,6 +32,8 @@ export default function ClassroomsPage() {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [teachers, setTeachers] = useState<Array<{ id: string; name?: string; email?: string }>>([]);
   const [loadingTeachers, setLoadingTeachers] = useState<boolean>(false);
+  const [subjects, setSubjects] = useState<Array<{ id: string; name?: string; code?: string }>>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState<boolean>(false);
   const [students, setStudents] = useState<Array<{ id: string; name?: string; email?: string }>>([]);
   const [loadingStudents, setLoadingStudents] = useState<boolean>(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -69,6 +72,7 @@ export default function ClassroomsPage() {
     setFormCode('Class0001'); // Default fallback
     setFormCapacity(30);
     setFormTeacherId('');
+    setFormSubjectId('');
     setFormDescription('');
     setFormOpenDate('');
     setFormCloseDate('');
@@ -148,6 +152,30 @@ export default function ClassroomsPage() {
     }
   };
 
+  const loadSubjects = async () => {
+    try {
+      setLoadingSubjects(true);
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${API_BASE_URL}/api/subjects?limit=1000`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to load subjects (${res.status})`);
+      }
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+      setSubjects(list);
+    } catch (e) {
+      console.error('Failed to load subjects list', e);
+      setSubjects([]);
+    } finally {
+      setLoadingSubjects(false);
+    }
+  };
+
   const loadStudents = async () => {
     try {
       setLoadingStudents(true);
@@ -221,6 +249,7 @@ export default function ClassroomsPage() {
     if (user) {
       loadData();
       loadTeachers();
+      loadSubjects();
       loadStudents();
     }
   }, [user]);
@@ -312,6 +341,7 @@ export default function ClassroomsPage() {
                               setFormCode(c.code || '');
                               setFormCapacity(typeof c.capacity === 'number' ? c.capacity : 30);
                               setFormTeacherId(c.teacher_id || '');
+                              setFormSubjectId(c.subject_id || '');
                               setFormDescription(c.description || '');
                               setFormOpenDate(c.open_date ? c.open_date.slice(0, 10) : '');
                               setFormCloseDate(c.close_date ? c.close_date.slice(0, 10) : '');
@@ -350,7 +380,7 @@ export default function ClassroomsPage() {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setSaving(false); } }}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Cập nhật lớp học' : 'Thêm lớp học'}</DialogTitle>
             <DialogDescription>Nhập thông tin lớp học</DialogDescription>
@@ -401,6 +431,24 @@ export default function ClassroomsPage() {
               </select>
               {loadingTeachers && (
                 <div className="text-xs text-gray-500">Đang tải danh sách giáo viên...</div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="subject_id">Môn học</Label>
+              <select
+                id="subject_id"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                value={formSubjectId}
+                onChange={(e) => setFormSubjectId(e.target.value)}
+                disabled={loadingSubjects}
+              >
+                <option value="">-- Không gán môn học --</option>
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                ))}
+              </select>
+              {loadingSubjects && (
+                <div className="text-xs text-gray-500">Đang tải danh sách môn học...</div>
               )}
             </div>
             <div className="space-y-2">
@@ -486,6 +534,7 @@ export default function ClassroomsPage() {
                       code: formCode.trim(),
                       capacity: formCapacity && formCapacity > 0 ? formCapacity : 30,
                       teacher_id: formTeacherId.trim() || null,
+                      subject_id: formSubjectId.trim() || null,
                       description: formDescription.trim() || null,
                       student_ids: selectedStudentIds,
                       open_date: formOpenDate || null,
