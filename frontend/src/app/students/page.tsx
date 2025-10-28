@@ -337,7 +337,7 @@ export default function StudentsPage() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <AdminSidebar currentPage={currentPage} onNavigate={handleNavigate} />
+      <AdminSidebar currentPage={currentPage} onNavigate={handleNavigate} onLogout={logout} />
       <div className="flex-1 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">

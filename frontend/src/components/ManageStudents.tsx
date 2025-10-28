@@ -16,9 +16,9 @@ export function ManageStudents() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   const filteredStudents = students.filter(student =>
-    student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    student.class.toLowerCase().includes(searchQuery.toLowerCase())
+    student.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    student.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    student.student_code?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleDelete = (id: string) => {
@@ -37,7 +37,7 @@ export function ManageStudents() {
     setIsDialogOpen(true);
   };
 
-  const avgGPA = students.reduce((sum, s) => sum + s.gpa, 0) / students.length;
+  // const avgGPA = students.reduce((sum, s) => sum + s.gpa, 0) / students.length;
 
   return (
     <div className="space-y-6">
@@ -64,13 +64,13 @@ export function ManageStudents() {
         <Card>
           <CardContent className="p-6">
             <p className="text-sm text-gray-600 mb-1">Điểm TB</p>
-            <p className="text-3xl text-purple-600">{avgGPA.toFixed(1)}</p>
+            <p className="text-3xl text-purple-600">N/A</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
             <p className="text-sm text-gray-600 mb-1">Lớp học</p>
-            <p className="text-3xl text-yellow-600">{new Set(students.map(s => s.class)).size}</p>
+            <p className="text-3xl text-yellow-600">{new Set(students.map(s => s.classroom_id).filter(Boolean)).size}</p>
           </CardContent>
         </Card>
       </div>
@@ -123,8 +123,8 @@ export function ManageStudents() {
                       <Input id="phone" placeholder="0901234567" defaultValue={editingStudent?.phone} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="class">Lớp học</Label>
-                      <Input id="class" placeholder="10A1" defaultValue={editingStudent?.class} />
+                      <Label htmlFor="classroom_id">Lớp học</Label>
+                      <Input id="classroom_id" placeholder="10A1" defaultValue={editingStudent?.classroom_id} />
                     </div>
                     <div className="flex gap-2 pt-4">
                       <Button className="flex-1" onClick={() => setIsDialogOpen(false)}>
@@ -160,9 +160,9 @@ export function ManageStudents() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                          <span className="text-green-600">{student.name.charAt(0)}</span>
+                          <span className="text-green-600">{student.name?.charAt(0) || 'N'}</span>
                         </div>
-                        <span>{student.name}</span>
+                        <span>{student.name || 'N/A'}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -178,13 +178,13 @@ export function ManageStudents() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{student.class}</Badge>
+                      <Badge variant="outline">{student.classroom_id || 'N/A'}</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Award className="w-4 h-4 text-purple-600" />
-                        <span className={student.gpa >= 8.0 ? 'text-green-600' : student.gpa >= 6.5 ? 'text-yellow-600' : 'text-red-600'}>
-                          {student.gpa.toFixed(1)}
+                        <span className="text-gray-600">
+                          N/A
                         </span>
                       </div>
                     </TableCell>

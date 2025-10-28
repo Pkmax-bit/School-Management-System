@@ -37,10 +37,10 @@ async function getSupabaseSession() {
 }
 
 async function apiRequest(url: string, options: RequestInit = {}): Promise<any> {
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    ...options.headers,
+    ...options.headers as Record<string, string>,
   };
 
   // Get authentication tokens

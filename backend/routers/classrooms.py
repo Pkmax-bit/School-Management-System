@@ -1,157 +1,177 @@
 """
 Classrooms Router
-Router cho quản lý lớp học
+Router cho quản lý lớp học (Supabase)
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, constr, conint
+from supabase import Client
 
 from database import get_db
-from models.user import User, UserRole
-from models.classroom import Classroom
-from models.teacher import Teacher
 from routers.auth import get_current_user
 
 router = APIRouter()
 
+
 class ClassroomCreate(BaseModel):
-    name: str
-    code: str
-    description: str = None
-    capacity: int = 30
-    teacher_id: str = None
+    # name: varchar(255) not null
+    name: constr(strip_whitespace=True, min_length=1, max_length=255)
+    # code: varchar(50) not null unique
+    code: constr(strip_whitespace=True, min_length=1, max_length=50)
+    # description: text null
+    description: Optional[str] = None
+    # capacity: integer null default 30
+    capacity: Optional[conint(strict=True, ge=1)] = 30
+    # teacher_id: uuid null (FK)
+    teacher_id: Optional[str] = None
+
+
+class ClassroomUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+    capacity: Optional[int] = None
+    teacher_id: Optional[str] = None
+
 
 class ClassroomResponse(BaseModel):
     id: str
     name: str
     code: str
-    description: str
-    capacity: int
-    teacher_id: str
-    created_at: str
-    
+    description: Optional[str] = None
+    capacity: Optional[int] = 30
+    teacher_id: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
     class Config:
         from_attributes = True
+
 
 @router.post("/", response_model=ClassroomResponse)
 async def create_classroom(
     classroom_data: ClassroomCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user = Depends(get_current_user),
+    supabase: Client = Depends(get_db),
 ):
     """Tạo lớp học mới (chỉ admin)"""
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
-        )
-    
-    # Kiểm tra code đã tồn tại chưa
-    existing_classroom = db.query(Classroom).filter(Classroom.code == classroom_data.code).first()
-    if existing_classroom:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Classroom code already exists"
-        )
-    
-    # Kiểm tra teacher có tồn tại không
-    if classroom_data.teacher_id:
-        teacher = db.query(Teacher).filter(Teacher.id == classroom_data.teacher_id).first()
-        if not teacher:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Teacher not found"
-            )
-    
-    db_classroom = Classroom(**classroom_data.dict())
-    db.add(db_classroom)
-    db.commit()
-    db.refresh(db_classroom)
-    return db_classroom
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    # Chuẩn hóa input
+    normalized_name = classroom_data.name.strip()
+    normalized_code = classroom_data.code.strip()
+    normalized_description = (classroom_data.description or None)
+    normalized_capacity = classroom_data.capacity or 30
+    normalized_teacher_id = classroom_data.teacher_id or None
+
+    # Kiểm tra code đã tồn tại chưa (unique constraint)
+    existing = supabase.table("classrooms").select("id").eq("code", normalized_code).execute()
+    if existing.data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Classroom code already exists")
+
+    # Kiểm tra teacher có tồn tại không (nếu có)
+    if normalized_teacher_id:
+        teacher = supabase.table("teachers").select("id").eq("id", normalized_teacher_id).execute()
+        if not teacher.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Teacher not found")
+
+    insert_payload = {
+        "name": normalized_name,
+        "code": normalized_code,
+        "description": normalized_description,
+        "capacity": normalized_capacity,
+        "teacher_id": normalized_teacher_id,
+    }
+
+    result = supabase.table("classrooms").insert(insert_payload).execute()
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create classroom")
+    return result.data[0]
+
 
 @router.get("/", response_model=List[ClassroomResponse])
 async def get_classrooms(
     skip: int = 0,
     limit: int = 100,
     teacher_id: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user = Depends(get_current_user),
+    supabase: Client = Depends(get_db),
 ):
     """Lấy danh sách lớp học"""
-    query = db.query(Classroom)
-    
+    query = supabase.table("classrooms").select("*")
     if teacher_id:
-        query = query.filter(Classroom.teacher_id == teacher_id)
-    
-    classrooms = query.offset(skip).limit(limit).all()
-    return classrooms
+        query = query.eq("teacher_id", teacher_id)
+    result = query.order("created_at", desc=True).range(skip, skip + limit - 1).execute()
+    return result.data or []
+
 
 @router.get("/{classroom_id}", response_model=ClassroomResponse)
 async def get_classroom(
     classroom_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user = Depends(get_current_user),
+    supabase: Client = Depends(get_db),
 ):
     """Lấy thông tin một lớp học"""
-    classroom = db.query(Classroom).filter(Classroom.id == classroom_id).first()
-    if not classroom:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Classroom not found"
-        )
-    return classroom
+    result = supabase.table("classrooms").select("*").eq("id", classroom_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+    return result.data[0]
+
 
 @router.put("/{classroom_id}", response_model=ClassroomResponse)
 async def update_classroom(
     classroom_id: str,
-    classroom_data: ClassroomCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    classroom_data: ClassroomUpdate,
+    current_user = Depends(get_current_user),
+    supabase: Client = Depends(get_db),
 ):
-    """Cập nhật thông tin lớp học"""
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
+    """Cập nhật thông tin lớp học (chỉ admin)"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    # Tồn tại lớp?
+    existing = supabase.table("classrooms").select("id").eq("id", classroom_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+
+    # Kiểm tra code trùng nếu thay đổi
+    if classroom_data.code:
+        code_check = (
+            supabase.table("classrooms").select("id").eq("code", classroom_data.code).neq("id", classroom_id).execute()
         )
-    
-    classroom = db.query(Classroom).filter(Classroom.id == classroom_id).first()
-    if not classroom:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Classroom not found"
-        )
-    
+        if code_check.data:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Classroom code already exists")
+
+    # Kiểm tra teacher tồn tại nếu thay đổi teacher_id
+    if classroom_data.teacher_id:
+        teacher = supabase.table("teachers").select("id").eq("id", classroom_data.teacher_id).execute()
+        if not teacher.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Teacher not found")
+
     update_data = classroom_data.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(classroom, field, value)
-    
-    db.commit()
-    db.refresh(classroom)
-    return classroom
+    result = supabase.table("classrooms").update(update_data).eq("id", classroom_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update classroom")
+    return result.data[0]
+
 
 @router.delete("/{classroom_id}")
 async def delete_classroom(
     classroom_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user = Depends(get_current_user),
+    supabase: Client = Depends(get_db),
 ):
     """Xóa lớp học (chỉ admin)"""
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
-        )
-    
-    classroom = db.query(Classroom).filter(Classroom.id == classroom_id).first()
-    if not classroom:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Classroom not found"
-        )
-    
-    db.delete(classroom)
-    db.commit()
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    existing = supabase.table("classrooms").select("id").eq("id", classroom_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+
+    result = supabase.table("classrooms").delete().eq("id", classroom_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete classroom")
     return {"message": "Classroom deleted successfully"}
