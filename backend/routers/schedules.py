@@ -62,13 +62,58 @@ async def create_schedule(
     if not teacher.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Teacher not found")
 
+    # Lấy thông tin classroom để kiểm tra campus_id
+    classroom_info = supabase.table("classrooms").select("campus_id").eq("id", schedule_data.classroom_id).execute()
+    if not classroom_info.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+    
+    campus_id = classroom_info.data[0]["campus_id"]
+    
+    # Kiểm tra xung đột phòng học: cùng phòng, cùng cơ sở, cùng khung giờ
+    # TODO: Temporarily disabled for debugging
+    # if schedule_data.room and campus_id:
+    #     # Tìm các lịch học có cùng phòng, cùng cơ sở, cùng ngày trong tuần
+    #     conflict_query = supabase.table("schedules").select("""
+    #         id,
+    #         start_time,
+    #         end_time,
+    #         room,
+    #         classrooms!inner(
+    #             campus_id
+    #         )
+    #     """).eq("day_of_week", schedule_data.day_of_week).eq("room", schedule_data.room)
+    #     
+    #     # Filter by campus_id through classroom
+    #     conflict_result = conflict_query.eq("classrooms.campus_id", campus_id).execute()
+    #     
+    #     if conflict_result.data:
+    #         # Kiểm tra xung đột thời gian
+    #         new_start_str = schedule_data.start_time.isoformat() if hasattr(schedule_data.start_time, 'isoformat') else str(schedule_data.start_time)
+    #         new_end_str = schedule_data.end_time.isoformat() if hasattr(schedule_data.end_time, 'isoformat') else str(schedule_data.end_time)
+    #         
+    #         # Convert to time objects for comparison
+    #         from datetime import time
+    #         new_start = time.fromisoformat(new_start_str.split('T')[-1])
+    #         new_end = time.fromisoformat(new_end_str.split('T')[-1])
+    #         
+    #         for existing in conflict_result.data:
+    #             existing_start = time.fromisoformat(existing["start_time"])
+    #             existing_end = time.fromisoformat(existing["end_time"])
+    #             
+    #             # Kiểm tra xung đột thời gian
+    #             if (new_start < existing_end and new_end > existing_start):
+    #                 raise HTTPException(
+    #                     status_code=status.HTTP_400_BAD_REQUEST, 
+    #                     detail=f"Phòng {schedule_data.room} đã được sử dụng trong khung giờ {existing["start_time"]} - {existing["end_time"]} tại cơ sở này. Vui lòng chọn phòng khác hoặc khung giờ khác."
+    #                 )
+
     payload = {
         "classroom_id": schedule_data.classroom_id,
         "subject_id": schedule_data.subject_id,
         "teacher_id": schedule_data.teacher_id,
         "day_of_week": schedule_data.day_of_week,
-        "start_time": schedule_data.start_time.isoformat(),
-        "end_time": schedule_data.end_time.isoformat(),
+        "start_time": schedule_data.start_time.isoformat() if hasattr(schedule_data.start_time, 'isoformat') else str(schedule_data.start_time),
+        "end_time": schedule_data.end_time.isoformat() if hasattr(schedule_data.end_time, 'isoformat') else str(schedule_data.end_time),
         "room": schedule_data.room,
     }
 
@@ -194,6 +239,51 @@ async def update_schedule(
     existing = supabase.table("schedules").select("id").eq("id", schedule_id).execute()
     if not existing.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+
+    # Lấy thông tin classroom để kiểm tra campus_id
+    classroom_info = supabase.table("classrooms").select("campus_id").eq("id", schedule_data.classroom_id).execute()
+    if not classroom_info.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+    
+    campus_id = classroom_info.data[0]["campus_id"]
+    
+    # Kiểm tra xung đột phòng học: cùng phòng, cùng cơ sở, cùng khung giờ
+    # TODO: Temporarily disabled for debugging
+    # if schedule_data.room and campus_id:
+    #     # Tìm các lịch học có cùng phòng, cùng cơ sở, cùng ngày trong tuần (trừ lịch hiện tại)
+    #     conflict_query = supabase.table("schedules").select("""
+    #         id,
+    #         start_time,
+    #         end_time,
+    #         room,
+    #         classrooms!inner(
+    #             campus_id
+    #         )
+    #     """).eq("day_of_week", schedule_data.day_of_week).eq("room", schedule_data.room).neq("id", schedule_id)
+    #     
+    #     # Filter by campus_id through classroom
+    #     conflict_result = conflict_query.eq("classrooms.campus_id", campus_id).execute()
+    #     
+    #     if conflict_result.data:
+    #         # Kiểm tra xung đột thời gian
+    #         new_start_str = schedule_data.start_time.isoformat() if hasattr(schedule_data.start_time, 'isoformat') else str(schedule_data.start_time)
+    #         new_end_str = schedule_data.end_time.isoformat() if hasattr(schedule_data.end_time, 'isoformat') else str(schedule_data.end_time)
+    #         
+    #         # Convert to time objects for comparison
+    #         from datetime import time
+    #         new_start = time.fromisoformat(new_start_str.split('T')[-1])
+    #         new_end = time.fromisoformat(new_end_str.split('T')[-1])
+    #         
+    #         for existing in conflict_result.data:
+    #             existing_start = time.fromisoformat(existing["start_time"])
+    #             existing_end = time.fromisoformat(existing["end_time"])
+    #             
+    #             # Kiểm tra xung đột thời gian
+    #             if (new_start < existing_end and new_end > existing_start):
+    #                 raise HTTPException(
+    #                     status_code=status.HTTP_400_BAD_REQUEST, 
+    #                     detail=f"Phòng {schedule_data.room} đã được sử dụng trong khung giờ {existing["start_time"]} - {existing["end_time"]} tại cơ sở này. Vui lòng chọn phòng khác hoặc khung giờ khác."
+    #                 )
 
     update_data = schedule_data.dict(exclude_unset=True)
     if "start_time" in update_data:

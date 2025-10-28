@@ -175,6 +175,44 @@ export default function SchedulePage() {
     }
   }, [selectedCampus, selectedDay, hasLoaded, loadSchedules]);
 
+  const checkRoomConflict = async (room: string, dayOfWeek: number, startTime: string, endTime: string, campusId: string, excludeId?: string) => {
+    try {
+      // Lấy danh sách lịch học cùng phòng, cùng cơ sở, cùng ngày
+      const existingSchedules = await schedulesApi.list({
+        campus_id: campusId,
+        day_of_week: dayOfWeek
+      });
+      
+      // Lọc các lịch học cùng phòng (trừ lịch hiện tại nếu đang edit)
+      const conflictingSchedules = existingSchedules.filter(schedule => 
+        schedule.room === room && 
+        (!excludeId || schedule.id !== excludeId)
+      );
+      
+      // Kiểm tra xung đột thời gian
+      const newStart = new Date(`2000-01-01T${startTime}`);
+      const newEnd = new Date(`2000-01-01T${endTime}`);
+      
+      for (const schedule of conflictingSchedules) {
+        const existingStart = new Date(`2000-01-01T${schedule.start_time}`);
+        const existingEnd = new Date(`2000-01-01T${schedule.end_time}`);
+        
+        if (newStart < existingEnd && newEnd > existingStart) {
+          return {
+            hasConflict: true,
+            conflictSchedule: schedule,
+            message: `Phòng ${room} đã được sử dụng trong khung giờ ${schedule.start_time} - ${schedule.end_time}`
+          };
+        }
+      }
+      
+      return { hasConflict: false };
+    } catch (error) {
+      console.error('Error checking room conflict:', error);
+      return { hasConflict: false };
+    }
+  };
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!formData.classroom_id) newErrors.classroom_id = 'Lớp học là bắt buộc';
@@ -189,6 +227,23 @@ export default function SchedulePage() {
 
   const handleCreate = async () => {
     if (!validateForm()) return;
+    
+    // Kiểm tra xung đột phòng học trước khi tạo
+    if (formData.room && selectedCampus) {
+      const conflictCheck = await checkRoomConflict(
+        formData.room,
+        formData.day_of_week,
+        formData.start_time,
+        formData.end_time,
+        selectedCampus
+      );
+      
+      if (conflictCheck.hasConflict) {
+        alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${conflictCheck.message}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác trong tuần`);
+        return;
+      }
+    }
+    
     try {
       setIsSubmitting(true);
       setErrors({});
@@ -199,7 +254,14 @@ export default function SchedulePage() {
       alert('Tạo lịch học thành công!');
     } catch (error: any) {
       console.error('Error creating schedule:', error);
-      alert(error?.message || 'Có lỗi khi tạo lịch học');
+      const errorMessage = error?.message || 'Có lỗi khi tạo lịch học';
+      
+      // Kiểm tra nếu là lỗi xung đột phòng học
+      if (errorMessage.includes('Phòng') && errorMessage.includes('đã được sử dụng')) {
+        alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${errorMessage}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác trong tuần`);
+      } else {
+        alert(errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -207,6 +269,24 @@ export default function SchedulePage() {
 
   const handleUpdate = async () => {
     if (!editingSchedule || !validateForm()) return;
+    
+    // Kiểm tra xung đột phòng học trước khi cập nhật
+    if (formData.room && selectedCampus) {
+      const conflictCheck = await checkRoomConflict(
+        formData.room,
+        formData.day_of_week,
+        formData.start_time,
+        formData.end_time,
+        selectedCampus,
+        editingSchedule.id
+      );
+      
+      if (conflictCheck.hasConflict) {
+        alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${conflictCheck.message}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác trong tuần`);
+        return;
+      }
+    }
+    
     try {
       setIsSubmitting(true);
       await schedulesApi.update(editingSchedule.id, formData);
@@ -217,7 +297,14 @@ export default function SchedulePage() {
       alert('Cập nhật lịch học thành công!');
     } catch (error: any) {
       console.error('Error updating schedule:', error);
-      alert(error?.message || 'Có lỗi khi cập nhật lịch học');
+      const errorMessage = error?.message || 'Có lỗi khi cập nhật lịch học';
+      
+      // Kiểm tra nếu là lỗi xung đột phòng học
+      if (errorMessage.includes('Phòng') && errorMessage.includes('đã được sử dụng')) {
+        alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${errorMessage}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác trong tuần`);
+      } else {
+        alert(errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -425,10 +512,6 @@ export default function SchedulePage() {
                             </div>
                             <div className="text-xs text-blue-700 mt-1">
                               {schedule.subject?.name || 'N/A'}
-                            </div>
-                            <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              {schedule.teacher?.name || 'N/A'}
                             </div>
                             <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                               <Clock className="w-3 h-3" />
