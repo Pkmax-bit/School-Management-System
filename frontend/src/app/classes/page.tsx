@@ -28,6 +28,7 @@ export default function ClassesPage() {
     capacity: 30,
     teacher_id: '',
     subject_id: '',
+    campus_id: '',
     description: '',
     open_date: '',
     close_date: ''
@@ -40,6 +41,8 @@ export default function ClassesPage() {
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [subjects, setSubjects] = useState<Array<{ id: string; name?: string; code?: string }>>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [campuses, setCampuses] = useState<Array<{ id: string; name?: string; code?: string }>>([]);
+  const [loadingCampuses, setLoadingCampuses] = useState(false);
   const [students, setStudents] = useState<Array<{ id: string; name?: string; email?: string }>>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -100,6 +103,29 @@ export default function ClassesPage() {
     }
   }, []);
 
+  const loadCampuses = useCallback(async () => {
+    try {
+      setLoadingCampuses(true);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${API_BASE_URL}/api/campuses?limit=1000`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error('Failed to fetch campuses');
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+      setCampuses(list);
+    } catch (e) {
+      console.error('Load campuses failed', e);
+      setCampuses([]);
+    } finally {
+      setLoadingCampuses(false);
+    }
+  }, []);
+
   const loadClasses = useCallback(async () => {
     try {
       setLoadingClasses(true);
@@ -136,6 +162,7 @@ export default function ClassesPage() {
       loadClasses();
       loadTeachers();
       loadSubjects();
+      loadCampuses();
       (async () => {
         try {
           setLoadingStudents(true);
@@ -238,6 +265,7 @@ export default function ClassesPage() {
         capacity: Number(formData.capacity) || 30,
         teacher_id: (formData.teacher_id || '').trim() || null,
         subject_id: (formData.subject_id || '').trim() || null,
+        campus_id: (formData.campus_id || '').trim() || null,
         description: (formData.description || '').trim() || null,
         student_ids: selectedStudentIds,
         open_date: formData.open_date || null,
@@ -278,6 +306,7 @@ export default function ClassesPage() {
         capacity: Number(formData.capacity) || 30,
         teacher_id: (formData.teacher_id || '').trim() || null,
         subject_id: (formData.subject_id || '').trim() || null,
+        campus_id: (formData.campus_id || '').trim() || null,
         description: (formData.description || '').trim() || null,
         student_ids: selectedStudentIds,
         open_date: formData.open_date || null,
@@ -329,6 +358,7 @@ export default function ClassesPage() {
       capacity: typeof cls.capacity === 'number' ? cls.capacity : 30,
       teacher_id: cls.teacher_id || '',
       subject_id: cls.subject_id || '',
+      campus_id: cls.campus_id || '',
       description: cls.description || '',
       open_date: cls.open_date ? String(cls.open_date).slice(0, 10) : '',
       close_date: cls.close_date ? String(cls.close_date).slice(0, 10) : ''
@@ -351,7 +381,7 @@ export default function ClassesPage() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', code: 'class', capacity: 30, teacher_id: '', subject_id: '', description: '', open_date: '', close_date: '' });
+    setFormData({ name: '', code: 'class', capacity: 30, teacher_id: '', subject_id: '', campus_id: '', description: '', open_date: '', close_date: '' });
     setErrors({});
   };
 
@@ -550,7 +580,25 @@ export default function ClassesPage() {
                             <div className="text-xs text-gray-500">Đang tải danh sách giáo viên...</div>
                           )}
                         </div>
-                        <div className="space-y-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="campus_id">Cơ sở</Label>
+                              <select
+                                id="campus_id"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                value={formData.campus_id}
+                                onChange={(e) => setFormData({ ...formData, campus_id: e.target.value })}
+                                disabled={loadingCampuses}
+                              >
+                                <option value="">-- Không gán cơ sở --</option>
+                                {campuses.map((c) => (
+                                  <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                                ))}
+                              </select>
+                              {loadingCampuses && (
+                                <div className="text-xs text-gray-500">Đang tải danh sách cơ sở...</div>
+                              )}
+                            </div>
+                            <div className="space-y-2">
                               <Label htmlFor="subject_id">Môn học</Label>
                               <select
                                 id="subject_id"

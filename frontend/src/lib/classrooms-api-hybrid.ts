@@ -66,13 +66,14 @@ export interface ClassroomPayload {
   capacity?: number
   teacher_id?: string | null
   subject_id?: string | null
+  campus_id?: string | null
   student_ids?: string[]
   open_date?: string | null
   close_date?: string | null
 }
 
 export const classroomsHybridApi = {
-  list: (params?: { skip?: number; limit?: number; teacher_id?: string }) =>
+  list: (params?: { skip?: number; limit?: number; teacher_id?: string; campus_id?: string }) =>
     apiRequest(buildUrl('/api/classrooms/', params), { method: 'GET' }),
 
   get: (id: string) => apiRequest(`${API_BASE_URL}/api/classrooms/${id}`, { method: 'GET' }),

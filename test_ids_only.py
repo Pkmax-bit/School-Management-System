@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple test
+Test with IDs only
 """
 
 import requests
@@ -20,7 +20,7 @@ def test():
     campuses = response.json()
     print(f"Campuses: {len(campuses)}")
     for c in campuses:
-        print(f"  ID: {c['id']}, Name: {c['name']}")
+        print(f"  ID: {c['id']}")
     
     # Get classrooms
     response = requests.get(f"{base_url}/api/classrooms", headers=headers)

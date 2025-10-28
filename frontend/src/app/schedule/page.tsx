@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Calendar, Plus, Edit, Trash2, Search, AlertCircle, Loader2, Building2, Clock, MapPin, User, BookOpen } from 'lucide-react';
+import { Calendar, Plus, Edit, Trash2, Search, AlertCircle, Loader2, Building2, Clock, MapPin, User, BookOpen, CheckCircle } from 'lucide-react';
 import schedulesApi, { Schedule, ScheduleCreate } from '../../lib/schedules-api';
 import campusesApi from '../../lib/campuses-api';
 import classroomsHybridApi from '../../lib/classrooms-api-hybrid';
@@ -81,11 +81,10 @@ export default function SchedulePage() {
   const loadClassrooms = useCallback(async (campusId?: string) => {
     try {
       setLoadingClassrooms(true);
-      const data = await classroomsHybridApi.list();
+      const params = campusId ? { campus_id: campusId } : {};
+      const data = await classroomsHybridApi.list(params);
       const list = Array.isArray(data) ? data : [];
-      // Filter by campus if provided
-      const filtered = campusId ? list.filter(c => c.campus_id === campusId) : list;
-      setClassrooms(filtered);
+      setClassrooms(list);
     } catch (error) {
       console.error('Error loading classrooms:', error);
       setClassrooms([]);
@@ -269,7 +268,7 @@ export default function SchedulePage() {
         ...prev,
         classroom_id: classroomId,
         teacher_id: classroom.teacher_id || '',
-        subject_id: '', // Reset subject, let user choose
+        subject_id: classroom.subject_id || '', // Auto-fill subject from classroom
       }));
     }
   };
@@ -428,6 +427,10 @@ export default function SchedulePage() {
                               {schedule.subject?.name || 'N/A'}
                             </div>
                             <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {schedule.teacher?.name || 'N/A'}
+                            </div>
+                            <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {schedule.start_time} - {schedule.end_time}
                             </div>
@@ -522,9 +525,10 @@ export default function SchedulePage() {
                       <option value="">Chọn lớp học</option>
                       {classrooms.map((classroom) => {
                         const teacherName = teachers.find(t => t.id === classroom.teacher_id)?.name || 'Chưa gán';
+                        const subjectName = subjects.find(s => s.id === classroom.subject_id)?.name || 'Chưa gán';
                         return (
                           <option key={classroom.id} value={classroom.id}>
-                            {classroom.name} - {teacherName}
+                            {classroom.name} - {teacherName} - {subjectName}
                           </option>
                         );
                       })}
@@ -552,6 +556,12 @@ export default function SchedulePage() {
                         </option>
                       ))}
                     </select>
+                    {formData.classroom_id && formData.subject_id && (
+                      <p className="text-xs text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        Môn học đã được tự động điền từ lớp học đã chọn
+                      </p>
+                    )}
                     {errors.subject_id && (
                       <p className="text-sm text-red-500 flex items-center gap-1">
                         <AlertCircle className="w-4 h-4" />

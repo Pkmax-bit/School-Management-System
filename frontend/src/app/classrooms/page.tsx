@@ -23,6 +23,7 @@ export default function ClassroomsPage() {
   const [formCapacity, setFormCapacity] = useState<number>(30);
   const [formTeacherId, setFormTeacherId] = useState<string>('');
   const [formSubjectId, setFormSubjectId] = useState<string>('');
+  const [formCampusId, setFormCampusId] = useState<string>('');
   const [formDescription, setFormDescription] = useState<string>('');
   const [formOpenDate, setFormOpenDate] = useState<string>('');
   const [formCloseDate, setFormCloseDate] = useState<string>('');
@@ -34,6 +35,8 @@ export default function ClassroomsPage() {
   const [loadingTeachers, setLoadingTeachers] = useState<boolean>(false);
   const [subjects, setSubjects] = useState<Array<{ id: string; name?: string; code?: string }>>([]);
   const [loadingSubjects, setLoadingSubjects] = useState<boolean>(false);
+  const [campuses, setCampuses] = useState<Array<{ id: string; name?: string; code?: string }>>([]);
+  const [loadingCampuses, setLoadingCampuses] = useState<boolean>(false);
   const [students, setStudents] = useState<Array<{ id: string; name?: string; email?: string }>>([]);
   const [loadingStudents, setLoadingStudents] = useState<boolean>(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -73,6 +76,7 @@ export default function ClassroomsPage() {
     setFormCapacity(30);
     setFormTeacherId('');
     setFormSubjectId('');
+    setFormCampusId('');
     setFormDescription('');
     setFormOpenDate('');
     setFormCloseDate('');
@@ -176,6 +180,30 @@ export default function ClassroomsPage() {
     }
   };
 
+  const loadCampuses = async () => {
+    try {
+      setLoadingCampuses(true);
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${API_BASE_URL}/api/campuses?limit=1000`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to load campuses (${res.status})`);
+      }
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+      setCampuses(list);
+    } catch (e) {
+      console.error('Failed to load campuses list', e);
+      setCampuses([]);
+    } finally {
+      setLoadingCampuses(false);
+    }
+  };
+
   const loadStudents = async () => {
     try {
       setLoadingStudents(true);
@@ -250,6 +278,7 @@ export default function ClassroomsPage() {
       loadData();
       loadTeachers();
       loadSubjects();
+      loadCampuses();
       loadStudents();
     }
   }, [user]);
@@ -342,6 +371,7 @@ export default function ClassroomsPage() {
                               setFormCapacity(typeof c.capacity === 'number' ? c.capacity : 30);
                               setFormTeacherId(c.teacher_id || '');
                               setFormSubjectId(c.subject_id || '');
+                              setFormCampusId(c.campus_id || '');
                               setFormDescription(c.description || '');
                               setFormOpenDate(c.open_date ? c.open_date.slice(0, 10) : '');
                               setFormCloseDate(c.close_date ? c.close_date.slice(0, 10) : '');
@@ -431,6 +461,24 @@ export default function ClassroomsPage() {
               </select>
               {loadingTeachers && (
                 <div className="text-xs text-gray-500">Đang tải danh sách giáo viên...</div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="campus_id">Cơ sở</Label>
+              <select
+                id="campus_id"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                value={formCampusId}
+                onChange={(e) => setFormCampusId(e.target.value)}
+                disabled={loadingCampuses}
+              >
+                <option value="">-- Không gán cơ sở --</option>
+                {campuses.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                ))}
+              </select>
+              {loadingCampuses && (
+                <div className="text-xs text-gray-500">Đang tải danh sách cơ sở...</div>
               )}
             </div>
             <div className="space-y-2">
@@ -535,6 +583,7 @@ export default function ClassroomsPage() {
                       capacity: formCapacity && formCapacity > 0 ? formCapacity : 30,
                       teacher_id: formTeacherId.trim() || null,
                       subject_id: formSubjectId.trim() || null,
+                      campus_id: formCampusId.trim() || null,
                       description: formDescription.trim() || null,
                       student_ids: selectedStudentIds,
                       open_date: formOpenDate || null,
