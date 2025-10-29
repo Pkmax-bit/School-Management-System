@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Bookmarklet</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .bookmarklet {
+            background: #4CAF50;
+            color: white;
+            padding: 15px 25px;
+            text-decoration: none;
+            border-radius: 5px;
+            display: inline-block;
+            margin: 10px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .bookmarklet:hover {
+            background: #45a049;
+        }
+        .instructions {
+            background: #e7f3ff;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .code {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+        .quick-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .quick-link {
+            background: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .quick-link:hover {
+            background: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 Teacher Dashboard - Quick Access</h1>
+        
+        <div class="instructions">
+            <h3>📌 Cách sử dụng Bookmarklet:</h3>
+            <ol>
+                <li>Kéo nút bên dưới vào thanh bookmark của trình duyệt</li>
+                <li>Hoặc copy code JavaScript và tạo bookmark mới</li>
+                <li>Click vào bookmark để truy cập nhanh Teacher Dashboard</li>
+            </ol>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="javascript:(function(){window.open('http://localhost:3000/teacher/dashboard','_blank');})();" 
+               class="bookmarklet">
+                🎓 Teacher Dashboard
+            </a>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 JavaScript Code (để tạo bookmark thủ công):</h3>
+            <div class="code">
+javascript:(function(){window.open('http://localhost:3000/teacher/dashboard','_blank');})();
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>🔗 Quick Links:</h3>
+            <div class="quick-links">
+                <a href="http://localhost:3000/teacher/dashboard" class="quick-link" target="_blank">
+                    🎓 Teacher Dashboard
+                </a>
+                <a href="http://localhost:3000/login" class="quick-link" target="_blank">
+                    🔐 Login Page
+                </a>
+                <a href="http://localhost:3000" class="quick-link" target="_blank">
+                    🏠 Home Page
+                </a>
+                <a href="http://localhost:8000/docs" class="quick-link" target="_blank">
+                    📚 API Docs
+                </a>
+                <a href="test_teacher_login.html" class="quick-link" target="_blank">
+                    🧪 Test Tool
+                </a>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>⚡ Auto Login Bookmarklet:</h3>
+            <p>Bookmarklet này sẽ tự động đăng nhập với tài khoản teacher:</p>
+            <div style="text-align: center; margin: 20px 0;">
+                <a href="javascript:(function(){fetch('http://localhost:8000/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'teacher@school.com',password:'teacher123'})}).then(r=>r.json()).then(d=>{localStorage.setItem('auth_token',d.access_token);window.open('http://localhost:3000/teacher/dashboard','_blank');}).catch(e=>alert('Lỗi: '+e.message));})();" 
+                   class="bookmarklet" style="background: #FF9800;">
+                    ⚡ Auto Login Teacher
+                </a>
+            </div>
+            <div class="code">
+javascript:(function(){fetch('http://localhost:8000/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'teacher@school.com',password:'teacher123'})}).then(r=>r.json()).then(d=>{localStorage.setItem('auth_token',d.access_token);window.open('http://localhost:3000/teacher/dashboard','_blank');}).catch(e=>alert('Lỗi: '+e.message));})();
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>📱 Mobile Bookmarklet:</h3>
+            <p>Để sử dụng trên mobile, copy link này và thêm vào bookmark:</p>
+            <div class="code">
+http://localhost:3000/teacher/dashboard
+            </div>
+        </div>
+    </div>
+</body>
+</html>

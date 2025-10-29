@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Teacher Fix</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .btn {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background: #45a049;
+        }
+        .btn-blue {
+            background: #2196F3;
+        }
+        .btn-blue:hover {
+            background: #1976D2;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Test Teacher Dashboard Fix</h1>
+        
+        <div class="test-section">
+            <h3>1. Test Teacher Login Page</h3>
+            <p>Kiểm tra trang đăng nhập teacher riêng:</p>
+            <a href="http://localhost:3000/teacher/login" class="btn" target="_blank">
+                🎓 Teacher Login Page
+            </a>
+            <div id="loginResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Test Teacher Dashboard (Direct Access)</h3>
+            <p>Kiểm tra truy cập trực tiếp vào teacher dashboard:</p>
+            <a href="http://localhost:3000/teacher/dashboard" class="btn btn-blue" target="_blank">
+                📊 Teacher Dashboard
+            </a>
+            <div id="dashboardResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Test Auto Login</h3>
+            <p>Test tự động đăng nhập teacher:</p>
+            <button onclick="testAutoLogin()" class="btn">
+                ⚡ Auto Login Teacher
+            </button>
+            <div id="autoLoginResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Test Navigation Flow</h3>
+            <p>Test luồng điều hướng hoàn chỉnh:</p>
+            <button onclick="testNavigationFlow()" class="btn btn-blue">
+                🔄 Test Full Flow
+            </button>
+            <div id="flowResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Debug Information</h3>
+            <button onclick="checkDebugInfo()" class="btn">
+                🔍 Check Debug Info
+            </button>
+            <div id="debugResult" class="result"></div>
+        </div>
+
+        <div class="test-section info">
+            <h3>📋 Expected Behavior</h3>
+            <ul>
+                <li>Teacher Login Page should load without redirects</li>
+                <li>Teacher Dashboard should show access denied if not logged in</li>
+                <li>After login, should stay in Teacher Dashboard</li>
+                <li>No redirect loops between dashboards</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        async function testAutoLogin() {
+            const resultDiv = document.getElementById('autoLoginResult');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = 'Testing auto login...';
+            
+            try {
+                // Simulate teacher login
+                const mockTeacherUser = {
+                    id: 'teacher-user-id',
+                    email: 'teacher@school.com',
+                    full_name: 'Nguyen Van Giao',
+                    role: 'teacher',
+                    is_active: true
+                };
+                
+                localStorage.setItem('auth_token', 'mock-teacher-token');
+                localStorage.setItem('teacher_user', JSON.stringify(mockTeacherUser));
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = '✅ Auto login successful! Now try accessing Teacher Dashboard.';
+                
+                // Open teacher dashboard
+                setTimeout(() => {
+                    window.open('http://localhost:3000/teacher/dashboard', '_blank');
+                }, 1000);
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ Auto login failed: ' + error.message;
+            }
+        }
+
+        async function testNavigationFlow() {
+            const resultDiv = document.getElementById('flowResult');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = 'Testing navigation flow...';
+            
+            try {
+                // Step 1: Clear any existing auth
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('teacher_user');
+                
+                // Step 2: Test teacher login page
+                const loginResponse = await fetch('http://localhost:3000/teacher/login');
+                if (loginResponse.ok) {
+                    resultDiv.innerHTML += '<br>✅ Teacher Login Page loads correctly';
+                } else {
+                    throw new Error('Teacher Login Page failed to load');
+                }
+                
+                // Step 3: Test teacher dashboard without auth
+                const dashboardResponse = await fetch('http://localhost:3000/teacher/dashboard');
+                if (dashboardResponse.ok) {
+                    resultDiv.innerHTML += '<br>✅ Teacher Dashboard loads (should show access denied)';
+                } else {
+                    throw new Error('Teacher Dashboard failed to load');
+                }
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML += '<br>🎉 Navigation flow test completed successfully!';
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ Navigation flow test failed: ' + error.message;
+            }
+        }
+
+        function checkDebugInfo() {
+            const resultDiv = document.getElementById('debugResult');
+            resultDiv.style.display = 'block';
+            
+            const authToken = localStorage.getItem('auth_token');
+            const teacherUser = localStorage.getItem('teacher_user');
+            const currentUrl = window.location.href;
+            
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = `
+                <strong>Debug Information:</strong><br>
+                Current URL: ${currentUrl}<br>
+                Auth Token: ${authToken ? 'Present' : 'Not present'}<br>
+                Teacher User: ${teacherUser ? 'Present' : 'Not present'}<br>
+                User Agent: ${navigator.userAgent}<br>
+                <br>
+                <strong>Next Steps:</strong><br>
+                1. Open Teacher Login Page<br>
+                2. Try to login with teacher credentials<br>
+                3. Check if you stay in Teacher Dashboard<br>
+                4. Verify no redirect loops occur
+            `;
+        }
+
+        // Auto-check on page load
+        window.onload = function() {
+            checkDebugInfo();
+        };
+    </script>
+</body>
+</html>

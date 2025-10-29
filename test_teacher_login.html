@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Teacher Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .btn-register {
+            background-color: #2196F3;
+        }
+        .btn-register:hover {
+            background-color: #0b7dda;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Teacher Registration & Login</h1>
+        
+        <div class="form-group">
+            <label for="apiUrl">API URL:</label>
+            <input type="text" id="apiUrl" value="http://localhost:8000">
+        </div>
+
+        <h2>1. Register Teacher User</h2>
+        <div class="form-group">
+            <label for="regEmail">Email:</label>
+            <input type="email" id="regEmail" value="teacher@school.com">
+        </div>
+        <div class="form-group">
+            <label for="regPassword">Password:</label>
+            <input type="password" id="regPassword" value="teacher123">
+        </div>
+        <div class="form-group">
+            <label for="regFullName">Full Name:</label>
+            <input type="text" id="regFullName" value="Nguyen Van Giao">
+        </div>
+        <div class="form-group">
+            <label for="regRole">Role:</label>
+            <input type="text" id="regRole" value="teacher" readonly>
+        </div>
+        <button onclick="registerUser()" class="btn-register">Register Teacher</button>
+
+        <hr style="margin: 30px 0;">
+
+        <h2>2. Login as Teacher</h2>
+        <div class="form-group">
+            <label for="loginEmail">Email:</label>
+            <input type="email" id="loginEmail" value="teacher@school.com">
+        </div>
+        <div class="form-group">
+            <label for="loginPassword">Password:</label>
+            <input type="password" id="loginPassword" value="teacher123">
+        </div>
+        <button onclick="loginUser()">Login as Teacher</button>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        async function registerUser() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const fullName = document.getElementById('regFullName').value;
+            const role = document.getElementById('regRole').value;
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${apiUrl}/api/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        full_name: fullName,
+                        role: role
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <h3>✓ Registration Successful!</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                        <p><strong>Now you can login with:</strong></p>
+                        <p>Email: ${email}</p>
+                        <p>Password: ${password}</p>
+                        <p>Role: ${role}</p>
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `
+                        <h3>✗ Registration Failed</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+                resultDiv.style.display = 'block';
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>✗ Error</h3>
+                    <p>${error.message}</p>
+                    <p><strong>Make sure the backend server is running!</strong></p>
+                `;
+                resultDiv.style.display = 'block';
+            }
+        }
+
+        async function loginUser() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${apiUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Save token to localStorage
+                    localStorage.setItem('auth_token', data.access_token);
+                    
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <h3>✓ Login Successful!</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                        <p><strong>User Info:</strong></p>
+                        <p>Email: ${data.user.email}</p>
+                        <p>Name: ${data.user.full_name}</p>
+                        <p>Role: ${data.user.role}</p>
+                        <p>Token saved to localStorage!</p>
+                        <p><strong>Now you can access the teacher dashboard at:</strong></p>
+                        <p><a href="http://localhost:3000/teacher/dashboard" target="_blank">http://localhost:3000/teacher/dashboard</a></p>
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `
+                        <h3>✗ Login Failed</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+                resultDiv.style.display = 'block';
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>✗ Error</h3>
+                    <p>${error.message}</p>
+                    <p><strong>Make sure the backend server is running!</strong></p>
+                `;
+                resultDiv.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Login Flow</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Debug Login Flow - Kiểm tra luồng đăng nhập</h1>
+    <p>Kiểm tra chính xác user được redirect đến đâu sau khi login</p>
+    
+    <div>
+        <button onclick="testTeacherLogin()">Test Teacher Login</button>
+        <button onclick="testAdminLogin()">Test Admin Login</button>
+        <button onclick="testStudentLogin()">Test Student Login</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        
+        function addResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = message;
+            resultsDiv.appendChild(resultDiv);
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        async function testLogin(role) {
+            addResult(`<h3>🔍 Testing ${role} login flow...</h3>`, 'info');
+            
+            try {
+                // 1. Test login API
+                addResult(`1. Calling /api/auth/login with ${role}@school.com...`, 'info');
+                
+                const loginResponse = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: `${role}@school.com`,
+                        password: 'password123'
+                    })
+                });
+                
+                if (!loginResponse.ok) {
+                    const errorText = await loginResponse.text();
+                    throw new Error(`Login failed: ${loginResponse.status} - ${errorText}`);
+                }
+                
+                const loginData = await loginResponse.json();
+                addResult(`✅ Login API successful!`, 'success');
+                addResult(`<pre>${JSON.stringify(loginData, null, 2)}</pre>`, 'info');
+                
+                // 2. Analyze user data
+                const user = loginData.user;
+                addResult(`<h4>📊 User Data Analysis:</h4>`, 'info');
+                addResult(`• Role from API: <strong>"${user.role}"</strong>`, user.role ? 'info' : 'error');
+                addResult(`• Full name: <strong>"${user.full_name}"</strong>`, user.full_name ? 'info' : 'warning');
+                addResult(`• Email: <strong>"${user.email}"</strong>`, 'info');
+                
+                // 3. Test role normalization
+                const normalizedRole = (user.role || '').toLowerCase();
+                addResult(`• Normalized role: <strong>"${normalizedRole}"</strong>`, 'info');
+                
+                // 4. Predict redirect
+                let expectedRedirect = '/dashboard';
+                if (normalizedRole === 'admin') {
+                    expectedRedirect = '/admin/dashboard';
+                } else if (normalizedRole === 'teacher') {
+                    expectedRedirect = '/teacher/dashboard';
+                } else if (normalizedRole === 'student') {
+                    expectedRedirect = '/student/dashboard';
+                }
+                
+                addResult(`<h4>🎯 Expected Redirect:</h4>`, 'info');
+                addResult(`Based on role "${normalizedRole}" → <strong>${expectedRedirect}</strong>`, 
+                    expectedRedirect !== '/dashboard' ? 'success' : 'warning');
+                
+                // 5. Test /api/auth/me endpoint
+                addResult(`<h4>🔍 Testing /api/auth/me endpoint...</h4>`, 'info');
+                
+                const meResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${loginData.access_token}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (!meResponse.ok) {
+                    throw new Error(`Me endpoint failed: ${meResponse.status}`);
+                }
+                
+                const meData = await meResponse.json();
+                addResult(`✅ /api/auth/me successful!`, 'success');
+                addResult(`<pre>${JSON.stringify(meData, null, 2)}</pre>`, 'info');
+                
+                // 6. Compare login vs me data
+                addResult(`<h4>🔄 Data Comparison:</h4>`, 'info');
+                addResult(`• Login response role: "${user.role}"`, 'info');
+                addResult(`• Me endpoint role: "${meData.role}"`, 'info');
+                addResult(`• Roles match: ${user.role === meData.role ? '✅ Yes' : '❌ No'}`, 
+                    user.role === meData.role ? 'success' : 'error');
+                
+                // 7. Final prediction
+                const finalRole = (meData.role || '').toLowerCase();
+                let finalRedirect = '/dashboard';
+                if (finalRole === 'admin') {
+                    finalRedirect = '/admin/dashboard';
+                } else if (finalRole === 'teacher') {
+                    finalRedirect = '/teacher/dashboard';
+                } else if (finalRole === 'student') {
+                    finalRedirect = '/student/dashboard';
+                }
+                
+                addResult(`<h4>🎯 Final Prediction:</h4>`, 'info');
+                addResult(`After checkUser() → role: "${finalRole}" → redirect to: <strong>${finalRedirect}</strong>`, 
+                    finalRedirect !== '/dashboard' ? 'success' : 'warning');
+                
+                if (finalRedirect === '/admin/dashboard' && role !== 'admin') {
+                    addResult(`⚠️ WARNING: ${role} user is being redirected to admin dashboard!`, 'error');
+                } else if (finalRedirect === '/teacher/dashboard' && role !== 'teacher') {
+                    addResult(`⚠️ WARNING: ${role} user is being redirected to teacher dashboard!`, 'error');
+                } else if (finalRedirect === '/student/dashboard' && role !== 'student') {
+                    addResult(`⚠️ WARNING: ${role} user is being redirected to student dashboard!`, 'error');
+                } else {
+                    addResult(`✅ Redirect looks correct for ${role} user!`, 'success');
+                }
+                
+            } catch (error) {
+                addResult(`❌ Error: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        }
+        
+        async function testTeacherLogin() {
+            await testLogin('teacher');
+        }
+        
+        async function testAdminLogin() {
+            await testLogin('admin');
+        }
+        
+        async function testStudentLogin() {
+            await testLogin('student');
+        }
+    </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { User, LoginForm, RegisterForm } from '@/types';
+import { getRedirectPathByRole, normalizeUser } from '@/lib/auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -30,7 +31,9 @@ export const useApiAuth = () => {
 
       if (response.ok) {
         const userData = await response.json();
-        setUser(userData);
+        const mappedUserData = normalizeUser(userData);
+        console.log('useApiAuth - checkUser mapped data:', mappedUserData);
+        setUser(mappedUserData);
       } else {
         localStorage.removeItem('auth_token');
         setUser(null);
@@ -63,8 +66,9 @@ export const useApiAuth = () => {
       
       if (data.access_token) {
         localStorage.setItem('auth_token', data.access_token);
-        setUser(data.user);
-        router.push('/dashboard');
+        const userData = normalizeUser(data.user);
+        setUser(userData);
+        router.push(getRedirectPathByRole(userData.role));
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -91,8 +95,9 @@ export const useApiAuth = () => {
       
       if (data.access_token) {
         localStorage.setItem('auth_token', data.access_token);
-        setUser(data.user);
-        router.push('/dashboard');
+        const userData = normalizeUser(data.user);
+        setUser(userData);
+        router.push(getRedirectPathByRole(userData.role));
       }
     } catch (error) {
       console.error('Registration failed:', error);

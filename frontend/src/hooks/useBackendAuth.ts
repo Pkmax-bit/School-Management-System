@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { getRedirectPathByRole, normalizeUser, normalizeRole } from '@/lib/auth';
 import { User, LoginForm, RegisterForm } from '@/types';
 
 export const useBackendAuth = () => {
@@ -47,7 +48,7 @@ export const useBackendAuth = () => {
         .single();
 
       if (userData && !error) {
-        setUser(userData);
+        setUser(normalizeUser(userData));
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -65,7 +66,14 @@ export const useBackendAuth = () => {
       
       if (data.user) {
         await loadUserData(data.user.id);
-        router.push('/dashboard');
+        // After loading, use latest state or fetch directly
+        const { data: profile } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', data.user.id)
+          .single();
+        const role = normalizeRole(profile?.role);
+        router.push(getRedirectPathByRole(role));
       }
     } catch (error) {
       console.error('Login failed:', error);

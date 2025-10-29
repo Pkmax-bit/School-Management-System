@@ -8,28 +8,18 @@
 import { useApiAuth } from '@/hooks/useApiAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { getRedirectPathByRole } from '@/lib/auth';
 
 export default function DashboardPage() {
   const { user, loading } = useApiAuth();
   const router = useRouter();
 
   useEffect(() => {
+    console.log('Main Dashboard - User check:', { user, loading, role: user?.role });
     if (!loading && user) {
-      // Redirect to role-specific dashboard
-      switch (user.role) {
-        case 'admin':
-          router.push('/admin/dashboard');
-          break;
-        case 'teacher':
-          router.push('/teacher/dashboard');
-          break;
-        case 'student':
-          router.push('/student/dashboard');
-          break;
-        default:
-          // Stay on this page for unknown roles
-          break;
-      }
+      const path = getRedirectPathByRole(user.role);
+      console.log('Main Dashboard - Redirecting to', path);
+      router.push(path);
     }
   }, [user, loading, router]);
 

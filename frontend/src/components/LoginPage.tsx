@@ -121,6 +121,40 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               Đăng ký ngay
             </a>
           </div>
+
+          {/* Direct Access Buttons */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-gray-500">Truy cập trực tiếp</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => window.open('/teacher/dashboard', '_blank')}
+              className="w-full border-green-200 hover:bg-green-50 hover:border-green-300 text-green-700"
+            >
+              🎓 Vào Teacher Dashboard
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => window.open('/admin/dashboard', '_blank')}
+              className="w-full border-blue-200 hover:bg-blue-50 hover:border-blue-300 text-blue-700"
+            >
+              👨‍💼 Vào Admin Dashboard
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => window.open('/student/dashboard', '_blank')}
+              className="w-full border-purple-200 hover:bg-purple-50 hover:border-purple-300 text-purple-700"
+            >
+              👨‍🎓 Vào Student Dashboard
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

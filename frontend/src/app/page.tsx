@@ -35,6 +35,37 @@ export default function HomePage() {
                 </Link>
               </div>
             </div>
+            
+            {/* Quick Access Buttons */}
+            <div className="mt-8 max-w-2xl mx-auto">
+              <p className="text-sm text-gray-500 mb-4">Truy cập nhanh:</p>
+              <div className="flex flex-wrap justify-center gap-3">
+                <Link
+                  href="/teacher/login"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 transition-colors"
+                >
+                  🎓 Teacher Login
+                </Link>
+                <Link
+                  href="/teacher/dashboard"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+                >
+                  📊 Teacher Dashboard
+                </Link>
+                <Link
+                  href="/admin/dashboard"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 transition-colors"
+                >
+                  👨‍💼 Admin Dashboard
+                </Link>
+                <Link
+                  href="/student/dashboard"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 transition-colors"
+                >
+                  👨‍🎓 Student Dashboard
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 

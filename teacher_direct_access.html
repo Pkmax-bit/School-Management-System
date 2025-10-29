@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Direct Access</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .btn-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .btn {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+        .btn-secondary {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+        }
+        .btn-secondary:hover {
+            box-shadow: 0 6px 20px rgba(33, 150, 243, 0.4);
+        }
+        .btn-danger {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+        }
+        .btn-danger:hover {
+            box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4);
+        }
+        .info-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .info-item {
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        .label {
+            font-weight: bold;
+            color: #555;
+        }
+        .value {
+            color: #666;
+            margin-left: 10px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .quick-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .quick-btn {
+            background: #6c757d;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s ease;
+        }
+        .quick-btn:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 Teacher Access</h1>
+        <p class="subtitle">Truy cập nhanh vào Teacher Dashboard</p>
+        
+        <div class="btn-container">
+            <a href="http://localhost:3000/teacher/dashboard" class="btn" target="_blank">
+                🚀 Vào Teacher Dashboard
+            </a>
+            
+            <a href="http://localhost:3000/login" class="btn btn-secondary" target="_blank">
+                🔐 Đăng nhập Teacher
+            </a>
+            
+            <button onclick="autoLogin()" class="btn btn-danger">
+                ⚡ Auto Login & Redirect
+            </button>
+        </div>
+
+        <div class="info-box">
+            <h3>📋 Thông tin đăng nhập</h3>
+            <div class="info-item">
+                <span class="label">Email:</span>
+                <span class="value">teacher@school.com</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Password:</span>
+                <span class="value">teacher123</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Role:</span>
+                <span class="value">teacher</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Status:</span>
+                <span class="status success" id="status">Ready</span>
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <button class="quick-btn" onclick="openTestPage()">🧪 Test Page</button>
+            <button class="quick-btn" onclick="openFrontend()">🌐 Frontend</button>
+            <button class="quick-btn" onclick="openBackend()">⚙️ Backend API</button>
+            <button class="quick-btn" onclick="checkStatus()">🔍 Check Status</button>
+        </div>
+    </div>
+
+    <script>
+        // Auto login function
+        async function autoLogin() {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = 'Logging in...';
+            statusEl.className = 'status warning';
+            
+            try {
+                // First register if needed
+                const registerResponse = await fetch('http://localhost:8000/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: 'teacher@school.com',
+                        password: 'teacher123',
+                        full_name: 'Nguyen Van Giao',
+                        role: 'teacher'
+                    })
+                });
+                
+                // Then login
+                const loginResponse = await fetch('http://localhost:8000/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: 'teacher@school.com',
+                        password: 'teacher123'
+                    })
+                });
+                
+                if (loginResponse.ok) {
+                    const data = await loginResponse.json();
+                    localStorage.setItem('auth_token', data.access_token);
+                    statusEl.textContent = 'Success!';
+                    statusEl.className = 'status success';
+                    
+                    // Redirect to teacher dashboard
+                    setTimeout(() => {
+                        window.open('http://localhost:3000/teacher/dashboard', '_blank');
+                    }, 1000);
+                } else {
+                    throw new Error('Login failed');
+                }
+            } catch (error) {
+                statusEl.textContent = 'Error!';
+                statusEl.className = 'status error';
+                console.error('Auto login error:', error);
+                alert('Lỗi: ' + error.message + '\n\nHãy đảm bảo backend đang chạy tại http://localhost:8000');
+            }
+        }
+
+        // Quick action functions
+        function openTestPage() {
+            window.open('test_teacher_login.html', '_blank');
+        }
+
+        function openFrontend() {
+            window.open('http://localhost:3000', '_blank');
+        }
+
+        function openBackend() {
+            window.open('http://localhost:8000/docs', '_blank');
+        }
+
+        async function checkStatus() {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = 'Checking...';
+            statusEl.className = 'status warning';
+            
+            try {
+                // Check backend
+                const backendResponse = await fetch('http://localhost:8000/health');
+                const backendOk = backendResponse.ok;
+                
+                // Check frontend
+                const frontendResponse = await fetch('http://localhost:3000');
+                const frontendOk = frontendResponse.ok;
+                
+                if (backendOk && frontendOk) {
+                    statusEl.textContent = 'All OK!';
+                    statusEl.className = 'status success';
+                } else {
+                    statusEl.textContent = 'Issues found';
+                    statusEl.className = 'status error';
+                }
+            } catch (error) {
+                statusEl.textContent = 'Error!';
+                statusEl.className = 'status error';
+            }
+        }
+
+        // Check status on page load
+        window.onload = function() {
+            checkStatus();
+        };
+    </script>
+</body>
+</html>

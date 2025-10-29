@@ -290,7 +290,7 @@ export default function SchedulePage() {
       });
       
       // Lọc các lịch học cùng phòng (trừ lịch hiện tại nếu đang edit)
-      const conflictingSchedules = existingSchedules.filter(schedule => 
+      const conflictingSchedules = existingSchedules.filter((schedule: Schedule) => 
         schedule.room === room && 
         (!excludeId || schedule.id !== excludeId)
       );
@@ -324,6 +324,7 @@ export default function SchedulePage() {
     if (!formData.classroom_id) newErrors.classroom_id = 'Lớp học là bắt buộc';
     if (!formData.subject_id) newErrors.subject_id = 'Môn học là bắt buộc';
     if (!formData.teacher_id) newErrors.teacher_id = 'Giáo viên là bắt buộc';
+    if (!formData.room || !formData.room.trim()) newErrors.room = 'Phòng học là bắt buộc';
     if (formData.start_time >= formData.end_time) {
       newErrors.end_time = 'Thời gian kết thúc phải sau thời gian bắt đầu';
     }
@@ -339,6 +340,13 @@ export default function SchedulePage() {
 
     if (!formData.classroom_id || !formData.subject_id || !formData.teacher_id) {
       alert('Vui lòng chọn lớp học, môn học và giáo viên');
+      return;
+    }
+
+    // Tất cả lịch phải có phòng học
+    const hasMissingRoom = scheduleList.some(item => !item.room || !item.room.trim());
+    if (hasMissingRoom) {
+      alert('Vui lòng nhập phòng học cho tất cả lịch trước khi tạo');
       return;
     }
     
@@ -585,7 +593,18 @@ export default function SchedulePage() {
       return;
     }
 
-    const newSchedules = [];
+    if (!formData.room || !formData.room.trim()) {
+      alert('Vui lòng nhập phòng học trước khi thêm vào danh sách');
+      return;
+    }
+
+    const newSchedules: Array<{
+      day_of_week: number;
+      start_time: string;
+      end_time: string;
+      room: string;
+      date?: string;
+    }> = [];
     
     // Thêm từ ngày cụ thể
     if (selectedDates.length > 0) {
@@ -1102,7 +1121,7 @@ export default function SchedulePage() {
                       variant="outline"
                       onClick={addToScheduleList}
                       className="flex-1 py-3 border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-semibold"
-                      disabled={selectedDates.length === 0 || !formData.start_time || !formData.end_time}
+                      disabled={selectedDates.length === 0 || !formData.start_time || !formData.end_time || !formData.room || !formData.room.trim()}
                     >
                       <Plus className="w-5 h-5 mr-2" />
                       Thêm vào danh sách
@@ -1209,7 +1228,7 @@ export default function SchedulePage() {
                                 className="text-sm px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
                                 value={schedule.room}
                                 onChange={(e) => updateScheduleInList(index, 'room', e.target.value)}
-                                placeholder="Tên phòng học (tùy chọn)"
+                                placeholder="Tên phòng học"
                               />
                             </div>
                             
@@ -1224,7 +1243,7 @@ export default function SchedulePage() {
                       <div className="text-center py-12 text-gray-500">
                         <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                         <p className="text-lg">Chưa có lịch học nào</p>
-                        <p className="text-sm">Hãy chọn ngày bên trái và nhấn "Thêm vào danh sách"</p>
+                        <p className="text-sm">Hãy chọn ngày bên trái và nhấn &quot;Thêm vào danh sách&quot;</p>
                       </div>
                     )}
                   </div>
