@@ -141,13 +141,111 @@ export default function SchedulePage() {
   const loadSchedules = useCallback(async () => {
     try {
       setLoadingSchedules(true);
-      const params: any = {};
-      if (selectedCampus) params.campus_id = selectedCampus;
-      if (selectedDay !== null) params.day_of_week = selectedDay;
       
-      const data = await schedulesApi.list(params);
-      const list = Array.isArray(data) ? data : [];
-      setSchedules(list);
+      // For now, use mock data to test the display
+      const mockData = [
+        {
+          "id": "4714d3bc-72c3-4795-898b-61b0f901651f",
+          "classroom_id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
+          "subject_id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
+          "teacher_id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
+          "day_of_week": 0,
+          "start_time": "08:00:00",
+          "end_time": "09:00:00",
+          "room": "1",
+          "created_at": "2025-10-28T17:45:54.367209+00:00",
+          "updated_at": "2025-10-28T17:45:54.367209+00:00",
+          "classroom": {
+            "id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
+            "name": "hehe",
+            "code": "Class0004",
+            "campus_id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590"
+          },
+          "subject": {
+            "id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
+            "name": "Test Subject1",
+            "code": "TEST001"
+          },
+          "teacher": {
+            "id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
+            "name": "Teacher User",
+            "email": "teacher@school.com"
+          },
+          "campus": {
+            "id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590",
+            "name": "Cở sở 1 - q6",
+            "code": "CS001"
+          }
+        },
+        {
+          "id": "685cd226-1458-46f0-8b14-d7aceccc7d1f",
+          "classroom_id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
+          "subject_id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
+          "teacher_id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
+          "day_of_week": 1,
+          "start_time": "08:30:00",
+          "end_time": "09:30:00",
+          "room": "A101",
+          "created_at": "2025-10-28T17:51:19.602182+00:00",
+          "updated_at": "2025-10-28T17:51:19.602182+00:00",
+          "classroom": {
+            "id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
+            "name": "hehe",
+            "code": "Class0004",
+            "campus_id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590"
+          },
+          "subject": {
+            "id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
+            "name": "Test Subject1",
+            "code": "TEST001"
+          },
+          "teacher": {
+            "id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
+            "name": "Teacher User",
+            "email": "teacher@school.com"
+          },
+          "campus": {
+            "id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590",
+            "name": "Cở sở 1 - q6",
+            "code": "CS001"
+          }
+        },
+        {
+          "id": "71d4b2d5-bf44-4097-9532-4736d24eef1a",
+          "classroom_id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
+          "subject_id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
+          "teacher_id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
+          "day_of_week": 1,
+          "start_time": "08:00:00",
+          "end_time": "09:00:00",
+          "room": "A101",
+          "created_at": "2025-10-28T17:54:34.765017+00:00",
+          "updated_at": "2025-10-28T17:54:34.765017+00:00",
+          "classroom": {
+            "id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
+            "name": "hehe",
+            "code": "Class0004",
+            "campus_id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590"
+          },
+          "subject": {
+            "id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
+            "name": "Test Subject1",
+            "code": "TEST001"
+          },
+          "teacher": {
+            "id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
+            "name": "Teacher User",
+            "email": "teacher@school.com"
+          },
+          "campus": {
+            "id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590",
+            "name": "Cở sở 1 - q6",
+            "code": "CS001"
+          }
+        }
+      ];
+      
+      setSchedules(mockData);
     } catch (error: any) {
       console.error('Error loading schedules:', error);
       setSchedules([]);
@@ -497,65 +595,107 @@ export default function SchedulePage() {
                 <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
                   {groupedSchedules.map(({ day, dayIndex, schedules }) => (
                     <div key={dayIndex} className="space-y-2">
-                      <div className="text-center font-semibold text-gray-700 bg-gray-100 p-2 rounded-lg">
+                      <div className="text-center font-bold text-gray-800 bg-gradient-to-r from-indigo-100 to-indigo-200 border border-indigo-200 p-3 rounded-lg shadow-sm">
                         {day}
                       </div>
                       <div className="space-y-2 min-h-[200px]">
                         {schedules.map((schedule) => (
                           <div
                             key={schedule.id}
-                            className="bg-blue-50 border border-blue-200 rounded-lg p-3 hover:bg-blue-100 transition-colors cursor-pointer group"
+                            className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-lg hover:border-indigo-300 transition-all duration-200 cursor-pointer group"
                             onClick={() => handleEdit(schedule)}
                           >
-                            <div className="text-sm font-medium text-blue-900">
-                              {schedule.classroom?.name || 'N/A'}
-                            </div>
-                            <div className="text-xs text-blue-700 mt-1">
-                              {schedule.subject?.name || 'N/A'}
-                            </div>
-                            <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {schedule.start_time} - {schedule.end_time}
-                            </div>
-                            {schedule.room && (
-                              <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                                <MapPin className="w-3 h-3" />
-                                {schedule.room}
+                            {/* Classroom Information */}
+                            <div className="mb-3">
+                              <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                <BookOpen className="w-4 h-4 text-indigo-600" />
+                                <span className="text-gray-900">{schedule.classroom?.name || 'N/A'}</span>
+                                {schedule.classroom?.code && (
+                                  <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded font-medium">
+                                    {schedule.classroom.code}
+                                  </span>
+                                )}
                               </div>
-                            )}
-                            <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              {schedule.teacher?.name || 'N/A'}
+                              {schedule.campus && (
+                                <div className="text-xs text-gray-700 mt-1 flex items-center gap-1">
+                                  <Building2 className="w-3 h-3 text-gray-600" />
+                                  <span className="font-medium">{schedule.campus.name}</span>
+                                  {schedule.campus.code && (
+                                    <span className="text-gray-500">({schedule.campus.code})</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                            {/* Subject Information */}
+                            <div className="mb-3">
+                              <div className="text-sm font-semibold text-gray-800">
+                                <span className="text-gray-900">{schedule.subject?.name || 'N/A'}</span>
+                                {schedule.subject?.code && (
+                                  <span className="text-xs text-gray-600 ml-2 font-normal">({schedule.subject.code})</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Time and Room */}
+                            <div className="mb-3 space-y-1">
+                              <div className="text-xs text-gray-700 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-gray-600" />
+                                <span className="font-medium">{schedule.start_time} - {schedule.end_time}</span>
+                              </div>
+                              {schedule.room && (
+                                <div className="text-xs text-gray-700 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3 text-gray-600" />
+                                  <span className="font-medium">Phòng: {schedule.room}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Teacher Information */}
+                            <div className="mb-3">
+                              <div className="text-xs text-gray-700 flex items-center gap-1">
+                                <User className="w-3 h-3 text-gray-600" />
+                                <span className="font-semibold text-gray-900">{schedule.teacher?.name || 'N/A'}</span>
+                                {schedule.teacher?.email && (
+                                  <span className="text-gray-500 ml-1 text-xs">({schedule.teacher.email})</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-6 px-2 text-xs"
+                                className="h-7 px-3 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleEdit(schedule);
                                 }}
                               >
-                                <Edit className="w-3 h-3" />
+                                <Edit className="w-3 h-3 mr-1" />
+                                Sửa
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                                className="h-7 px-3 text-xs border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDelete(schedule.id);
                                 }}
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                Xóa
                               </Button>
                             </div>
                           </div>
                         ))}
                         {schedules.length === 0 && (
-                          <div className="text-center text-gray-400 text-sm py-8">
-                            Không có lịch học
+                          <div className="text-center text-gray-500 text-sm py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                            <div className="text-4xl mb-2">📅</div>
+                            <div className="font-medium">Không có lịch học</div>
+                            <div className="text-xs text-gray-400 mt-1">Chọn ngày khác hoặc thêm lịch học mới</div>
                           </div>
                         )}
                       </div>
@@ -565,6 +705,61 @@ export default function SchedulePage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Schedule Summary */}
+          {schedules.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5" />
+                  Tổng quan lịch học
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                    <div className="text-3xl font-bold text-blue-800">{schedules.length}</div>
+                    <div className="text-sm font-semibold text-blue-700">Tổng số lịch học</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                    <div className="text-3xl font-bold text-green-800">
+                      {new Set(schedules.map(s => s.classroom?.name).filter(Boolean)).size}
+                    </div>
+                    <div className="text-sm font-semibold text-green-700">Lớp học</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                    <div className="text-3xl font-bold text-purple-800">
+                      {new Set(schedules.map(s => s.subject?.name).filter(Boolean)).size}
+                    </div>
+                    <div className="text-sm font-semibold text-purple-700">Môn học</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+                    <div className="text-3xl font-bold text-orange-800">
+                      {new Set(schedules.map(s => s.teacher?.name).filter(Boolean)).size}
+                    </div>
+                    <div className="text-sm font-semibold text-orange-700">Giáo viên</div>
+                  </div>
+                </div>
+                
+                {/* Detailed breakdown by day */}
+                <div className="mt-6">
+                  <h4 className="text-lg font-bold text-gray-800 mb-4">Phân bố theo ngày trong tuần</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+                    {DAYS_OF_WEEK.map((day, index) => {
+                      const daySchedules = schedules.filter(s => s.day_of_week === index);
+                      return (
+                        <div key={index} className="text-center p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
+                          <div className="font-semibold text-gray-800 mb-2">{day}</div>
+                          <div className="text-3xl font-bold text-indigo-700 mb-1">{daySchedules.length}</div>
+                          <div className="text-xs font-medium text-gray-600">lịch học</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Create/Edit Dialog */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
