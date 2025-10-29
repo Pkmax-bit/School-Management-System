@@ -54,6 +54,14 @@ export default function SchedulePage() {
     end_time: '09:00',
     room: ''
   });
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [scheduleList, setScheduleList] = useState<Array<{
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+    room: string;
+    date?: string;
+  }>>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -324,34 +332,55 @@ export default function SchedulePage() {
   };
 
   const handleCreate = async () => {
-    if (!validateForm()) return;
-    
-    // Kiểm tra xung đột phòng học trước khi tạo
-    if (formData.room && selectedCampus) {
-      const conflictCheck = await checkRoomConflict(
-        formData.room,
-        formData.day_of_week,
-        formData.start_time,
-        formData.end_time,
-        selectedCampus
-      );
-      
-      if (conflictCheck.hasConflict) {
-        alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${conflictCheck.message}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác trong tuần`);
-        return;
-      }
+    if (scheduleList.length === 0) {
+      alert('Vui lòng thêm ít nhất một lịch học vào danh sách');
+      return;
+    }
+
+    if (!formData.classroom_id || !formData.subject_id || !formData.teacher_id) {
+      alert('Vui lòng chọn lớp học, môn học và giáo viên');
+      return;
     }
     
     try {
       setIsSubmitting(true);
       setErrors({});
-      await schedulesApi.create(formData);
+      
+      // Tạo từng lịch học
+      for (const scheduleItem of scheduleList) {
+        const scheduleData = {
+          ...formData,
+          day_of_week: scheduleItem.day_of_week,
+          start_time: scheduleItem.start_time,
+          end_time: scheduleItem.end_time,
+          room: scheduleItem.room
+        };
+
+        // Kiểm tra xung đột phòng học
+        if (scheduleItem.room && selectedCampus) {
+          const conflictCheck = await checkRoomConflict(
+            scheduleItem.room,
+            scheduleItem.day_of_week,
+            scheduleItem.start_time,
+            scheduleItem.end_time,
+            selectedCampus
+          );
+          
+          if (conflictCheck.hasConflict) {
+            alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${conflictCheck.message}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác trong tuần`);
+            return;
+          }
+        }
+
+        await schedulesApi.create(scheduleData);
+      }
+      
       await loadSchedules();
       setIsDialogOpen(false);
       resetForm();
-      alert('Tạo lịch học thành công!');
+      alert(`Tạo thành công ${scheduleList.length} lịch học!`);
     } catch (error: any) {
-      console.error('Error creating schedule:', error);
+      console.error('Error creating schedules:', error);
       const errorMessage = error?.message || 'Có lỗi khi tạo lịch học';
       
       // Kiểm tra nếu là lỗi xung đột phòng học
@@ -455,6 +484,10 @@ export default function SchedulePage() {
         teacher_id: classroom.teacher_id || '',
         subject_id: classroom.subject_id || '', // Auto-fill subject from classroom
       }));
+
+      // Không tự động chọn ngày, chỉ hiển thị khoảng thời gian để người dùng chọn
+      // Xóa selectedDates khi chọn lớp học mới
+      setSelectedDates([]);
     }
   };
 
@@ -468,7 +501,123 @@ export default function SchedulePage() {
       end_time: '09:00',
       room: ''
     });
+    setSelectedDates([]);
+    setScheduleList([]);
     setErrors({});
+  };
+
+
+  const handleDateToggle = (date: string) => {
+    setSelectedDates(prev => {
+      if (prev.includes(date)) {
+        return prev.filter(d => d !== date);
+      } else {
+        return [...prev, date];
+      }
+    });
+  };
+
+  const generateDateRange = (startDate: Date, endDate: Date): string[] => {
+    const dates: string[] = [];
+    const currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      dates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return dates;
+  };
+
+  const getClassroomDateRange = () => {
+    // Nếu đã chọn lớp học và có ngày mở/đóng
+    if (formData.classroom_id) {
+      const classroom = classrooms.find(c => c.id === formData.classroom_id);
+      if (classroom && classroom.open_date && classroom.close_date) {
+        const startDate = new Date(classroom.open_date);
+        const endDate = new Date(classroom.close_date);
+        const dates = [];
+        
+        const currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          dates.push({
+            date: currentDate.toISOString().split('T')[0],
+            dayOfWeek: currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1, // Convert to 0=Monday, 6=Sunday
+            display: currentDate.toLocaleDateString('vi-VN', { 
+              weekday: 'short', 
+              day: '2-digit', 
+              month: '2-digit' 
+            })
+          });
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        return dates;
+      }
+    }
+    
+    // Fallback: hiển thị 2 tuần tiếp theo nếu chưa chọn lớp học
+    const dates = [];
+    const today = new Date();
+    for (let i = 0; i < 14; i++) { // 2 tuần
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      dates.push({
+        date: date.toISOString().split('T')[0],
+        dayOfWeek: date.getDay() === 0 ? 6 : date.getDay() - 1, // Convert to 0=Monday, 6=Sunday
+        display: date.toLocaleDateString('vi-VN', { 
+          weekday: 'short', 
+          day: '2-digit', 
+          month: '2-digit' 
+        })
+      });
+    }
+    return dates;
+  };
+
+  const addToScheduleList = () => {
+    if (selectedDates.length === 0) {
+      alert('Vui lòng chọn ít nhất một ngày cụ thể');
+      return;
+    }
+    
+    if (!formData.start_time || !formData.end_time) {
+      alert('Vui lòng điền đầy đủ thời gian');
+      return;
+    }
+
+    const newSchedules = [];
+    
+    // Thêm từ ngày cụ thể
+    if (selectedDates.length > 0) {
+      const dateSchedules = selectedDates.map(date => {
+        const dateObj = new Date(date);
+        return {
+          day_of_week: dateObj.getDay(),
+          start_time: formData.start_time,
+          end_time: formData.end_time,
+          room: formData.room || '',
+          date: date
+        };
+      });
+      newSchedules.push(...dateSchedules);
+    }
+
+    setScheduleList(prev => [...prev, ...newSchedules]);
+    setSelectedDates([]);
+  };
+
+  const removeFromScheduleList = (index: number) => {
+    setScheduleList(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearScheduleList = () => {
+    setScheduleList([]);
+  };
+
+  const updateScheduleInList = (index: number, field: string, value: string) => {
+    setScheduleList(prev => prev.map((item, i) => 
+      i === index ? { ...item, [field]: value } : item
+    ));
   };
 
   const filteredSchedules = schedules.filter((schedule) => {
@@ -503,32 +652,34 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <AdminSidebar 
         currentPage="schedule" 
         onNavigate={(page) => router.push(`/${page}`)} 
         onLogout={logout} 
       />
       <div className="flex-1 lg:ml-64">
-        <div className="p-8 space-y-6">
+        <div className="p-4 space-y-6">
           {/* Header */}
-          <div>
-            <h1 className="text-3xl mb-2 text-gray-900">Quản lý Lịch học</h1>
-            <p className="text-gray-600">Quản lý thời khóa biểu theo cơ sở và lớp học</p>
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h1 className="text-4xl font-bold mb-3 text-gray-900">📅 Quản lý Lịch học</h1>
+            <p className="text-lg text-gray-600">Quản lý thời khóa biểu theo cơ sở và lớp học</p>
           </div>
 
           {/* Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Bộ lọc</CardTitle>
+          <Card className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+              <CardTitle className="text-xl flex items-center gap-2">
+                🔍 Bộ lọc & Tìm kiếm
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="campus-filter">Cơ sở</Label>
+                  <Label htmlFor="campus-filter" className="text-sm font-semibold text-gray-700">🏢 Cơ sở</Label>
                   <select
                     id="campus-filter"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                     value={selectedCampus}
                     onChange={(e) => handleCampusChange(e.target.value)}
                     disabled={loadingCampuses}
@@ -542,10 +693,10 @@ export default function SchedulePage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="day-filter">Thứ trong tuần</Label>
+                  <Label htmlFor="day-filter" className="text-sm font-semibold text-gray-700">📅 Thứ trong tuần</Label>
                   <select
                     id="day-filter"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                     value={selectedDay || ''}
                     onChange={(e) => setSelectedDay(e.target.value ? Number(e.target.value) : null)}
                   >
@@ -558,21 +709,21 @@ export default function SchedulePage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="search">Tìm kiếm</Label>
+                  <Label htmlFor="search" className="text-sm font-semibold text-gray-700">🔎 Tìm kiếm</Label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <Input
                       id="search"
                       placeholder="Tìm theo lớp, môn, giáo viên..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
+                      className="pl-12 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                     />
                   </div>
                 </div>
                 <div className="flex items-end">
-                  <Button onClick={handleAdd} className="w-full">
-                    <Plus className="w-4 h-4 mr-2" />
+                  <Button onClick={handleAdd} className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-lg">
+                    <Plus className="w-5 h-5 mr-2" />
                     Thêm lịch học
                   </Button>
                 </div>
@@ -581,81 +732,90 @@ export default function SchedulePage() {
           </Card>
 
           {/* Schedule Grid */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Lịch học theo tuần</CardTitle>
+          <Card className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
+              <CardTitle className="text-2xl flex items-center gap-2">
+                📚 Lịch học theo tuần
+                <span className="text-sm font-normal text-gray-600">
+                  ({filteredSchedules.length} lịch học)
+                </span>
+              </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
               {loadingSchedules ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Đang tải lịch học...</p>
+                <div className="flex items-center justify-center py-16">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-6"></div>
+                    <p className="text-lg text-gray-600">Đang tải lịch học...</p>
+                  </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-7 gap-6">
                   {groupedSchedules.map(({ day, dayIndex, schedules }) => (
-                    <div key={dayIndex} className="space-y-2">
-                      <div className="text-center font-bold text-gray-800 bg-gradient-to-r from-indigo-100 to-indigo-200 border border-indigo-200 p-3 rounded-lg shadow-sm">
-                        {day}
+                    <div key={dayIndex} className="space-y-4">
+                      <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl border-2 border-blue-200 shadow-md">
+                        <h3 className="text-lg font-bold text-blue-900 mb-2">{day}</h3>
+                        <div className="text-2xl font-bold text-blue-700 mb-1">{schedules.length}</div>
+                        <p className="text-sm text-blue-600">lịch học</p>
                       </div>
-                      <div className="space-y-2 min-h-[200px]">
+                      <div className="space-y-3 min-h-[300px]">
                         {schedules.map((schedule) => (
                           <div
                             key={schedule.id}
-                            className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-lg hover:border-indigo-300 transition-all duration-200 cursor-pointer group"
+                            className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-5 hover:shadow-xl hover:border-blue-300 transition-all duration-200 cursor-pointer group"
                             onClick={() => handleEdit(schedule)}
                           >
                             {/* Classroom Information */}
-                            <div className="mb-3">
-                              <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                <BookOpen className="w-4 h-4 text-indigo-600" />
+                            <div className="mb-4">
+                              <div className="text-base font-bold text-gray-900 flex items-center gap-2 mb-2">
+                                <BookOpen className="w-5 h-5 text-indigo-600" />
                                 <span className="text-gray-900">{schedule.classroom?.name || 'N/A'}</span>
                                 {schedule.classroom?.code && (
-                                  <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded font-medium">
+                                  <span className="text-sm bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full font-semibold">
                                     {schedule.classroom.code}
                                   </span>
                                 )}
                               </div>
                               {schedule.campus && (
-                                <div className="text-xs text-gray-700 mt-1 flex items-center gap-1">
-                                  <Building2 className="w-3 h-3 text-gray-600" />
-                                  <span className="font-medium">{schedule.campus.name}</span>
+                                <div className="text-sm text-gray-700 flex items-center gap-2">
+                                  <Building2 className="w-4 h-4 text-gray-600" />
+                                  <span className="font-semibold">{schedule.campus.name}</span>
                                   {schedule.campus.code && (
-                                    <span className="text-gray-500">({schedule.campus.code})</span>
+                                    <span className="text-gray-500 text-xs">({schedule.campus.code})</span>
                                   )}
                                 </div>
                               )}
                             </div>
 
                             {/* Subject Information */}
-                            <div className="mb-3">
-                              <div className="text-sm font-semibold text-gray-800">
+                            <div className="mb-4">
+                              <div className="text-base font-semibold text-gray-800">
                                 <span className="text-gray-900">{schedule.subject?.name || 'N/A'}</span>
                                 {schedule.subject?.code && (
-                                  <span className="text-xs text-gray-600 ml-2 font-normal">({schedule.subject.code})</span>
+                                  <span className="text-sm text-gray-600 ml-2 font-normal">({schedule.subject.code})</span>
                                 )}
                               </div>
                             </div>
 
                             {/* Time and Room */}
-                            <div className="mb-3 space-y-1">
-                              <div className="text-xs text-gray-700 flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-gray-600" />
-                                <span className="font-medium">{schedule.start_time} - {schedule.end_time}</span>
+                            <div className="mb-4 space-y-2">
+                              <div className="text-sm text-gray-700 flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-gray-600" />
+                                <span className="font-semibold">{schedule.start_time} - {schedule.end_time}</span>
                               </div>
                               {schedule.room && (
-                                <div className="text-xs text-gray-700 flex items-center gap-1">
-                                  <MapPin className="w-3 h-3 text-gray-600" />
-                                  <span className="font-medium">Phòng: {schedule.room}</span>
+                                <div className="text-sm text-gray-700 flex items-center gap-2">
+                                  <MapPin className="w-4 h-4 text-gray-600" />
+                                  <span className="font-semibold">Phòng: {schedule.room}</span>
                                 </div>
                               )}
                             </div>
 
                             {/* Teacher Information */}
-                            <div className="mb-3">
-                              <div className="text-xs text-gray-700 flex items-center gap-1">
-                                <User className="w-3 h-3 text-gray-600" />
-                                <span className="font-semibold text-gray-900">{schedule.teacher?.name || 'N/A'}</span>
+                            <div className="mb-4">
+                              <div className="text-sm text-gray-700 flex items-center gap-2">
+                                <User className="w-4 h-4 text-gray-600" />
+                                <span className="font-bold text-gray-900">{schedule.teacher?.name || 'N/A'}</span>
                                 {schedule.teacher?.email && (
                                   <span className="text-gray-500 ml-1 text-xs">({schedule.teacher.email})</span>
                                 )}
@@ -663,23 +823,23 @@ export default function SchedulePage() {
                             </div>
 
                             {/* Action Buttons */}
-                            <div className="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 px-3 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300"
+                                className="h-8 px-4 text-sm border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-semibold"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleEdit(schedule);
                                 }}
                               >
-                                <Edit className="w-3 h-3 mr-1" />
+                                <Edit className="w-4 h-4 mr-1" />
                                 Sửa
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 px-3 text-xs border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+                                className="h-8 px-4 text-sm border-2 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 font-semibold"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDelete(schedule.id);
@@ -763,183 +923,337 @@ export default function SchedulePage() {
 
           {/* Create/Edit Dialog */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingSchedule ? 'Chỉnh sửa lịch học' : 'Thêm lịch học mới'}
+            <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-t-lg">
+                <DialogTitle className="text-2xl font-bold text-gray-900">
+                  {editingSchedule ? '✏️ Chỉnh sửa lịch học' : '➕ Thêm lịch học mới'}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-lg text-gray-600">
                   {editingSchedule ? 'Cập nhật thông tin lịch học' : 'Thêm lịch học mới vào hệ thống'}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="campus-select">Cơ sở *</Label>
-                  <select
-                    id="campus-select"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    value={selectedCampus}
-                    onChange={(e) => handleCampusChange(e.target.value)}
-                    disabled={loadingCampuses}
-                  >
-                    <option value="">Chọn cơ sở</option>
-                    {campuses.map((campus) => (
-                      <option key={campus.id} value={campus.id}>
-                        {campus.name} ({campus.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="classroom_id">Lớp học *</Label>
-                    <select
-                      id="classroom_id"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      value={formData.classroom_id}
-                      onChange={(e) => handleClassroomChange(e.target.value)}
-                      disabled={loadingClassrooms || !selectedCampus}
-                    >
-                      <option value="">Chọn lớp học</option>
-                      {classrooms.map((classroom) => {
-                        const teacherName = teachers.find(t => t.id === classroom.teacher_id)?.name || 'Chưa gán';
-                        const subjectName = subjects.find(s => s.id === classroom.subject_id)?.name || 'Chưa gán';
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
+                {/* Cột trái - Form tạo lịch học */}
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">📝 Thông tin cơ bản</h3>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="campus-select" className="text-base font-semibold text-gray-700">🏢 Cơ sở *</Label>
+                        <select
+                          id="campus-select"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                          value={selectedCampus}
+                          onChange={(e) => handleCampusChange(e.target.value)}
+                          disabled={loadingCampuses}
+                        >
+                          <option value="">Chọn cơ sở</option>
+                          {campuses.map((campus) => (
+                            <option key={campus.id} value={campus.id}>
+                              {campus.name} ({campus.code})
+                            </option>
+                          ))}
+                        </select>
+                        {errors.campus_id && (
+                          <p className="text-sm text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            {errors.campus_id}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="classroom_id" className="text-base font-semibold text-gray-700">🏫 Lớp học *</Label>
+                        <select
+                          id="classroom_id"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                          value={formData.classroom_id}
+                          onChange={(e) => handleClassroomChange(e.target.value)}
+                          disabled={loadingClassrooms || !selectedCampus}
+                        >
+                          <option value="">Chọn lớp học</option>
+                          {classrooms.map((classroom) => {
+                            const teacherName = teachers.find(t => t.id === classroom.teacher_id)?.name || 'Chưa gán';
+                            const subjectName = subjects.find(s => s.id === classroom.subject_id)?.name || 'Chưa gán';
+                            return (
+                              <option key={classroom.id} value={classroom.id}>
+                                {classroom.name} - {teacherName} - {subjectName}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        {errors.classroom_id && (
+                          <p className="text-sm text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            {errors.classroom_id}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="subject_id" className="text-base font-semibold text-gray-700">📚 Môn học *</Label>
+                        <select
+                          id="subject_id"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                          value={formData.subject_id}
+                          onChange={(e) => setFormData({ ...formData, subject_id: e.target.value })}
+                          disabled={loadingSubjects}
+                        >
+                          <option value="">Chọn môn học</option>
+                          {subjects.map((subject) => (
+                            <option key={subject.id} value={subject.id}>
+                              {subject.name} ({subject.code})
+                            </option>
+                          ))}
+                        </select>
+                        {formData.classroom_id && formData.subject_id && (
+                          <p className="text-xs text-green-600 flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Môn học đã được tự động điền từ lớp học đã chọn
+                          </p>
+                        )}
+                        {errors.subject_id && (
+                          <p className="text-sm text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            {errors.subject_id}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="teacher_id" className="text-base font-semibold text-gray-700">👨‍🏫 Giáo viên *</Label>
+                        <select
+                          id="teacher_id"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                          value={formData.teacher_id}
+                          onChange={(e) => setFormData({ ...formData, teacher_id: e.target.value })}
+                          disabled={loadingTeachers}
+                        >
+                          <option value="">Chọn giáo viên</option>
+                          {teachers.map((teacher) => (
+                            <option key={teacher.id} value={teacher.id}>
+                              {teacher.name} ({teacher.email})
+                            </option>
+                          ))}
+                        </select>
+                        {errors.teacher_id && (
+                          <p className="text-sm text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            {errors.teacher_id}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  
+                  {/* Chọn ngày cụ thể */}
+                  <div className="bg-gradient-to-r from-cyan-50 to-blue-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">📆 Chọn ngày cụ thể</h3>
+                    {formData.classroom_id && (() => {
+                      const classroom = classrooms.find(c => c.id === formData.classroom_id);
+                      if (classroom && classroom.open_date && classroom.close_date) {
+                        const startDate = new Date(classroom.open_date).toLocaleDateString('vi-VN');
+                        const endDate = new Date(classroom.close_date).toLocaleDateString('vi-VN');
                         return (
-                          <option key={classroom.id} value={classroom.id}>
-                            {classroom.name} - {teacherName} - {subjectName}
-                          </option>
+                          <div className="text-sm text-blue-700 bg-blue-100 p-3 rounded-lg mb-4">
+                            <strong>📅 Khoảng thời gian lớp học:</strong> {startDate} - {endDate}
+                          </div>
                         );
-                      })}
-                    </select>
-                    {errors.classroom_id && (
-                      <p className="text-sm text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errors.classroom_id}
-                      </p>
-                    )}
+                      }
+                      return null;
+                    })()}
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {getClassroomDateRange().map(({ date, dayOfWeek, display }) => (
+                          <button
+                            key={date}
+                            type="button"
+                            className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                              selectedDates.includes(date)
+                                ? 'bg-cyan-100 border-cyan-500 text-cyan-700'
+                                : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                            }`}
+                            onClick={() => handleDateToggle(date)}
+                          >
+                            <div className="text-xs text-gray-500 mb-1">
+                              {DAYS_OF_WEEK[dayOfWeek]}
+                            </div>
+                            <div className="font-semibold">
+                              {display}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      {selectedDates.length > 0 && (
+                        <div className="text-sm text-gray-600 bg-white p-3 rounded-lg">
+                          <strong>Đã chọn:</strong> {selectedDates.length} ngày
+                          <div className="text-xs text-gray-500 mt-1">
+                            💡 Xem danh sách chi tiết bên phải
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="subject_id">Môn học *</Label>
-                    <select
-                      id="subject_id"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      value={formData.subject_id}
-                      onChange={(e) => setFormData({ ...formData, subject_id: e.target.value })}
-                      disabled={loadingSubjects}
+                  
+                  {/* Nút thêm vào danh sách */}
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addToScheduleList}
+                      className="flex-1 py-3 border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-semibold"
+                      disabled={selectedDates.length === 0 || !formData.start_time || !formData.end_time}
                     >
-                      <option value="">Chọn môn học</option>
-                      {subjects.map((subject) => (
-                        <option key={subject.id} value={subject.id}>
-                          {subject.name} ({subject.code})
-                        </option>
-                      ))}
-                    </select>
-                    {formData.classroom_id && formData.subject_id && (
-                      <p className="text-xs text-green-600 flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" />
-                        Môn học đã được tự động điền từ lớp học đã chọn
-                      </p>
-                    )}
-                    {errors.subject_id && (
-                      <p className="text-sm text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errors.subject_id}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="teacher_id">Giáo viên *</Label>
-                  <select
-                    id="teacher_id"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    value={formData.teacher_id}
-                    onChange={(e) => setFormData({ ...formData, teacher_id: e.target.value })}
-                    disabled={loadingTeachers}
-                  >
-                    <option value="">Chọn giáo viên</option>
-                    {teachers.map((teacher) => (
-                      <option key={teacher.id} value={teacher.id}>
-                        {teacher.name} ({teacher.email})
-                      </option>
-                    ))}
-                  </select>
-                  {errors.teacher_id && (
-                    <p className="text-sm text-red-500 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.teacher_id}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="day_of_week">Thứ trong tuần *</Label>
-                  <select
-                    id="day_of_week"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    value={formData.day_of_week}
-                    onChange={(e) => setFormData({ ...formData, day_of_week: Number(e.target.value) })}
-                  >
-                    {DAYS_OF_WEEK.map((day, index) => (
-                      <option key={index} value={index}>
-                        {day}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="start_time">Thời gian bắt đầu *</Label>
-                    <select
-                      id="start_time"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      value={formData.start_time}
-                      onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                      <Plus className="w-5 h-5 mr-2" />
+                      Thêm vào danh sách
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={clearScheduleList}
+                      disabled={scheduleList.length === 0}
+                      className="text-red-600 hover:text-red-700 border-2 border-red-200 hover:border-red-400 hover:bg-red-50 py-3 font-semibold"
                     >
-                      {TIME_SLOTS.map((time) => (
-                        <option key={time} value={time}>
-                          {time}
-                        </option>
-                      ))}
-                    </select>
+                      <Trash2 className="w-5 h-5 mr-2" />
+                      Xóa tất cả
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="end_time">Thời gian kết thúc *</Label>
-                    <select
-                      id="end_time"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      value={formData.end_time}
-                      onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                    >
-                      {TIME_SLOTS.map((time) => (
-                        <option key={time} value={time}>
-                          {time}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.end_time && (
-                      <p className="text-sm text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errors.end_time}
-                      </p>
+                </div>
+                
+                {/* Cột phải - Danh sách lịch học sẽ tạo */}
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-r from-orange-50 to-yellow-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">
+                      📋 Danh sách lịch học sẽ tạo 
+                      <span className="text-sm font-normal text-gray-600 ml-2">
+                        ({scheduleList.length} lịch)
+                      </span>
+                    </h3>
+
+                    {scheduleList.length > 0 ? (
+                      <div className="space-y-3">
+                        {scheduleList.map((schedule, index) => (
+                          <div
+                            key={index}
+                            className="p-5 bg-gradient-to-r from-white to-gray-50 rounded-xl border-2 border-gray-200 hover:border-orange-300 transition-all"
+                          >
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-orange-100 text-orange-700 rounded-full flex items-center justify-center text-lg font-bold">
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-gray-900 text-xl">
+                                    {schedule.date 
+                                      ? new Date(schedule.date).toLocaleDateString('vi-VN', { 
+                                          weekday: 'long', 
+                                          day: '2-digit', 
+                                          month: '2-digit',
+                                          year: 'numeric'
+                                        })
+                                      : DAYS_OF_WEEK[schedule.day_of_week]
+                                    }
+                                  </div>
+                                  {schedule.date && (
+                                    <div className="text-sm text-gray-500">
+                                      {DAYS_OF_WEEK[schedule.day_of_week]}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeFromScheduleList(index)}
+                                className="text-red-600 hover:text-red-700 border-2 border-red-200 hover:border-red-400 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-sm font-semibold text-gray-700 mb-2">Thời gian bắt đầu</Label>
+                                <select
+                                  className="w-full px-3 py-2 text-sm border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                                  value={schedule.start_time}
+                                  onChange={(e) => updateScheduleInList(index, 'start_time', e.target.value)}
+                                >
+                                  {TIME_SLOTS.map((time) => (
+                                    <option key={time} value={time}>
+                                      {time}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-semibold text-gray-700 mb-2">Thời gian kết thúc</Label>
+                                <select
+                                  className="w-full px-3 py-2 text-sm border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                                  value={schedule.end_time}
+                                  onChange={(e) => updateScheduleInList(index, 'end_time', e.target.value)}
+                                >
+                                  {TIME_SLOTS.map((time) => (
+                                    <option key={time} value={time}>
+                                      {time}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-4">
+                              <Label className="text-sm font-semibold text-gray-700 mb-2">Phòng học</Label>
+                              <Input
+                                className="text-sm px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                                value={schedule.room}
+                                onChange={(e) => updateScheduleInList(index, 'room', e.target.value)}
+                                placeholder="Tên phòng học (tùy chọn)"
+                              />
+                            </div>
+                            
+                            <div className="mt-3 text-sm text-gray-600 bg-gray-100 p-3 rounded-lg">
+                              <strong>Thời gian:</strong> {schedule.start_time} - {schedule.end_time} | 
+                              <strong> Phòng:</strong> {schedule.room || 'Chưa chọn'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-gray-500">
+                        <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                        <p className="text-lg">Chưa có lịch học nào</p>
+                        <p className="text-sm">Hãy chọn ngày bên trái và nhấn "Thêm vào danh sách"</p>
+                      </div>
                     )}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="room">Phòng học</Label>
-                  <Input
-                    id="room"
-                    value={formData.room}
-                    onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                    placeholder="Tên phòng học (tùy chọn)"
-                  />
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <Button className="flex-1" onClick={editingSchedule ? handleUpdate : handleCreate} disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isSubmitting ? 'Đang xử lý...' : (editingSchedule ? 'Cập nhật' : 'Thêm mới')}
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>Hủy</Button>
-                </div>
+              </div>
+              
+              {/* Nút action ở dưới cùng */}
+              <div className="flex gap-4 p-6 bg-gray-50 border-t">
+                <Button 
+                  className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-lg" 
+                  onClick={editingSchedule ? handleUpdate : handleCreate} 
+                  disabled={isSubmitting || (!editingSchedule && scheduleList.length === 0)}
+                >
+                  {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                  {isSubmitting 
+                    ? 'Đang xử lý...' 
+                    : editingSchedule 
+                      ? 'Cập nhật' 
+                      : `Tạo ${scheduleList.length} lịch học`
+                  }
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsDialogOpen(false)} 
+                  disabled={isSubmitting}
+                  className="py-3 px-8 border-2 border-gray-300 hover:border-gray-400 font-semibold"
+                >
+                  Hủy
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
