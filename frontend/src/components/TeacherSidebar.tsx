@@ -41,6 +41,13 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
       description: 'Tổng quan'
     },
     {
+      id: 'attendance',
+      label: 'Điểm danh',
+      icon: ClipboardCheck,
+      path: '/teacher/attendance',
+      description: 'Điểm danh & Xác nhận lớp'
+    },
+    {
       id: 'classrooms',
       label: 'Lớp học',
       icon: School,
@@ -51,7 +58,7 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
       id: 'assignments',
       label: 'Bài tập',
       icon: ClipboardCheck,
-      path: '/assignments',
+      path: '/teacher/assignments',
       description: 'Tạo và chấm bài'
     },
     {
@@ -111,19 +118,19 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
 
   return (
     <div className={cn(
-      "bg-white/95 backdrop-blur-md border-r border-white/20 shadow-xl text-slate-800 transition-all duration-300 ease-in-out",
+      "bg-white/95 backdrop-blur-md border-r border-blue-200/60 shadow-xl text-slate-800 transition-all duration-300 ease-in-out",
       isCollapsed ? "w-16" : "w-64"
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/20 bg-gradient-to-r from-blue-50 to-indigo-50">
+      <div className="flex items-center justify-between p-4 border-b border-blue-200/60 bg-gradient-to-r from-blue-50 to-indigo-50">
         {!isCollapsed && (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-700 to-indigo-700 rounded-xl flex items-center justify-center shadow-lg">
               <span className="text-white font-bold text-sm">T</span>
             </div>
             <div>
               <h1 className="font-bold text-lg text-slate-800">Teacher</h1>
-              <p className="text-xs text-slate-600 font-medium">Giảng dạy</p>
+              <p className="text-xs text-slate-900 font-bold">Giảng dạy</p>
             </div>
           </div>
         )}
@@ -131,7 +138,7 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
           variant="ghost"
           size="sm"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-slate-600 hover:text-slate-800 hover:bg-white/50"
+          className="text-blue-700 hover:text-blue-900 hover:bg-white/60"
         >
           {isCollapsed ? <Menu className="w-4 h-4" /> : <X className="w-4 h-4" />}
         </Button>
@@ -139,16 +146,16 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
 
       {/* User Info */}
       {!isCollapsed && user && (
-        <div className="p-4 border-b border-white/20">
+        <div className="p-4 border-b border-blue-200/60">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
               <span className="text-white font-bold text-sm">
                 {user.name?.charAt(0) || 'T'}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate text-slate-800">{user.name || 'Giáo viên'}</p>
-              <p className="text-xs text-slate-600 truncate">{user.email || 'teacher@school.com'}</p>
+              <p className="text-sm font-bold truncate text-slate-900">{user.name || 'Giáo viên'}</p>
+              <p className="text-xs text-slate-700 truncate">{user.email || 'teacher@school.com'}</p>
             </div>
           </div>
         </div>
@@ -167,25 +174,25 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative",
                 isActive
-                  ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/25"
-                  : "text-slate-700 hover:bg-white/50 hover:text-slate-900 hover:shadow-md"
+                  ? "bg-gradient-to-r from-blue-700 to-indigo-700 text-white shadow-lg shadow-blue-700/25"
+                  : "text-slate-800 hover:bg-blue-50 hover:text-blue-900 hover:shadow-md"
               )}
             >
               <div className={cn(
                 "p-1.5 rounded-lg transition-all duration-200",
                 isActive 
                   ? "bg-white/20" 
-                  : "bg-slate-100 group-hover:bg-white/80"
+                  : "bg-blue-100/70 group-hover:bg-white"
               )}>
                 <Icon className={cn(
                   "w-5 h-5 transition-all duration-200",
-                  isActive ? "text-white" : "text-slate-600 group-hover:text-slate-800"
+                  isActive ? "text-white" : "text-blue-700 group-hover:text-blue-900"
                 )} />
               </div>
               {!isCollapsed && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{item.label}</p>
-                  <p className="text-xs text-slate-500 truncate">{item.description}</p>
+                  <p className="text-sm font-bold truncate text-slate-900">{item.label}</p>
+                  <p className="text-xs text-slate-900 font-semibold truncate">{item.description}</p>
                 </div>
               )}
               {isCollapsed && (
@@ -199,11 +206,11 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-white/20 bg-gradient-to-r from-slate-50 to-green-50">
+      <div className="p-4 border-t border-blue-200/60 bg-gradient-to-r from-blue-50 to-indigo-50">
         {!isCollapsed && (
           <div className="mb-4">
-            <div className="flex items-center space-x-2 text-xs text-slate-600">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <div className="flex items-center space-x-2 text-xs text-blue-800">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
               <span className="font-medium">Trực tuyến</span>
             </div>
           </div>
@@ -214,7 +221,7 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
           variant="outline"
           size="sm"
           className={cn(
-            "w-full bg-white/80 hover:bg-white border-white/30 hover:border-red-300 text-slate-700 hover:text-red-700 font-semibold py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200",
+            "w-full bg-white/80 hover:bg-white border-blue-200 hover:border-blue-300 text-blue-800 hover:text-blue-900 font-semibold py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200",
             isCollapsed ? "px-2" : "px-3"
           )}
         >

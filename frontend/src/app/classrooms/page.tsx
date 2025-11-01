@@ -27,6 +27,7 @@ export default function ClassroomsPage() {
   const [formDescription, setFormDescription] = useState<string>('');
   const [formOpenDate, setFormOpenDate] = useState<string>('');
   const [formCloseDate, setFormCloseDate] = useState<string>('');
+  const [formTuitionPerSession, setFormTuitionPerSession] = useState<number>(50000);
   const [sessionsPerWeek, setSessionsPerWeek] = useState<number>(2);
   const [autoCode, setAutoCode] = useState<boolean>(true);
   const [saving, setSaving] = useState(false);
@@ -80,6 +81,8 @@ export default function ClassroomsPage() {
     setFormDescription('');
     setFormOpenDate('');
     setFormCloseDate('');
+    setFormTuitionPerSession(50000);
+    setSessionsPerWeek(2);
     setAutoCode(true);
     setErrorMsg('');
     setSelectedStudentIds([]);
@@ -375,6 +378,8 @@ export default function ClassroomsPage() {
                               setFormDescription(c.description || '');
                               setFormOpenDate(c.open_date ? c.open_date.slice(0, 10) : '');
                               setFormCloseDate(c.close_date ? c.close_date.slice(0, 10) : '');
+                              setFormTuitionPerSession(typeof c.tuition_per_session === 'number' ? c.tuition_per_session : 50000);
+                              setSessionsPerWeek(typeof c.sessions_per_week === 'number' ? c.sessions_per_week : 2);
                               setErrorMsg('');
                               setIsDialogOpen(true);
                             }}>
@@ -503,34 +508,83 @@ export default function ClassroomsPage() {
               <Label htmlFor="description">Mô tả</Label>
               <Input id="description" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="open_date">Ngày mở lớp</Label>
-                <Input id="open_date" type="date" value={formOpenDate} onChange={(e) => setFormOpenDate(e.target.value)} />
+            
+            {/* Thời gian học */}
+            <div className="pt-2">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Thời gian học</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="open_date">Ngày mở lớp</Label>
+                  <Input id="open_date" type="date" value={formOpenDate} onChange={(e) => setFormOpenDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="close_date">Ngày đóng lớp</Label>
+                  <Input id="close_date" type="date" value={formCloseDate} onChange={(e) => setFormCloseDate(e.target.value)} />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="close_date">Ngày đóng lớp</Label>
-                <Input id="close_date" type="date" value={formCloseDate} onChange={(e) => setFormCloseDate(e.target.value)} />
+            </div>
+            
+            {/* Học phí */}
+            <div className="pt-2">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Học phí</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tuition_per_session">
+                    Học phí mỗi buổi (VND) *
+                  </Label>
+                  <Input
+                    id="tuition_per_session"
+                    type="number"
+                    min="0"
+                    step="10000"
+                    value={formTuitionPerSession}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      setFormTuitionPerSession(value);
+                    }}
+                    placeholder="50,000"
+                    required
+                  />
+                  <p className="text-xs text-gray-500">
+                    Ví dụ: 50,000 VND, 100,000 VND
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sessions_per_week">
+                    Số buổi mỗi tuần *
+                  </Label>
+                  <Input
+                    id="sessions_per_week"
+                    type="number"
+                    min="1"
+                    max="7"
+                    value={sessionsPerWeek}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value, 10) || 2;
+                      setSessionsPerWeek(Math.max(1, Math.min(7, value)));
+                    }}
+                    placeholder="2"
+                    required
+                  />
+                  <p className="text-xs text-gray-500">
+                    Doanh thu tháng = Học phí/buổi × Số buổi/tuần × 4 tuần
+                  </p>
+                </div>
               </div>
             </div>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-xs text-gray-600">
               <div>
                 {scheduleHint}
               </div>
-              <div className="flex items-center gap-2">
-                <span>Số buổi/tuần:</span>
-                <select
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
-                  value={sessionsPerWeek}
-                  onChange={(e) => setSessionsPerWeek(Number(e.target.value) || 2)}
-                >
-                  <option value={2}>2 buổi</option>
-                  <option value={3}>3 buổi</option>
-                </select>
+              <div className="text-sm text-gray-500">
+                Doanh thu tháng = {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(formTuitionPerSession)} × {sessionsPerWeek} buổi/tuần × 4 tuần × số học sinh
               </div>
             </div>
+            {/* Danh sách học sinh */}
+            <div className="pt-2">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Danh sách học sinh</h3>
             <div className="space-y-2">
-              <Label htmlFor="student_search">Học sinh</Label>
+              <Label htmlFor="student_search">Tìm kiếm học sinh</Label>
               <Input id="student_search" placeholder="Tìm theo tên/email" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} />
               <div className="w-full border border-gray-300 rounded-md h-48 overflow-y-auto p-2">
                 {loadingStudents ? (
@@ -559,6 +613,12 @@ export default function ClassroomsPage() {
                   <div className="text-xs text-gray-500 px-1 py-2">Không có học sinh phù hợp</div>
                 )}
               </div>
+              {selectedStudentIds.length > 0 && (
+                <p className="text-xs text-gray-600 mt-2">
+                  Đã chọn: <span className="font-semibold">{selectedStudentIds.length}</span> học sinh
+                </p>
+              )}
+            </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)} disabled={saving}>Hủy</Button>
@@ -585,6 +645,8 @@ export default function ClassroomsPage() {
                       subject_id: formSubjectId.trim() || null,
                       campus_id: formCampusId.trim() || null,
                       description: formDescription.trim() || null,
+                      tuition_per_session: formTuitionPerSession && formTuitionPerSession > 0 ? formTuitionPerSession : 50000,
+                      sessions_per_week: sessionsPerWeek && sessionsPerWeek > 0 ? sessionsPerWeek : 2,
                       student_ids: selectedStudentIds,
                       open_date: formOpenDate || null,
                       close_date: formCloseDate || null,

@@ -44,12 +44,11 @@ async def create_teacher(
             detail="Not enough permissions"
         )
     
-    # Tạo user_id và teacher_code tự động
+    # Tạo teacher_code tự động; user_id sẽ lấy từ Supabase Auth
     import uuid
-    user_id = str(uuid.uuid4())
     teacher_code = f"GV{str(uuid.uuid4())[:6].upper()}"
     
-    # Kiểm tra email đã tồn tại chưa
+    # Kiểm tra email đã tồn tại trong bảng users
     existing_user = supabase.table('users').select('id').eq('email', teacher_data.email).execute()
     if existing_user.data:
         raise HTTPException(
@@ -64,11 +63,32 @@ async def create_teacher(
         teacher_code = f"GV{str(uuid.uuid4())[:6].upper()}"
 
     try:
-        # Tạo user trước
+        # 1) Tạo tài khoản Supabase Auth với mật khẩu mặc định 123456
         from datetime import datetime
         now = datetime.now().isoformat()
         
-        # Hash password 123456
+        # Tạo user trong Supabase Auth
+        try:
+            auth_resp = supabase.auth.sign_up({
+                'email': teacher_data.email,
+                'password': '123456'
+            })
+            auth_user = getattr(auth_resp, 'user', None)
+            if not auth_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to create auth user"
+                )
+            user_id = auth_user.id
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Auth creation error: {str(e)}"
+            )
+
+        # 2) Ghi bản ghi user ứng dụng, hash password 123456 để đồng bộ mô hình DB
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         password_hash = pwd_context.hash("123456")
@@ -90,7 +110,7 @@ async def create_teacher(
                 detail="Failed to create user"
             )
         
-        # Tạo teacher
+        # 3) Tạo teacher
         teacher_result = supabase.table('teachers').insert({
             'id': str(uuid.uuid4()),
             'user_id': user_id,

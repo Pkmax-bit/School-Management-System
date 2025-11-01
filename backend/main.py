@@ -12,7 +12,7 @@ from typing import List
 
 from database import get_db
 from config import settings
-from routers import auth, users, teachers, students, subjects, classrooms, schedules, assignments, attendances, finances, campuses
+from routers import auth, users, teachers, students, subjects, classrooms, schedules, assignments, attendances, finances, payments, campuses, expense_categories
 
 app = FastAPI(
     title="School Management System API",
@@ -50,6 +50,8 @@ app.include_router(campuses.router, prefix="/api/campuses", tags=["Campuses"])
 app.include_router(assignments.router, prefix="/api/assignments", tags=["Assignments"])
 app.include_router(attendances.router, prefix="/api/attendances", tags=["Attendances"])
 app.include_router(finances.router, prefix="/api/finances", tags=["Finances"])
+app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
+app.include_router(expense_categories.router, prefix="/api/expense-categories", tags=["Expense Categories"])
 
 @app.get("/")
 async def root():

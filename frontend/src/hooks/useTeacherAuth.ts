@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, LoginForm } from '@/types';
+import { User, LoginForm, UserRole } from '@/types';
 import { normalizeUser } from '@/lib/auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -24,19 +24,15 @@ export const useTeacherAuth = () => {
 
       // For teacher dashboard, we'll use a mock teacher user
       // In production, this would call the actual API
-      const mockTeacherUser = {
+      const mockTeacherUser: User = {
         id: 'teacher-user-id',
         email: 'teacher@school.com',
-        full_name: 'Nguyen Van Giao',
-        role: 'teacher',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        name: 'Nguyen Van Giao',
+        role: 'teacher' as UserRole
       };
 
-      const mappedUserData = normalizeUser(mockTeacherUser);
-      console.log('useTeacherAuth - Mock teacher data:', mappedUserData);
-      setUser(mappedUserData);
+      console.log('useTeacherAuth - Mock teacher data:', mockTeacherUser);
+      setUser(mockTeacherUser);
     } catch (error) {
       console.error('Error checking teacher user:', error);
       localStorage.removeItem('auth_token');
@@ -50,19 +46,15 @@ export const useTeacherAuth = () => {
     try {
       // For development, accept any teacher login
       if (loginData.email.includes('teacher') || loginData.email === 'teacher@school.com') {
-        const mockTeacherUser = {
+        const mockTeacherUser: User = {
           id: 'teacher-user-id',
           email: loginData.email,
-          full_name: 'Nguyen Van Giao',
-          role: 'teacher',
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          name: 'Nguyen Van Giao',
+          role: 'teacher' as UserRole
         };
 
         localStorage.setItem('auth_token', 'mock-teacher-token');
-        const userData = normalizeUser(mockTeacherUser);
-        setUser(userData);
+        setUser(mockTeacherUser);
         router.push('/teacher/dashboard');
         return;
       }

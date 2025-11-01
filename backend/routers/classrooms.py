@@ -29,6 +29,10 @@ class ClassroomCreate(BaseModel):
     subject_id: Optional[str] = None
     # campus_id: uuid null (FK)
     campus_id: Optional[str] = None
+    # tuition_per_session: học phí mỗi buổi
+    tuition_per_session: Optional[float] = 50000
+    # sessions_per_week: số buổi mỗi tuần
+    sessions_per_week: Optional[int] = 2
     # optional list of students to assign to this classroom upon creation
     student_ids: Optional[List[str]] = None
     # dates
@@ -44,6 +48,8 @@ class ClassroomUpdate(BaseModel):
     teacher_id: Optional[str] = None
     subject_id: Optional[str] = None
     campus_id: Optional[str] = None
+    tuition_per_session: Optional[float] = None
+    sessions_per_week: Optional[int] = None
     open_date: Optional[str] = None
     close_date: Optional[str] = None
 
@@ -57,6 +63,8 @@ class ClassroomResponse(BaseModel):
     teacher_id: Optional[str] = None
     subject_id: Optional[str] = None
     campus_id: Optional[str] = None
+    tuition_per_session: Optional[float] = 50000
+    sessions_per_week: Optional[int] = 2
     open_date: Optional[str] = None
     close_date: Optional[str] = None
     created_at: Optional[str] = None
@@ -146,6 +154,8 @@ async def create_classroom(
         "teacher_id": normalized_teacher_id,
         "subject_id": normalized_subject_id,
         "campus_id": normalized_campus_id,
+        "tuition_per_session": classroom_data.tuition_per_session or 50000,
+        "sessions_per_week": classroom_data.sessions_per_week or 2,
         "open_date": classroom_data.open_date or None,
         "close_date": classroom_data.close_date or None,
     }

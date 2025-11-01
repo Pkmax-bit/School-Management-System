@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Attendance Feature - School Management System</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        .feature-card {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 15px;
+            padding: 25px;
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-color: #4f46e5;
+        }
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        .feature-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+        .feature-desc {
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            color: #475569;
+            position: relative;
+            padding-left: 25px;
+        }
+        .feature-list li:before {
+            content: "✅";
+            position: absolute;
+            left: 0;
+            top: 8px;
+        }
+        .demo-section {
+            background: #f1f5f9;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        .demo-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .demo-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .demo-btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .demo-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 70, 229, 0.4);
+        }
+        .demo-btn.secondary {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        .demo-btn.secondary:hover {
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            border-color: #4f46e5;
+            transform: translateY(-2px);
+        }
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #4f46e5;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            color: #64748b;
+            font-weight: 500;
+        }
+        .tech-stack {
+            background: #1e293b;
+            color: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 30px;
+        }
+        .tech-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .tech-list {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .tech-item {
+            background: #334155;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        .success-message {
+            background: #dcfce7;
+            border: 2px solid #16a34a;
+            color: #166534;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 Chức năng điểm danh học sinh</h1>
+            <p>Điểm danh học sinh và xác nhận lớp dạy cho Teacher Dashboard</p>
+        </div>
+
+        <div class="content">
+            <div class="success-message">
+                ✅ Chức năng điểm danh học sinh đã được tạo thành công!
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">2</div>
+                    <div class="stat-label">Component mới</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">1</div>
+                    <div class="stat-label">Trang mới</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">4</div>
+                    <div class="stat-label">Trạng thái điểm danh</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">3</div>
+                    <div class="stat-label">Trạng thái lớp học</div>
+                </div>
+            </div>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <div class="feature-title">Điểm danh học sinh</div>
+                    <div class="feature-desc">
+                        Quản lý điểm danh học sinh với 4 trạng thái khác nhau
+                    </div>
+                    <ul class="feature-list">
+                        <li>Có mặt (Present)</li>
+                        <li>Vắng mặt (Absent)</li>
+                        <li>Đi muộn (Late)</li>
+                        <li>Có phép (Excused)</li>
+                        <li>Tìm kiếm và lọc học sinh</li>
+                        <li>Thống kê tổng quan</li>
+                        <li>Xuất báo cáo Excel</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">✅</div>
+                    <div class="feature-title">Xác nhận lớp dạy</div>
+                    <div class="feature-desc">
+                        Xác nhận hoàn thành lớp học với thông tin chi tiết
+                    </div>
+                    <ul class="feature-list">
+                        <li>Đã dạy (Confirmed)</li>
+                        <li>Hủy lớp (Cancelled)</li>
+                        <li>Dời lịch (Rescheduled)</li>
+                        <li>Ghi chú thời gian thực tế</li>
+                        <li>Quản lý tài liệu sử dụng</li>
+                        <li>Giao bài tập về nhà</li>
+                        <li>Chữ ký giáo viên</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <div class="feature-title">Quản lý lớp học</div>
+                    <div class="feature-desc">
+                        Giao diện quản lý lớp học với đầy đủ tính năng
+                    </div>
+                    <ul class="feature-list">
+                        <li>Danh sách lớp học</li>
+                        <li>Tìm kiếm và lọc</li>
+                        <li>Trạng thái lớp học</li>
+                        <li>Thông tin chi tiết</li>
+                        <li>Thao tác nhanh</li>
+                        <li>Responsive design</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <div class="feature-title">Giao diện người dùng</div>
+                    <div class="feature-desc">
+                        Thiết kế hiện đại và thân thiện với người dùng
+                    </div>
+                    <ul class="feature-list">
+                        <li>Gradient backgrounds</li>
+                        <li>Card-based layout</li>
+                        <li>Interactive buttons</li>
+                        <li>Status badges</li>
+                        <li>Modal dialogs</li>
+                        <li>Mobile responsive</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="demo-section">
+                <div class="demo-title">🚀 Demo chức năng</div>
+                <div class="demo-buttons">
+                    <a href="/teacher/attendance" class="demo-btn">
+                        📊 Xem trang điểm danh
+                    </a>
+                    <a href="/teacher/dashboard" class="demo-btn secondary">
+                        🏠 Về Teacher Dashboard
+                    </a>
+                    <a href="/" class="demo-btn secondary">
+                        🏠 Về trang chủ
+                    </a>
+                </div>
+            </div>
+
+            <div class="tech-stack">
+                <div class="tech-title">🛠️ Công nghệ sử dụng</div>
+                <div class="tech-list">
+                    <div class="tech-item">React</div>
+                    <div class="tech-item">TypeScript</div>
+                    <div class="tech-item">Next.js</div>
+                    <div class="tech-item">Tailwind CSS</div>
+                    <div class="tech-item">Lucide Icons</div>
+                    <div class="tech-item">Shadcn/ui</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactive functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click animations to feature cards
+            const featureCards = document.querySelectorAll('.feature-card');
+            featureCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    this.style.transform = 'scale(0.98)';
+                    setTimeout(() => {
+                        this.style.transform = '';
+                    }, 150);
+                });
+            });
+
+            // Add hover effects to demo buttons
+            const demoButtons = document.querySelectorAll('.demo-btn');
+            demoButtons.forEach(btn => {
+                btn.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-2px) scale(1.05)';
+                });
+                btn.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0) scale(1)';
+                });
+            });
+
+            // Add success animation
+            const successMessage = document.querySelector('.success-message');
+            if (successMessage) {
+                successMessage.style.animation = 'fadeInUp 0.6s ease-out';
+            }
+        });
+
+        // Add CSS animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeInUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
+
+

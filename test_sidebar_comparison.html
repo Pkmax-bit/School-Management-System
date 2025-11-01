@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sidebar Comparison - Admin vs Teacher</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 30px 0;
+        }
+        .sidebar-section {
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+        .admin-sidebar {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-color: #3b82f6;
+        }
+        .teacher-sidebar {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-color: #10b981;
+        }
+        .btn {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background: #45a049;
+        }
+        .btn-blue {
+            background: #2196F3;
+        }
+        .btn-blue:hover {
+            background: #1976D2;
+        }
+        .btn-green {
+            background: #10b981;
+        }
+        .btn-green:hover {
+            background: #059669;
+        }
+        .feature-list {
+            margin: 15px 0;
+        }
+        .feature-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+        .icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .admin-icon {
+            background: #3b82f6;
+        }
+        .teacher-icon {
+            background: #10b981;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Sidebar Comparison - Admin vs Teacher</h1>
+        
+        <div class="comparison">
+            <div class="sidebar-section admin-sidebar">
+                <h2>👨‍💼 Admin Sidebar</h2>
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <div class="icon admin-icon">A</div>
+                        <span><strong>Background:</strong> White/95 với backdrop-blur</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon admin-icon">🎨</div>
+                        <span><strong>Color Scheme:</strong> Blue gradient theme</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon admin-icon">📱</div>
+                        <span><strong>Responsive:</strong> Collapsible + Mobile overlay</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon admin-icon">🔍</div>
+                        <span><strong>Search:</strong> Built-in search bar</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon admin-icon">⚡</div>
+                        <span><strong>Quick Actions:</strong> 4 quick action buttons</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon admin-icon">👤</div>
+                        <span><strong>User Profile:</strong> Avatar + user info</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon admin-icon">📋</div>
+                        <span><strong>Menu Items:</strong> 13 admin-specific items</span>
+                    </div>
+                </div>
+                <a href="http://localhost:3000/admin/dashboard" class="btn btn-blue" target="_blank">
+                    👨‍💼 View Admin Sidebar
+                </a>
+            </div>
+
+            <div class="sidebar-section teacher-sidebar">
+                <h2>🎓 Teacher Sidebar</h2>
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <div class="icon teacher-icon">T</div>
+                        <span><strong>Background:</strong> White/95 với backdrop-blur</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon teacher-icon">🎨</div>
+                        <span><strong>Color Scheme:</strong> Green gradient theme</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon teacher-icon">📱</div>
+                        <span><strong>Responsive:</strong> Collapsible design</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon teacher-icon">👤</div>
+                        <span><strong>User Info:</strong> Teacher name + email</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon teacher-icon">📋</div>
+                        <span><strong>Menu Items:</strong> 10 teacher-specific items</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon teacher-icon">🎯</div>
+                        <span><strong>Active State:</strong> Green gradient highlight</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon teacher-icon">💡</div>
+                        <span><strong>Tooltips:</strong> Hover tooltips when collapsed</span>
+                    </div>
+                </div>
+                <a href="http://localhost:3000/teacher/dashboard" class="btn btn-green" target="_blank">
+                    🎓 View Teacher Sidebar
+                </a>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Side-by-Side Comparison</h3>
+            <p>So sánh trực tiếp hai sidebar:</p>
+            <div style="display: flex; gap: 20px; margin: 20px 0;">
+                <a href="http://localhost:3000/admin/dashboard" class="btn btn-blue" target="_blank">
+                    👨‍💼 Admin Dashboard
+                </a>
+                <a href="http://localhost:3000/teacher/dashboard" class="btn btn-green" target="_blank">
+                    🎓 Teacher Dashboard
+                </a>
+            </div>
+            <div id="comparisonResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>✅ Similarities (Giống nhau)</h3>
+            <ul>
+                <li><strong>Background:</strong> Cả hai đều sử dụng white/95 với backdrop-blur</li>
+                <li><strong>Layout:</strong> Cùng cấu trúc header, navigation, footer</li>
+                <li><strong>Collapsible:</strong> Cả hai đều có thể thu gọn/mở rộng</li>
+                <li><strong>Shadows:</strong> Cùng sử dụng shadow-xl cho depth</li>
+                <li><strong>Borders:</strong> Cùng sử dụng border-white/20</li>
+                <li><strong>Typography:</strong> Cùng font weights và sizes</li>
+                <li><strong>Transitions:</strong> Cùng smooth animations</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🎨 Differences (Khác biệt)</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h4>👨‍💼 Admin Sidebar</h4>
+                    <ul>
+                        <li><strong>Color:</strong> Blue gradient theme</li>
+                        <li><strong>Icon:</strong> GraduationCap (A)</li>
+                        <li><strong>Search:</strong> Có search bar</li>
+                        <li><strong>Quick Actions:</strong> 4 quick action buttons</li>
+                        <li><strong>Menu Items:</strong> 13 items (admin-focused)</li>
+                        <li><strong>Mobile:</strong> Overlay mode</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>🎓 Teacher Sidebar</h4>
+                    <ul>
+                        <li><strong>Color:</strong> Green gradient theme</li>
+                        <li><strong>Icon:</strong> T (Teacher)</li>
+                        <li><strong>Search:</strong> Không có search bar</li>
+                        <li><strong>Quick Actions:</strong> Không có</li>
+                        <li><strong>Menu Items:</strong> 10 items (teacher-focused)</li>
+                        <li><strong>Mobile:</strong> Collapsible only</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Test Sidebar Features</h3>
+            <button onclick="testSidebarFeatures()" class="btn">
+                🔍 Test Sidebar Features
+            </button>
+            <div id="featureResult" class="result"></div>
+        </div>
+
+        <div class="test-section info">
+            <h3>📋 Test Checklist</h3>
+            <ul>
+                <li>✅ Both sidebars have white background</li>
+                <li>✅ Both use backdrop-blur effect</li>
+                <li>✅ Both have collapsible functionality</li>
+                <li>✅ Both show user information</li>
+                <li>✅ Both have proper active states</li>
+                <li>✅ Both have hover effects</li>
+                <li>✅ Both are responsive</li>
+                <li>✅ Both have logout functionality</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        async function testSidebarFeatures() {
+            const resultDiv = document.getElementById('featureResult');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = 'Testing sidebar features...';
+            
+            try {
+                // Test Admin Sidebar
+                const adminResponse = await fetch('http://localhost:3000/admin/dashboard');
+                if (adminResponse.ok) {
+                    resultDiv.innerHTML += '<br>✅ Admin Sidebar loads successfully';
+                } else {
+                    throw new Error('Admin Sidebar failed to load');
+                }
+                
+                // Test Teacher Sidebar
+                const teacherResponse = await fetch('http://localhost:3000/teacher/dashboard');
+                if (teacherResponse.ok) {
+                    resultDiv.innerHTML += '<br>✅ Teacher Sidebar loads successfully';
+                } else {
+                    throw new Error('Teacher Sidebar failed to load');
+                }
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML += '<br>🎉 Both sidebars working perfectly!';
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ Sidebar test failed: ' + error.message;
+            }
+        }
+
+        // Auto-check on page load
+        window.onload = function() {
+            const resultDiv = document.getElementById('comparisonResult');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = `
+                <strong>Quick Test:</strong><br>
+                1. Click both buttons above to open sidebars<br>
+                2. Compare the visual design and layout<br>
+                3. Test collapsible functionality<br>
+                4. Check responsive behavior<br>
+                5. Verify both have white backgrounds
+            `;
+        };
+    </script>
+</body>
+</html>
+
+

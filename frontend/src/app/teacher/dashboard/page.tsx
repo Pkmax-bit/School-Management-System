@@ -81,6 +81,6 @@ export default function TeacherDashboardPage() {
     );
   }
 
-  return <TeacherDashboard onNavigate={(page) => router.push(`/${page}`)} onLogout={logout} user={user} />;
+  return <TeacherDashboard onNavigate={(page) => router.push(page.startsWith('/') ? page : `/${page}`)} onLogout={logout} user={user} />;
 }
 

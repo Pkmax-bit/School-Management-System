@@ -31,7 +31,9 @@ export default function ClassesPage() {
     campus_id: '',
     description: '',
     open_date: '',
-    close_date: ''
+    close_date: '',
+    tuition_per_session: 50000,
+    sessions_per_week: 2
   });
   const [autoCode, setAutoCode] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -267,6 +269,8 @@ export default function ClassesPage() {
         subject_id: (formData.subject_id || '').trim() || null,
         campus_id: (formData.campus_id || '').trim() || null,
         description: (formData.description || '').trim() || null,
+        tuition_per_session: Number(formData.tuition_per_session) || 50000,
+        sessions_per_week: Number(formData.sessions_per_week) || 2,
         student_ids: selectedStudentIds,
         open_date: formData.open_date || null,
         close_date: formData.close_date || null,
@@ -308,6 +312,8 @@ export default function ClassesPage() {
         subject_id: (formData.subject_id || '').trim() || null,
         campus_id: (formData.campus_id || '').trim() || null,
         description: (formData.description || '').trim() || null,
+        tuition_per_session: Number(formData.tuition_per_session) || 50000,
+        sessions_per_week: Number(formData.sessions_per_week) || 2,
         student_ids: selectedStudentIds,
         open_date: formData.open_date || null,
         close_date: formData.close_date || null,
@@ -361,11 +367,14 @@ export default function ClassesPage() {
       campus_id: cls.campus_id || '',
       description: cls.description || '',
       open_date: cls.open_date ? String(cls.open_date).slice(0, 10) : '',
-      close_date: cls.close_date ? String(cls.close_date).slice(0, 10) : ''
+      close_date: cls.close_date ? String(cls.close_date).slice(0, 10) : '',
+      tuition_per_session: typeof cls.tuition_per_session === 'number' ? cls.tuition_per_session : 50000,
+      sessions_per_week: typeof cls.sessions_per_week === 'number' ? cls.sessions_per_week : 2
     });
+    setSessionsPerWeek(typeof cls.sessions_per_week === 'number' ? cls.sessions_per_week : 2);
     setErrors({});
     setIsDialogOpen(true);
-      setSelectedStudentIds([]);
+    setSelectedStudentIds([]);
   };
 
   const handleAdd = async () => {
@@ -381,7 +390,8 @@ export default function ClassesPage() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', code: 'class', capacity: 30, teacher_id: '', subject_id: '', campus_id: '', description: '', open_date: '', close_date: '' });
+    setFormData({ name: '', code: 'class', capacity: 30, teacher_id: '', subject_id: '', campus_id: '', description: '', open_date: '', close_date: '', tuition_per_session: 50000, sessions_per_week: 2 });
+    setSessionsPerWeek(2);
     setErrors({});
   };
 
@@ -636,32 +646,68 @@ export default function ClassesPage() {
                           {scheduleHint() && (
                             <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                               <p className="text-sm text-blue-700 mb-2">{scheduleHint()}</p>
-                              <div className="flex gap-4">
-                                <label className="flex items-center text-sm">
-                                  <input
-                                    type="radio"
-                                    name="sessionsPerWeek"
-                                    value="2"
-                                    checked={sessionsPerWeek === 2}
-                                    onChange={(e) => setSessionsPerWeek(Number(e.target.value))}
-                                    className="mr-2"
-                                  />
-                                  2 buổi/tuần
-                                </label>
-                                <label className="flex items-center text-sm">
-                                  <input
-                                    type="radio"
-                                    name="sessionsPerWeek"
-                                    value="3"
-                                    checked={sessionsPerWeek === 3}
-                                    onChange={(e) => setSessionsPerWeek(Number(e.target.value))}
-                                    className="mr-2"
-                                  />
-                                  3 buổi/tuần
-                                </label>
-                              </div>
                             </div>
                           )}
+                        </div>
+                        
+                        {/* Học phí */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold">Học phí</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="tuition_per_session">
+                                Học phí mỗi buổi (VND) *
+                              </Label>
+                              <Input
+                                id="tuition_per_session"
+                                type="number"
+                                min="0"
+                                step="10000"
+                                value={formData.tuition_per_session || 50000}
+                                onChange={(e) => {
+                                  const value = parseFloat(e.target.value) || 0;
+                                  setFormData({ ...formData, tuition_per_session: value });
+                                }}
+                                placeholder="50,000"
+                                required
+                              />
+                              <p className="text-xs text-gray-500">
+                                Ví dụ: 50,000 VND, 100,000 VND
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="sessions_per_week">
+                                Số buổi mỗi tuần *
+                              </Label>
+                              <Input
+                                id="sessions_per_week"
+                                type="number"
+                                min="1"
+                                max="7"
+                                value={formData.sessions_per_week || 2}
+                                onChange={(e) => {
+                                  const value = parseInt(e.target.value, 10) || 2;
+                                  const validValue = Math.max(1, Math.min(7, value));
+                                  setFormData({ ...formData, sessions_per_week: validValue });
+                                  setSessionsPerWeek(validValue);
+                                }}
+                                placeholder="2"
+                                required
+                              />
+                              <p className="text-xs text-gray-500">
+                                Doanh thu tháng = Học phí/buổi × Số buổi/tuần × 4 tuần
+                              </p>
+                            </div>
+                          </div>
+                          <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+                            <p className="text-sm text-gray-700">
+                              Doanh thu tháng dự kiến: <span className="font-semibold">
+                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                                  (formData.tuition_per_session || 50000) * (formData.sessions_per_week || 2) * 4
+                                )}
+                              </span> / học sinh
+                            </p>
+                          </div>
                         </div>
                         {/* Student Selection - compact */}
                         <div className="space-y-4">
