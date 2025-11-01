@@ -9,8 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { School, Plus, Edit, Trash2, Search, AlertCircle, Loader2 } from 'lucide-react';
+import { School, Plus, Edit, Trash2, Search, AlertCircle, Loader2, Download, Upload, FileSpreadsheet } from 'lucide-react';
 import classroomsHybridApi from '../../lib/classrooms-api-hybrid';
+import * as XLSX from 'xlsx';
 
 export default function ClassesPage() {
   const { user, loading, logout } = useApiAuth();
@@ -473,6 +474,54 @@ export default function ClassesPage() {
                   <p className="text-sm text-gray-600 mt-1">Quản lý tất cả lớp học trong hệ thống</p>
                 </div>
                 <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      // Download file mẫu Excel để import học sinh
+                      const ws = XLSX.utils.aoa_to_sheet([
+                        ['Mã học sinh', 'Tên học sinh', 'Email', 'Ngày sinh (YYYY-MM-DD)', 'Số điện thoại', 'Địa chỉ'],
+                        ['HS001', 'Nguyễn Văn A', 'nguyenvana@example.com', '2010-01-15', '0123456789', '123 Đường ABC'],
+                        ['HS002', 'Trần Thị B', 'tranthib@example.com', '2010-03-20', '0987654321', '456 Đường XYZ'],
+                      ]);
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, 'Danh sách học sinh');
+                      XLSX.writeFile(wb, 'Mau_Danh_Sach_Hoc_Sinh.xlsx');
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Tải mẫu Excel
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      // Export danh sách lớp học ra Excel
+                      const wsData = [
+                        ['Mã lớp', 'Tên lớp', 'Sĩ số', 'Giáo viên', 'Môn học', 'Cơ sở', 'Học phí/buổi (VND)', 'Số buổi/tuần', 'Mô tả', 'Ngày mở', 'Ngày đóng'],
+                        ...classes.map((cls: any) => [
+                          cls.code || '',
+                          cls.name || '',
+                          cls.capacity || 30,
+                          cls.teacher_id ? teachers.find(t => t.id === cls.teacher_id)?.name || '' : '',
+                          cls.subject_id ? subjects.find(s => s.id === cls.subject_id)?.name || '' : '',
+                          cls.campus_id ? campuses.find(c => c.id === cls.campus_id)?.name || '' : '',
+                          cls.tuition_per_session || 50000,
+                          cls.sessions_per_week || 2,
+                          cls.description || '',
+                          cls.open_date ? String(cls.open_date).slice(0, 10) : '',
+                          cls.close_date ? String(cls.close_date).slice(0, 10) : '',
+                        ])
+                      ];
+                      const ws = XLSX.utils.aoa_to_sheet(wsData);
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, 'Danh sách lớp học');
+                      XLSX.writeFile(wb, `Danh_Sach_Lop_Hoc_${new Date().toISOString().split('T')[0]}.xlsx`);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Xuất Excel
+                  </Button>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
@@ -482,6 +531,182 @@ export default function ClassesPage() {
                       className="pl-10 w-64"
                     />
                   </div>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        
+                        try {
+                          const data = await file.arrayBuffer();
+                          const workbook = XLSX.read(data);
+                          const sheetName = workbook.SheetNames[0];
+                          const worksheet = workbook.Sheets[sheetName];
+                          const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                          
+                          // Skip header row
+                          const students = jsonData.slice(1).map((row: any) => ({
+                            student_code: row[0] || '',
+                            name: row[1] || '',
+                            email: row[2] || '',
+                            date_of_birth: row[3] || '',
+                            phone: row[4] || '',
+                            address: row[5] || '',
+                          })).filter((s: any) => s.student_code || s.name);
+                          
+                          if (students.length === 0) {
+                            alert('Không có dữ liệu học sinh hợp lệ trong file Excel');
+                            return;
+                          }
+                          
+                          // Show dialog to select classroom
+                          const classList = classes.map((c: any) => `${c.code} - ${c.name}`).join('\n');
+                          const selectedClassCode = prompt(`Nhập mã lớp để gán học sinh vào:\n\nDanh sách lớp:\n${classList}`);
+                          if (!selectedClassCode) {
+                            e.target.value = '';
+                            return;
+                          }
+                          
+                          const selectedClass = classes.find((c: any) => c.code === selectedClassCode.trim());
+                          if (!selectedClass) {
+                            alert('Không tìm thấy lớp học với mã: ' + selectedClassCode);
+                            e.target.value = '';
+                            return;
+                          }
+                          
+                          // Import students
+                          const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                          const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+                          
+                          let successCount = 0;
+                          let errorCount = 0;
+                          const errors: string[] = [];
+                          
+                          for (const student of students) {
+                            try {
+                              // Create user first
+                              let userId = null;
+                              try {
+                                const userResponse = await fetch(`${API_BASE_URL}/api/auth/register`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+                                  },
+                                  body: JSON.stringify({
+                                    email: student.email || `${student.student_code}@school.local`,
+                                    password: 'TempPassword123!',
+                                    full_name: student.name,
+                                    role: 'student'
+                                  }),
+                                });
+                                
+                                if (userResponse.ok) {
+                                  const userData = await userResponse.json();
+                                  userId = userData.user_id || userData.user?.id || userData.id;
+                                } else {
+                                  const errorData = await userResponse.json().catch(() => ({ detail: 'Unknown error' }));
+                                  // Check if user already exists
+                                  if (userResponse.status === 400 && (errorData.detail?.includes('already') || errorData.detail?.includes('registered'))) {
+                                    // Try to get existing user by email
+                                    const getUsersRes = await fetch(`${API_BASE_URL}/api/users?email=${encodeURIComponent(student.email || `${student.student_code}@school.local`)}`, {
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                        ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+                                      },
+                                    });
+                                    if (getUsersRes.ok) {
+                                      const usersData = await getUsersRes.json();
+                                      const usersList = Array.isArray(usersData) ? usersData : (Array.isArray((usersData as any)?.data) ? (usersData as any).data : []);
+                                      if (usersList.length > 0) {
+                                        userId = usersList[0].id;
+                                      }
+                                    }
+                                  }
+                                  if (!userId) {
+                                    throw new Error(errorData.detail || 'Failed to create user');
+                                  }
+                                }
+                              } catch (error: any) {
+                                errors.push(`${student.student_code || student.name}: ${error.message || 'Lỗi tạo user'}`);
+                                errorCount++;
+                                continue;
+                              }
+                              
+                              // Create student
+                              const studentResponse = await fetch(`${API_BASE_URL}/api/students`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+                                },
+                                body: JSON.stringify({
+                                  student_code: student.student_code,
+                                  name: student.name,
+                                  email: student.email || `${student.student_code}@school.local`,
+                                  user_id: userId,
+                                  classroom_id: selectedClass.id,
+                                  date_of_birth: student.date_of_birth || null,
+                                  phone: student.phone || null,
+                                  address: student.address || null,
+                                  role: 'student'
+                                }),
+                              });
+                              
+                              if (studentResponse.ok) {
+                                successCount++;
+                              } else {
+                                const errorData = await studentResponse.json().catch(() => ({ detail: 'Unknown error' }));
+                                errors.push(`${student.student_code || student.name}: ${errorData.detail || 'Lỗi tạo học sinh'}`);
+                                errorCount++;
+                              }
+                            } catch (error: any) {
+                              errors.push(`${student.student_code || student.name}: ${error.message || 'Lỗi không xác định'}`);
+                              errorCount++;
+                              console.error('Error importing student:', student.student_code, error);
+                            }
+                          }
+                          
+                          let message = `Import hoàn tất!\n\nThành công: ${successCount}\nLỗi: ${errorCount}`;
+                          if (errors.length > 0 && errors.length <= 10) {
+                            message += `\n\nChi tiết lỗi:\n${errors.join('\n')}`;
+                          } else if (errors.length > 10) {
+                            message += `\n\nChi tiết lỗi (${errors.length} lỗi, hiển thị 10 lỗi đầu):\n${errors.slice(0, 10).join('\n')}`;
+                          }
+                          alert(message);
+                          
+                          // Reload data
+                          await loadClasses();
+                          const studentsRes = await fetch(`${API_BASE_URL}/api/students?limit=1000`, {
+                            headers: {
+                              'Content-Type': 'application/json',
+                              ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+                            },
+                          });
+                          if (studentsRes.ok) {
+                            const studentsData = await studentsRes.json();
+                            const list = Array.isArray(studentsData) ? studentsData : (Array.isArray((studentsData as any)?.data) ? (studentsData as any).data : []);
+                            const mapped = list.map((s: any) => ({ id: s.id, name: s.name || s.users?.full_name, email: s.email || s.users?.email, date_of_birth: s.date_of_birth || null }));
+                            setStudents(mapped);
+                          }
+                          
+                          // Reset file input
+                          e.target.value = '';
+                        } catch (error) {
+                          console.error('Error importing Excel:', error);
+                          alert('Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.');
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <Button type="button" variant="outline" className="flex items-center gap-2">
+                      <Upload className="w-4 h-4" />
+                      Import Excel
+                    </Button>
+                  </label>
                   <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
                       <Button onClick={handleAdd}>

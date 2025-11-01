@@ -6,7 +6,7 @@ interface StatCardProps {
   title: string;
   value: string | number;
   icon: LucideIcon;
-  color: 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'indigo';
+  color: 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'indigo' | 'orange';
   trend?: {
     value: number;
     isPositive: boolean;
@@ -56,6 +56,13 @@ export function StatCard({ title, value, icon: Icon, color, trend }: StatCardPro
       iconColor: 'text-white',
       textColor: 'text-indigo-700',
       borderColor: 'border-indigo-200'
+    },
+    orange: {
+      bg: 'bg-gradient-to-br from-orange-50 to-orange-100',
+      iconBg: 'bg-gradient-to-r from-orange-500 to-orange-600',
+      iconColor: 'text-white',
+      textColor: 'text-orange-700',
+      borderColor: 'border-orange-200'
     },
   };
 
