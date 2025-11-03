@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { useApiAuth } from '@/hooks/useApiAuth';
 import { AdminSidebar } from '@/components/AdminSidebar';
+import { PageWithBackground } from '@/components/PageWithBackground';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +28,7 @@ const TIME_SLOTS = [
 ];
 
 export default function SchedulePage() {
+  const { isCollapsed } = useSidebar();
   const { user, loading, logout } = useApiAuth();
   const router = useRouter();
 
@@ -671,14 +674,15 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <AdminSidebar 
+    <PageWithBackground>
+      <div className="min-h-screen">
+        <AdminSidebar 
         currentPage="schedule" 
         onNavigate={(page) => router.push(`/${page}`)} 
         onLogout={logout} 
       />
-      <div className="flex-1 lg:ml-64">
-        <div className="p-4 space-y-6">
+      <div className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+        <div className="flex-1 flex flex-col p-6 space-y-6">
           {/* Header */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h1 className="text-4xl font-bold mb-3 text-gray-900">📅 Quản lý Lịch học</h1>
@@ -686,13 +690,13 @@ export default function SchedulePage() {
           </div>
 
           {/* Filters */}
-          <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+          <Card className="card-transparent shadow-lg">
+            <CardHeader className="card-transparent-header">
               <CardTitle className="text-xl flex items-center gap-2">
                 🔍 Bộ lọc & Tìm kiếm
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-6 flex-1 overflow-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="campus-filter" className="text-sm font-semibold text-gray-700">🏢 Cơ sở</Label>
@@ -751,8 +755,8 @@ export default function SchedulePage() {
           </Card>
 
           {/* Schedule Grid */}
-          <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
+          <Card className="card-transparent shadow-lg flex-1 flex flex-col min-h-0">
+            <CardHeader className="card-transparent-header flex-shrink-0">
               <CardTitle className="text-2xl flex items-center gap-2">
                 📚 Lịch học theo tuần
                 <span className="text-sm font-normal text-gray-600">
@@ -760,7 +764,7 @@ export default function SchedulePage() {
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-6 flex-1 overflow-auto">
               {loadingSchedules ? (
                 <div className="flex items-center justify-center py-16">
                   <div className="text-center">
@@ -887,8 +891,8 @@ export default function SchedulePage() {
 
           {/* Schedule Summary */}
           {schedules.length > 0 && (
-            <Card>
-              <CardHeader>
+            <Card className="card-transparent">
+              <CardHeader className="card-transparent-header">
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="w-5 h-5" />
                   Tổng quan lịch học
@@ -1279,5 +1283,6 @@ export default function SchedulePage() {
         </div>
       </div>
     </div>
+    </PageWithBackground>
   );
 }

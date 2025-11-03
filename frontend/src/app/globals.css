@@ -88,3 +88,18 @@ body {
   background: var(--primary);
   color: var(--primary-foreground);
 }
+
+/* Transparent Card styles for background visibility */
+.card-transparent {
+  background: rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.card-transparent-header {
+  background: rgba(255, 255, 255, 0.5) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+

@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { useApiAuth } from '@/hooks/useApiAuth';
 import { AdminSidebar } from '@/components/AdminSidebar';
+import { PageWithBackground } from '@/components/PageWithBackground';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +16,7 @@ import { subjectsApi, Subject, CreateSubjectData, UpdateSubjectData } from '@/li
 import { isAuthenticated, createMockToken, isDevelopment } from '@/lib/auth-helper';
 
 export default function SubjectsPage() {
+  const { isCollapsed } = useSidebar();
   const { user, loading, logout } = useApiAuth();
   const router = useRouter();
 
@@ -322,14 +325,15 @@ export default function SubjectsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AdminSidebar 
+    <PageWithBackground>
+      <div className="min-h-screen">
+        <AdminSidebar 
         currentPage="subjects" 
         onNavigate={(page) => router.push(`/${page}`)} 
         onLogout={logout} 
       />
-      <div className="flex-1 lg:ml-64">
-        <div className="p-8 space-y-6">
+      <div className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+        <div className="flex-1 flex flex-col p-6 space-y-6">
           {/* Header */}
           <div>
             <h1 className="text-3xl mb-2 text-gray-900">Quản lý Môn học</h1>
@@ -338,7 +342,7 @@ export default function SubjectsPage() {
 
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -349,7 +353,7 @@ export default function SubjectsPage() {
                 </div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -362,7 +366,7 @@ export default function SubjectsPage() {
                 </div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -381,8 +385,8 @@ export default function SubjectsPage() {
           </div>
 
           {/* Subjects List */}
-          <Card>
-            <CardHeader>
+          <Card className="card-transparent flex-1 flex flex-col min-h-0">
+            <CardHeader className="card-transparent-header flex-shrink-0">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                   <CardTitle>Danh sách Môn học</CardTitle>
@@ -499,7 +503,7 @@ export default function SubjectsPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 overflow-auto">
               <div className="space-y-4">
                 {loadingSubjects ? (
                   <div className="text-center py-12">
@@ -562,5 +566,6 @@ export default function SubjectsPage() {
         </div>
       </div>
     </div>
+    </PageWithBackground>
   );
 }

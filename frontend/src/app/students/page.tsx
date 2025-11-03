@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { AdminSidebar } from '@/components/AdminSidebar';
+import { PageWithBackground } from '@/components/PageWithBackground';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -35,6 +37,7 @@ function createMockToken() {
 }
 
 export default function StudentsPage() {
+  const { isCollapsed } = useSidebar();
   const { user, loading, logout } = useApiAuth();
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState('students');
@@ -337,10 +340,11 @@ export default function StudentsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <AdminSidebar currentPage={currentPage} onNavigate={handleNavigate} onLogout={logout} />
-      <div className="flex-1 p-6">
-        <div className="max-w-7xl mx-auto">
+    <PageWithBackground>
+      <div className="flex min-h-screen">
+        <AdminSidebar currentPage={currentPage} onNavigate={handleNavigate} onLogout={logout} />
+      <div className={`flex-1 h-screen flex flex-col p-6 overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+        <div className="flex-1 flex flex-col">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Quản lý Học sinh</h1>
             <p className="text-gray-600 mt-2">Quản lý thông tin học sinh trong hệ thống</p>
@@ -348,7 +352,7 @@ export default function StudentsPage() {
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="p-3 bg-blue-100 rounded-lg">
@@ -362,7 +366,7 @@ export default function StudentsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="p-3 bg-green-100 rounded-lg">
@@ -378,7 +382,7 @@ export default function StudentsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="p-3 bg-purple-100 rounded-lg">
@@ -394,7 +398,7 @@ export default function StudentsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="p-3 bg-orange-100 rounded-lg">
@@ -412,8 +416,8 @@ export default function StudentsPage() {
           </div>
 
           {/* Search and Actions */}
-          <Card className="mb-6">
-            <CardHeader>
+          <Card className="card-transparent mb-6 flex-shrink-0">
+            <CardHeader className="card-transparent-header">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                   <CardTitle>Danh sách Học sinh</CardTitle>
@@ -834,7 +838,7 @@ export default function StudentsPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 overflow-auto">
               {loadingStudents ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin mr-2" />
@@ -914,5 +918,6 @@ export default function StudentsPage() {
         </div>
       </div>
     </div>
+    </PageWithBackground>
   );
 }

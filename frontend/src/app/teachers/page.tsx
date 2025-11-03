@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { useApiAuth } from '@/hooks/useApiAuth';
 import { AdminSidebar } from '@/components/AdminSidebar';
+import { PageWithBackground } from '@/components/PageWithBackground';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +19,7 @@ import { teachersApi, Teacher, CreateTeacherData, UpdateTeacherData } from '@/li
 import { isAuthenticated, createMockToken, isDevelopment } from '@/lib/auth-helper';
 
 export default function TeachersPage() {
+  const { isCollapsed } = useSidebar();
   const { user, loading, logout } = useApiAuth();
   const router = useRouter();
 
@@ -312,15 +315,16 @@ export default function TeachersPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <AdminSidebar 
+    <PageWithBackground>
+      <div className="flex min-h-screen">
+        <AdminSidebar 
         currentPage="teachers" 
         onNavigate={(page) => router.push(`/${page}`)} 
         onLogout={logout} 
       />
       
-      <div className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
+      <div className={`flex-1 h-screen flex flex-col p-6 overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+        <div className="flex-1 flex flex-col">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Quản lý Giáo viên</h1>
@@ -329,7 +333,7 @@ export default function TeachersPage() {
 
           {/* Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="p-2 bg-blue-100 rounded-lg">
@@ -343,7 +347,7 @@ export default function TeachersPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="p-2 bg-purple-100 rounded-lg">
@@ -361,8 +365,8 @@ export default function TeachersPage() {
           </div>
 
           {/* Search and Actions */}
-          <Card className="mb-6">
-            <CardHeader>
+          <Card className="card-transparent mb-6 flex-shrink-0">
+            <CardHeader className="card-transparent-header">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                   <CardTitle>Danh sách Giáo viên</CardTitle>
@@ -551,7 +555,7 @@ export default function TeachersPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 overflow-auto">
               {loadingTeachers ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin mr-2" />
@@ -630,5 +634,6 @@ export default function TeachersPage() {
         </div>
       </div>
     </div>
+    </PageWithBackground>
   );
 }

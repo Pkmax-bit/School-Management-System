@@ -25,6 +25,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { cn } from './ui/utils';
+import { useSidebar } from '@/contexts/SidebarContext';
 
 interface AdminSidebarProps {
   currentPage: string;
@@ -33,7 +34,7 @@ interface AdminSidebarProps {
 }
 
 export function AdminSidebar({ currentPage, onNavigate, onLogout }: AdminSidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { isCollapsed, setIsCollapsed } = useSidebar();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const menuItems = [

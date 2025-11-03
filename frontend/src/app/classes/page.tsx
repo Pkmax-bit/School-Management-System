@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { useApiAuth } from '@/hooks/useApiAuth';
 import { AdminSidebar } from '@/components/AdminSidebar';
+import { PageWithBackground } from '@/components/PageWithBackground';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +16,7 @@ import classroomsHybridApi from '../../lib/classrooms-api-hybrid';
 import * as XLSX from 'xlsx';
 
 export default function ClassesPage() {
+  const { isCollapsed } = useSidebar();
   const { user, loading, logout } = useApiAuth();
   const router = useRouter();
 
@@ -414,14 +417,15 @@ export default function ClassesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AdminSidebar 
+    <PageWithBackground>
+      <div className="min-h-screen">
+        <AdminSidebar 
         currentPage="classes" 
         onNavigate={(page) => router.push(`/${page}`)} 
         onLogout={logout} 
       />
-      <div className="flex-1 lg:ml-64">
-        <div className="p-8 space-y-6">
+      <div className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+        <div className="flex-1 flex flex-col p-6 space-y-6">
           {/* Header */}
           <div>
             <h1 className="text-3xl mb-2 text-gray-900">Quản lý Lớp học</h1>
@@ -430,7 +434,7 @@ export default function ClassesPage() {
 
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -441,7 +445,7 @@ export default function ClassesPage() {
                 </div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -452,7 +456,7 @@ export default function ClassesPage() {
                 </div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="card-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -466,8 +470,8 @@ export default function ClassesPage() {
           </div>
 
           {/* Classes List */}
-          <Card>
-            <CardHeader>
+          <Card className="card-transparent flex-1 flex flex-col min-h-0">
+            <CardHeader className="card-transparent-header flex-shrink-0">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                   <CardTitle>Danh sách Lớp học</CardTitle>
@@ -992,7 +996,7 @@ export default function ClassesPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 overflow-auto">
               {loadingClasses ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -1045,5 +1049,6 @@ export default function ClassesPage() {
         </div>
       </div>
     </div>
+    </PageWithBackground>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { useApiAuth } from '@/hooks/useApiAuth';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -18,6 +19,7 @@ import {
   Plus, Edit, Trash2, DollarSign, TrendingDown, 
   CheckCircle, XCircle, Clock, Eye, Tag, Users, School
 } from 'lucide-react';
+import { PageWithBackground } from '@/components/PageWithBackground';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -70,6 +72,7 @@ interface ExpenseCategory {
 export default function FinancePage() {
   const { user, loading: authLoading, logout } = useApiAuth();
   const router = useRouter();
+  const { isCollapsed } = useSidebar();
   const [activeTab, setActiveTab] = useState('expenses');
 
   // Expenses state
@@ -700,10 +703,11 @@ export default function FinancePage() {
   }
 
     return (
-    <div className="flex min-h-screen">
-      <AdminSidebar currentPage="finance" onNavigate={(page) => router.push(`/${page}`)} onLogout={logout} />
-      <div className="flex-1 lg:ml-64 p-6 space-y-6">
-        <div className="flex items-center justify-between">
+    <PageWithBackground>
+      <div className="flex min-h-screen w-full">
+        <AdminSidebar currentPage="finance" onNavigate={(page) => router.push(`/${page}`)} onLogout={logout} />
+        <div className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+        <div className="flex items-center justify-between p-6 pb-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Quản lý Tài chính</h1>
             <p className="text-gray-600 mt-2">Ghi lại chi phí và theo dõi doanh thu từ lớp học</p>
@@ -715,7 +719,7 @@ export default function FinancePage() {
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden px-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="expenses" className="flex items-center gap-2">
               <TrendingDown className="h-4 w-4" />
@@ -728,10 +732,10 @@ export default function FinancePage() {
           </TabsList>
 
           {/* Expenses Tab */}
-          <TabsContent value="expenses" className="space-y-4">
+          <TabsContent value="expenses" className="flex-1 flex flex-col space-y-4 overflow-auto pb-6">
             {/* Categories Management */}
-            <Card>
-              <CardHeader>
+            <Card className="card-transparent flex-shrink-0">
+              <CardHeader className="card-transparent-header">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <Tag className="h-5 w-5" />
@@ -910,8 +914,8 @@ export default function FinancePage() {
             </Card>
 
             {/* Expenses List */}
-            <Card>
-              <CardHeader>
+            <Card className="card-transparent flex-1 flex flex-col min-h-0">
+              <CardHeader className="card-transparent-header flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <CardTitle>Chi phí</CardTitle>
                   <Dialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen}>
@@ -1064,7 +1068,7 @@ export default function FinancePage() {
                   </Select>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1 overflow-auto">
                 {loadingExpenses ? (
                   <div className="text-center py-8">Đang tải...</div>
                 ) : (
@@ -1153,9 +1157,9 @@ export default function FinancePage() {
           </TabsContent>
 
           {/* Revenue Tab */}
-          <TabsContent value="revenue" className="space-y-4">
-            <Card>
-              <CardHeader>
+          <TabsContent value="revenue" className="flex-1 flex flex-col space-y-4 overflow-auto pb-6">
+            <Card className="card-transparent flex-1 flex flex-col min-h-0">
+              <CardHeader className="card-transparent-header flex-shrink-0">
                 <CardTitle className="flex items-center gap-2">
                   <DollarSign className="h-5 w-5" />
                   Doanh thu từ Lớp học
@@ -1164,7 +1168,7 @@ export default function FinancePage() {
                   Doanh thu dự kiến = Học phí/buổi × Số buổi/tuần × 4 tuần × Số học sinh
                 </p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1 overflow-auto">
                 {loadingClassrooms ? (
       <div className="text-center py-12">
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -1283,7 +1287,7 @@ export default function FinancePage() {
                   
                   return (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <Card className="border-2 border-blue-200 bg-blue-50">
+                      <Card className="card-transparent border-2 border-blue-200">
                         <CardContent className="p-5">
                           <div className="flex items-center justify-between">
                             <div>
@@ -1294,7 +1298,7 @@ export default function FinancePage() {
                           </div>
                         </CardContent>
                       </Card>
-                      <Card className="border-2 border-green-200 bg-green-50">
+                      <Card className="card-transparent border-2 border-green-200">
                         <CardContent className="p-5">
                           <div className="flex items-center justify-between">
                             <div>
@@ -1308,7 +1312,7 @@ export default function FinancePage() {
                           </div>
                         </CardContent>
                       </Card>
-                      <Card className="border-2 border-red-200 bg-red-50">
+                      <Card className="card-transparent border-2 border-red-200">
                         <CardContent className="p-5">
                           <div className="flex items-center justify-between">
                             <div>
@@ -1322,7 +1326,7 @@ export default function FinancePage() {
                           </div>
                         </CardContent>
                       </Card>
-                      <Card className="border-2 border-purple-200 bg-purple-50">
+                      <Card className="card-transparent border-2 border-purple-200">
                         <CardContent className="p-5">
                           <div className="flex items-center justify-between">
                             <div>
@@ -1757,7 +1761,8 @@ export default function FinancePage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
-    </div>
+    </PageWithBackground>
   );
 }
