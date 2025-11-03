@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, LoginForm, UserRole } from '@/types';
+import { User, LoginForm } from '@/types';
 import { normalizeUser } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -16,23 +17,41 @@ export const useTeacherAuth = () => {
 
   const checkUser = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
+      let token = localStorage.getItem('auth_token');
       if (!token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          token = session.access_token;
+          localStorage.setItem('auth_token', token);
+        }
+      }
+
+      if (!token) {
+        // fallback: try cached user just for display
+        const cached = localStorage.getItem('user');
+        if (cached) {
+          try { setUser(normalizeUser(JSON.parse(cached))); } catch {}
+        }
         setLoading(false);
         return;
       }
 
-      // For teacher dashboard, we'll use a mock teacher user
-      // In production, this would call the actual API
-      const mockTeacherUser: User = {
-        id: 'teacher-user-id',
-        email: 'teacher@school.com',
-        name: 'Nguyen Van Giao',
-        role: 'teacher' as UserRole
-      };
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      console.log('useTeacherAuth - Mock teacher data:', mockTeacherUser);
-      setUser(mockTeacherUser);
+      if (response.ok) {
+        const me = await response.json();
+        const mapped = normalizeUser(me);
+        setUser(mapped);
+        localStorage.setItem('user', JSON.stringify(mapped));
+      } else {
+        localStorage.removeItem('auth_token');
+        setUser(null);
+      }
     } catch (error) {
       console.error('Error checking teacher user:', error);
       localStorage.removeItem('auth_token');
@@ -44,22 +63,7 @@ export const useTeacherAuth = () => {
 
   const login = async (loginData: LoginForm) => {
     try {
-      // For development, accept any teacher login
-      if (loginData.email.includes('teacher') || loginData.email === 'teacher@school.com') {
-        const mockTeacherUser: User = {
-          id: 'teacher-user-id',
-          email: loginData.email,
-          name: 'Nguyen Van Giao',
-          role: 'teacher' as UserRole
-        };
-
-        localStorage.setItem('auth_token', 'mock-teacher-token');
-        setUser(mockTeacherUser);
-        router.push('/teacher/dashboard');
-        return;
-      }
-
-      // Try real API login
+      // Real API login
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
@@ -79,6 +83,7 @@ export const useTeacherAuth = () => {
         localStorage.setItem('auth_token', data.access_token);
         const userData = normalizeUser(data.user);
         setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
         router.push('/teacher/dashboard');
       }
     } catch (error) {

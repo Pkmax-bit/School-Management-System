@@ -150,12 +150,12 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
               <span className="text-white font-bold text-sm">
-                {user.name?.charAt(0) || 'T'}
+                {(user.name?.charAt(0) || user.email?.charAt(0) || 'T')}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold truncate text-slate-900">{user.name || 'Giáo viên'}</p>
-              <p className="text-xs text-slate-700 truncate">{user.email || 'teacher@school.com'}</p>
+              <p className="text-xs text-slate-700 truncate">{user.email || ''}</p>
             </div>
           </div>
         </div>

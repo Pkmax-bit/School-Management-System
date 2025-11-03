@@ -42,10 +42,10 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
                 <div className="text-right">
                   <p className="text-sm text-slate-500">Chào mừng trở lại</p>
                   <p className="font-semibold text-slate-800">{user?.name || 'Giáo viên'}</p>
-                  <p className="text-xs text-slate-400">{user?.email || 'teacher@school.com'}</p>
+                  <p className="text-xs text-slate-400">{user?.email || ''}</p>
                 </div>
                 <div className="w-12 h-12 bg-gradient-to-r from-blue-700 to-indigo-700 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">T</span>
+                  <span className="text-white font-bold text-lg">{(user?.name?.charAt(0) || user?.email?.charAt(0) || 'T').toUpperCase()}</span>
                 </div>
               </div>
             </div>

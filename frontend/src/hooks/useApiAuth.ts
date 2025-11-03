@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { User, LoginForm, RegisterForm } from '@/types';
 import { getRedirectPathByRole, normalizeUser } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -16,8 +17,28 @@ export const useApiAuth = () => {
 
   const checkUser = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
+      let token = localStorage.getItem('auth_token');
+
+      // Fallback to Supabase session token if no local app token
       if (!token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          token = session.access_token;
+          // Persist for consistent subsequent requests
+          localStorage.setItem('auth_token', token);
+        }
+      }
+
+      if (!token) {
+        // Fallback: use cached user info for display-only purposes
+        try {
+          const cachedUser = localStorage.getItem('user');
+          if (cachedUser) {
+            const parsed = JSON.parse(cachedUser);
+            const mapped = normalizeUser(parsed);
+            setUser(mapped);
+          }
+        } catch {}
         setLoading(false);
         return;
       }

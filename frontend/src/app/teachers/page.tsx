@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { User, Plus, Edit, Trash2, Search, AlertCircle, Loader2, Mail, Calendar } from 'lucide-react';
 import { teachersApi, Teacher, CreateTeacherData, UpdateTeacherData } from '@/lib/teachers-api';
-import { isAuthenticated, createMockToken, isDevelopment } from '@/lib/auth-helper';
+// Removed development auth-helper to avoid showing demo user data
 
 export default function TeachersPage() {
   const { isCollapsed } = useSidebar();
@@ -42,10 +42,10 @@ export default function TeachersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
 
-  // Redirect if not admin
+  // Redirect only if not authenticated; allow teachers to view their info
   useEffect(() => {
-    if (!loading && (!user || user.role !== 'admin')) {
-      router.push('/dashboard');
+    if (!loading && !user) {
+      router.push('/login');
     }
   }, [user, loading, router]);
 
@@ -88,12 +88,7 @@ export default function TeachersPage() {
   // Load teachers
   useEffect(() => {
     console.log('🔄 useEffect triggered - user:', user?.role, 'loading:', loading, 'hasLoaded:', hasLoaded);
-    if (user && user.role === 'admin' && !hasLoaded) {
-      // Create mock token for development if not authenticated
-      if (isDevelopment() && !isAuthenticated()) {
-        console.log('🔧 Development mode: Creating mock authentication token');
-        createMockToken();
-      }
+    if (user && !hasLoaded) {
       loadTeachers();
       setHasLoaded(true);
     }
@@ -157,6 +152,17 @@ export default function TeachersPage() {
       console.error('Error creating teacher:', error);
       console.log('Error type:', typeof error);
       console.log('Error message:', error.message);
+      console.log('Error details:', error);
+      
+      // Hiển thị lỗi chi tiết cho user
+      const errorMessage = error.message || 'Không thể tạo giáo viên. Vui lòng thử lại.';
+      setErrors({ 
+        submit: errorMessage,
+        ...(error.message?.includes('Email already exists') || error.message?.includes('email') 
+          ? { email: 'Email đã tồn tại trong hệ thống' } 
+          : {})
+      });
+      alert(`Lỗi: ${errorMessage}`);
       console.log('Error response:', error.response);
       
       if (error.message?.includes('Authentication required')) {
@@ -320,7 +326,9 @@ export default function TeachersPage() {
         <AdminSidebar 
         currentPage="teachers" 
         onNavigate={(page) => router.push(`/${page}`)} 
-        onLogout={logout} 
+        onLogout={logout}
+        userName={user?.name}
+        userEmail={user?.email}
       />
       
       <div className={`flex-1 h-screen flex flex-col p-6 overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
@@ -329,6 +337,17 @@ export default function TeachersPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Quản lý Giáo viên</h1>
             <p className="text-gray-600">Quản lý danh sách giáo viên trong hệ thống</p>
+            {user && (
+              <div className="mt-4 flex items-center gap-3 p-3 rounded-lg bg-white/70 border border-gray-200 w-fit">
+                <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
+                  {(user.name?.charAt(0) || user.email?.charAt(0) || 'U').toUpperCase()}
+                </div>
+                <div className="leading-tight">
+                  <div className="text-sm font-semibold text-gray-900">{user.name || 'User'}</div>
+                  <div className="text-xs text-gray-600">{user.email}</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Statistics */}

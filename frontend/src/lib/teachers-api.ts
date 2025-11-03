@@ -67,14 +67,33 @@ async function apiRequest(url: string, options: {
       
       let errorMessage = `Request failed with status ${response.status}`;
       
+      // Try to parse error message from response
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        }
+      } catch {
+        // If can't parse, use error text as message
+        if (errorText && errorText.trim()) {
+          errorMessage = errorText;
+        }
+      }
+      
       if (response.status === 401) {
-        errorMessage = 'Authentication required. Please login first.';
+        errorMessage = errorMessage || 'Authentication required. Please login first.';
       } else if (response.status === 403) {
-        errorMessage = 'Access forbidden. You do not have permission to perform this action.';
+        errorMessage = errorMessage || 'Access forbidden. You do not have permission to perform this action.';
       } else if (response.status === 404) {
-        errorMessage = 'Resource not found.';
+        errorMessage = errorMessage || 'Resource not found.';
+      } else if (response.status === 400) {
+        errorMessage = errorMessage || 'Invalid request. Please check your input data.';
       } else if (response.status === 500) {
-        errorMessage = 'Server Error. Please try again later.';
+        errorMessage = errorMessage || 'Server Error. Please try again later.';
       }
       
       throw new Error(errorMessage);
@@ -188,7 +207,18 @@ export const teachersApi = {
       console.log('Creating teacher with real API:', data);
       const response = await apiPost(`${API_BASE_URL}/api/teachers/`, data);
       console.log('✅ Teacher created via API:', response);
-      return response.data as Teacher;
+      
+      // Backend returns TeacherResponse directly, not wrapped in data
+      if (response && typeof response === 'object') {
+        if (response.data) {
+          return response.data as Teacher;
+        } else {
+          // Response is already the teacher object
+          return response as Teacher;
+        }
+      }
+      
+      throw new Error('Invalid response format from server');
     } catch (error) {
       console.error('Create teacher failed:', error);
       throw error;

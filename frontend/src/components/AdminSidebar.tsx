@@ -31,11 +31,17 @@ interface AdminSidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
+  userName?: string;
+  userEmail?: string;
 }
 
-export function AdminSidebar({ currentPage, onNavigate, onLogout }: AdminSidebarProps) {
+export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, userEmail }: AdminSidebarProps) {
   const { isCollapsed, setIsCollapsed } = useSidebar();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  const displayName = (userName && userName.trim()) || undefined;
+  const displayEmail = (userEmail && userEmail.trim()) || undefined;
+  const initial = (displayName?.charAt(0) || displayEmail?.charAt(0) || 'A').toUpperCase();
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', page: 'dashboard', color: 'text-blue-600' },
@@ -192,13 +198,13 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout }: AdminSidebar
             <div className="flex items-center gap-3 mb-4">
               <Avatar className="w-10 h-10 ring-2 ring-white/50 shadow-lg">
                 <AvatarFallback className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-bold">
-                  A
+                  {initial}
                 </AvatarFallback>
               </Avatar>
               {!isCollapsed && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-800 truncate">Admin User</p>
-                  <p className="text-xs text-slate-600 truncate font-medium">admin@school.com</p>
+                  <p className="text-sm font-bold text-slate-800 truncate">{displayName || 'User'}</p>
+                  <p className="text-xs text-slate-600 truncate font-medium">{displayEmail || ''}</p>
                 </div>
               )}
             </div>
