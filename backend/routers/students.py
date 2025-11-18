@@ -23,14 +23,121 @@ async def create_student(
     """Tạo học sinh mới"""
     try:
         # Generate unique IDs
-        user_id = str(uuid.uuid4())
         student_code = f"HS{uuid.uuid4().hex[:6].upper()}"
         now = datetime.now().isoformat()
         
-        # Hash password 123456
+        # Use provided password or default to '123456'
+        password = student_data.password if student_data.password and student_data.password.strip() else '123456'
+        
+        # Validate password length
+        if len(password) < 6:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 6 characters"
+            )
+        
+        # Check if email already exists
+        existing_user = supabase.table('users').select('id').eq('email', student_data.email).execute()
+        if existing_user.data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already exists"
+            )
+        
+        # 1) Tạo tài khoản Supabase Auth với mật khẩu (mặc định 123456 nếu không có)
+        # Sử dụng Admin API để tạo user mà không cần email confirmation
+        user_id = None
+        try:
+            print(f"Creating Supabase Auth user for student: {student_data.email}")
+            
+            # Try using admin API first (requires service role key)
+            try:
+                admin_resp = supabase.auth.admin.create_user({
+                    'email': student_data.email,
+                    'password': password,
+                    'email_confirm': True,  # Auto-confirm email
+                    'user_metadata': {
+                        'full_name': student_data.name,
+                        'role': student_data.role
+                    }
+                })
+                
+                print(f"Admin API response: {admin_resp}")
+                
+                # Get user from admin response
+                auth_user = getattr(admin_resp, 'user', None) or (
+                    admin_resp.get('user') if isinstance(admin_resp, dict) else None
+                )
+                
+                if auth_user:
+                    user_id = getattr(auth_user, 'id', None) or (
+                        auth_user.get('id') if isinstance(auth_user, dict) else None
+                    )
+                    print(f"User created via Admin API: {user_id}")
+                
+            except Exception as admin_error:
+                print(f"Admin API failed, trying sign_up: {str(admin_error)}")
+                # Fallback to sign_up if admin API fails
+                auth_resp = supabase.auth.sign_up({
+                    'email': student_data.email,
+                    'password': password,
+                    'options': {
+                        'data': {
+                            'full_name': student_data.name,
+                            'role': student_data.role
+                        }
+                    }
+                })
+                
+                # Check for errors in response
+                if hasattr(auth_resp, 'error') and auth_resp.error:
+                    error_msg = str(auth_resp.error)
+                    print(f"Supabase Auth error: {error_msg}")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Email không hợp lệ hoặc đã tồn tại: {error_msg}"
+                    )
+                
+                # Get user from response
+                auth_user = getattr(auth_resp, 'user', None) or (
+                    auth_resp.get('user') if isinstance(auth_resp, dict) else None
+                )
+                
+                if auth_user:
+                    user_id = getattr(auth_user, 'id', None) or (
+                        auth_user.get('id') if isinstance(auth_user, dict) else None
+                    )
+            
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Không thể tạo tài khoản đăng nhập. Vui lòng kiểm tra email và thử lại."
+                )
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            error_msg = str(e)
+            print(f"Supabase Auth exception for student {student_data.email}: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            
+            # Provide user-friendly error message
+            if "invalid" in error_msg.lower() or "not authorized" in error_msg.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Email '{student_data.email}' không hợp lệ hoặc không được phép. Vui lòng sử dụng email khác."
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Lỗi tạo tài khoản: {error_msg}"
+                )
+        
+        # 2) Ghi bản ghi user ứng dụng, hash password để đồng bộ mô hình DB
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        password_hash = pwd_context.hash("123456")
+        password_hash = pwd_context.hash(password)
         
         # Tạo user trước
         user_result = supabase.table('users').insert({
@@ -67,7 +174,16 @@ async def create_student(
         
         if not student_result.data:
             # Rollback user creation
-            supabase.table('users').delete().eq('id', user_id).execute()
+            try:
+                # Try to delete auth user
+                try:
+                    supabase.auth.admin.delete_user(user_id)
+                except:
+                    pass  # Ignore if admin API not available
+                # Delete user from database
+                supabase.table('users').delete().eq('id', user_id).execute()
+            except:
+                pass  # Ignore cleanup errors
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create student"
@@ -96,15 +212,33 @@ async def create_student(
             email=user_data.get('email')
         )
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (they already have proper status codes)
+        raise
     except Exception as e:
         # Cleanup on error
-        print(f"ERROR in create_student: {str(e)}")
+        error_msg = str(e)
+        print(f"ERROR in create_student: {error_msg}")
         import traceback
         traceback.print_exc()
-        supabase.table('users').delete().eq('id', user_id).execute()
+        # Only cleanup if user_id was created
+        try:
+            if 'user_id' in locals() and user_id:
+                # Try to delete auth user if exists
+                try:
+                    supabase.auth.admin.delete_user(user_id)
+                except:
+                    pass  # Ignore if admin API not available or user doesn't exist
+                # Delete user from database
+                try:
+                    supabase.table('users').delete().eq('id', user_id).execute()
+                except:
+                    pass  # Ignore if user doesn't exist
+        except Exception as cleanup_error:
+            print(f"Cleanup error (ignored): {str(cleanup_error)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create student: {str(e)}"
+            detail=f"Failed to create student: {error_msg}"
         )
 
 @router.get("/", response_model=List[StudentResponse])

@@ -112,6 +112,14 @@ export default function TeachersPage() {
       newErrors.email = 'Email là bắt buộc';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Email không hợp lệ';
+    } else if (formData.email.trim().length < 5) {
+      newErrors.email = 'Email quá ngắn. Vui lòng sử dụng email đầy đủ hơn (ví dụ: teacher@school.com)';
+    } else {
+      // Check if email local part (before @) is too short
+      const emailParts = formData.email.trim().split('@');
+      if (emailParts.length === 2 && emailParts[0].length < 2) {
+        newErrors.email = 'Phần trước @ của email quá ngắn. Vui lòng sử dụng email đầy đủ hơn';
+      }
     }
 
     // Validate password (optional, but if provided must be at least 6 characters)

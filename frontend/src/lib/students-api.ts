@@ -77,14 +77,33 @@ async function apiRequest(url: string, options: RequestInit = {}): Promise<any> 
     
     let errorMessage = `Request failed with status ${response.status}`;
     
+    // Try to parse error message from response
+    try {
+      const errorData = JSON.parse(errorText);
+      if (errorData.detail) {
+        errorMessage = errorData.detail;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (typeof errorData === 'string') {
+        errorMessage = errorData;
+      }
+    } catch {
+      // If can't parse, use error text as message
+      if (errorText && errorText.trim()) {
+        errorMessage = errorText;
+      }
+    }
+    
     if (response.status === 500) {
-      errorMessage = 'Server Error. Please try again later.';
+      errorMessage = errorMessage || 'Server Error. Please try again later.';
     } else if (response.status === 403) {
-      errorMessage = 'Forbidden. You do not have permission to access this resource.';
+      errorMessage = errorMessage || 'Forbidden. You do not have permission to access this resource.';
     } else if (response.status === 404) {
-      errorMessage = 'Resource not found.';
+      errorMessage = errorMessage || 'Resource not found.';
     } else if (response.status === 401) {
-      errorMessage = 'Unauthorized. Please login again.';
+      errorMessage = errorMessage || 'Unauthorized. Please login again.';
+    } else if (response.status === 400) {
+      errorMessage = errorMessage || 'Invalid request. Please check your input data.';
     }
     
     throw new Error(errorMessage);
@@ -147,6 +166,7 @@ export interface Student {
 export interface CreateStudentData {
   name: string;
   email: string;
+  password?: string;  // Optional password, default to '123456' if not provided
   phone?: string;
   address?: string;
   role: string;

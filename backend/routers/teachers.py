@@ -77,26 +77,82 @@ async def create_teacher(
                 detail="Password must be at least 6 characters"
             )
         
-        # Tạo user trong Supabase Auth
+        # Tạo user trong Supabase Auth - Sử dụng Admin API để tránh email confirmation
         try:
-            auth_resp = supabase.auth.sign_up({
-                'email': teacher_data.email,
-                'password': password
-            })
-            auth_user = getattr(auth_resp, 'user', None)
-            if not auth_user:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to create auth user"
+            # Try using admin API first (requires service role key)
+            try:
+                admin_resp = supabase.auth.admin.create_user({
+                    'email': teacher_data.email,
+                    'password': password,
+                    'email_confirm': True,  # Auto-confirm email
+                    'user_metadata': {
+                        'full_name': teacher_data.name,
+                        'role': teacher_data.role
+                    }
+                })
+                
+                # Get user from admin response
+                auth_user = getattr(admin_resp, 'user', None) or (
+                    admin_resp.get('user') if isinstance(admin_resp, dict) else None
                 )
-            user_id = auth_user.id
+                
+                if auth_user:
+                    user_id = getattr(auth_user, 'id', None) or (
+                        auth_user.get('id') if isinstance(auth_user, dict) else None
+                    )
+                    print(f"Teacher created via Admin API: {user_id}")
+                
+            except Exception as admin_error:
+                print(f"Admin API failed for teacher, trying sign_up: {str(admin_error)}")
+                # Fallback to sign_up if admin API fails
+                auth_resp = supabase.auth.sign_up({
+                    'email': teacher_data.email,
+                    'password': password,
+                    'options': {
+                        'data': {
+                            'full_name': teacher_data.name,
+                            'role': teacher_data.role
+                        }
+                    }
+                })
+                
+                # Check for errors
+                if hasattr(auth_resp, 'error') and auth_resp.error:
+                    error_msg = str(auth_resp.error)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Email không hợp lệ hoặc đã tồn tại: {error_msg}"
+                    )
+                
+                auth_user = getattr(auth_resp, 'user', None) or (
+                    auth_resp.get('user') if isinstance(auth_resp, dict) else None
+                )
+                
+                if auth_user:
+                    user_id = getattr(auth_user, 'id', None) or (
+                        auth_user.get('id') if isinstance(auth_user, dict) else None
+                    )
+            
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Không thể tạo tài khoản đăng nhập. Vui lòng kiểm tra email và thử lại."
+                )
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Auth creation error: {str(e)}"
-            )
+            error_msg = str(e)
+            # Provide user-friendly error message
+            if "invalid" in error_msg.lower() or "not authorized" in error_msg.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Email '{teacher_data.email}' không hợp lệ hoặc không được phép. Vui lòng sử dụng email khác."
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Lỗi tạo tài khoản: {error_msg}"
+                )
 
         # 2) Ghi bản ghi user ứng dụng, hash password để đồng bộ mô hình DB
         from passlib.context import CryptContext

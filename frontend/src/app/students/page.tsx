@@ -55,6 +55,7 @@ export default function StudentsPage() {
   const [formData, setFormData] = useState<CreateStudentData>({
     name: '',
     email: '',
+    password: '',
     phone: '',
     address: '',
     role: 'student',
@@ -126,6 +127,19 @@ export default function StudentsPage() {
       newErrors.email = 'Email không hợp lệ';
     } else if (formData.email.trim().length > 255) {
       newErrors.email = 'Email không được quá 255 ký tự';
+    } else if (formData.email.trim().length < 5) {
+      newErrors.email = 'Email quá ngắn. Vui lòng sử dụng email đầy đủ hơn (ví dụ: student@school.com)';
+    } else {
+      // Check if email local part (before @) is too short
+      const emailParts = formData.email.trim().split('@');
+      if (emailParts.length === 2 && emailParts[0].length < 2) {
+        newErrors.email = 'Phần trước @ của email quá ngắn. Vui lòng sử dụng email đầy đủ hơn';
+      }
+    }
+
+    // Validate password (optional, but if provided must be at least 6 characters)
+    if (formData.password && formData.password.trim().length > 0 && formData.password.trim().length < 6) {
+      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
     }
 
     // Validate phone
@@ -159,15 +173,23 @@ export default function StudentsPage() {
       setIsSubmitting(true);
       setErrors({}); // Clear previous errors
       
-      const newStudent = await studentsApi.createStudent(formData);
+      // Prepare data - only send password if provided
+      const createData: CreateStudentData = {
+        ...formData,
+        password: formData.password && formData.password.trim() ? formData.password.trim() : undefined
+      };
+      
+      const newStudent = await studentsApi.createStudent(createData);
       console.log('Created student:', newStudent);
       
       await loadStudents();
       setIsDialogOpen(false);
-      resetForm();
       
-      // Show success message
-      alert(`Tạo học sinh "${newStudent?.name || 'thành công'}" thành công!`);
+      // Show success message with password info
+      const passwordUsed = formData.password && formData.password.trim() ? formData.password.trim() : '123456';
+      alert(`Tạo học sinh "${newStudent?.name || 'thành công'}" thành công!\n\nEmail: ${formData.email}\nMật khẩu: ${passwordUsed}\n\nVui lòng ghi nhớ thông tin đăng nhập này để cung cấp cho học sinh.`);
+      
+      resetForm();
     } catch (error: any) {
       console.error('Error creating student:', error);
       console.log('Error type:', typeof error);
@@ -286,6 +308,7 @@ export default function StudentsPage() {
     setFormData({
       name: '',
       email: '',
+      password: '',
       phone: '',
       address: '',
       role: 'student',
@@ -302,6 +325,7 @@ export default function StudentsPage() {
     setEditingStudent(student);
     setFormData({
       name: student.name || '',
+      password: '', // Don't show password when editing
       email: student.email || '',
       phone: student.phone || '',
       address: student.address || '',
@@ -721,6 +745,29 @@ export default function StudentsPage() {
                             <div className="flex items-center text-red-500 text-sm">
                               <AlertCircle className="w-4 h-4 mr-1" />
                               {errors.email}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Password */}
+                        <div className="space-y-2">
+                          <Label htmlFor="password">Mật khẩu</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            className={errors.password ? 'border-red-500' : ''}
+                            placeholder="Để trống sẽ dùng mật khẩu mặc định: 123456"
+                            minLength={6}
+                          />
+                          <p className="text-xs text-gray-500">
+                            Để trống sẽ tự động tạo mật khẩu mặc định: <strong>123456</strong>
+                          </p>
+                          {errors.password && (
+                            <div className="flex items-center text-red-500 text-sm">
+                              <AlertCircle className="w-4 h-4 mr-1" />
+                              {errors.password}
                             </div>
                           )}
                         </div>
