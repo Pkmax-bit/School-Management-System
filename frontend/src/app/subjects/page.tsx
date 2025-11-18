@@ -268,233 +268,221 @@ export default function SubjectsPage() {
           }`}
         >
           <div className="flex-1 flex flex-col p-6 space-y-6">
-              {/* Header */}
-              <div>
-                <h1 className="text-3xl mb-2 text-gray-900">Quản lý Môn học</h1>
-                <p className="text-gray-600">Quản lý danh sách môn học trong hệ thống</p>
-              </div>
+            {/* Header */}
+            <div>
+              <h1 className="text-3xl mb-2 text-gray-900">Quản lý Môn học</h1>
+              <p className="text-gray-600">Quản lý danh sách môn học trong hệ thống</p>
+            </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="card-transparent">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Tổng môn học</p>
-                        <p className="text-3xl font-bold">{subjects.length}</p>
-                      </div>
-                      <BookOpen className="w-8 h-8 text-blue-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="card-transparent">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Môn học có mô tả</p>
-                        <p className="text-3xl font-bold">
-                          {subjects.filter(s => s.description && s.description.trim()).length}
-                        </p>
-                      </div>
-                      <BookOpen className="w-8 h-8 text-green-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="card-transparent">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Môn học mới nhất</p>
-                        <p className="text-3xl font-bold">
-                          {subjects.length > 0 && subjects[0].created_at
-                            ? new Date(subjects[0].created_at).toLocaleDateString('vi-VN')
-                            : '--'
-                          }
-                        </p>
-                      </div>
-                      <BookOpen className="w-8 h-8 text-purple-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Subjects List */}
-              <Card className="card-transparent flex-1 flex flex-col min-h-0">
-                <CardHeader className="card-transparent-header flex-shrink-0">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="card-transparent">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>Danh sách Môn học</CardTitle>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Quản lý tất cả môn học trong hệ thống
+                      <p className="text-sm text-gray-600">Tổng môn học</p>
+                      <p className="text-3xl font-bold">{subjects.length}</p>
+                    </div>
+                    <BookOpen className="w-8 h-8 text-blue-600" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="card-transparent">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Môn học có mô tả</p>
+                      <p className="text-3xl font-bold">
+                        {subjects.filter((s) => s.description && s.description.trim()).length}
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                        <Input
-                          placeholder="Tìm kiếm môn học..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10 w-64"
-                        />
-                      </div>
-                      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button onClick={handleAdd}>
-                            <Plus className="w-4 h-4 mr-2" />
-                            Thêm môn học
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>
-                              {editingSubject ? 'Chỉnh sửa môn học' : 'Thêm môn học mới'}
-                            </DialogTitle>
-                            <DialogDescription>
-                              {editingSubject 
-                                ? 'Cập nhật thông tin môn học' 
-                                : 'Thêm môn học mới vào hệ thống'
-                              }
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="name">Tên môn học *</Label>
-                              <Input 
-                                id="name" 
-                                placeholder="Toán học" 
-                                value={formData.name}
-                                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                className={errors.name ? 'border-red-500' : ''}
-                              />
-                              {errors.name && (
-                                <p className="text-sm text-red-500 flex items-center gap-1">
-                                  <AlertCircle className="w-4 h-4" />
-                                  {errors.name}
-                                </p>
-                              )}
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="code">Mã môn học *</Label>
-                              <Input 
-                                id="code" 
-                                placeholder="MATH" 
-                                value={formData.code}
-                                onChange={(e) => setFormData({...formData, code: e.target.value.toUpperCase()})}
-                                className={errors.code ? 'border-red-500' : ''}
-                              />
-                              {errors.code && (
-                                <p className="text-sm text-red-500 flex items-center gap-1">
-                                  <AlertCircle className="w-4 h-4" />
-                                  {errors.code}
-                                </p>
-                              )}
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="description">Mô tả</Label>
-                              <Input 
-                                id="description" 
-                                placeholder="Mô tả môn học..." 
-                                value={formData.description}
-                                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                                className={errors.description ? 'border-red-500' : ''}
-                              />
-                              <div className="flex justify-between items-center">
-                                {errors.description && (
-                                  <p className="text-sm text-red-500 flex items-center gap-1">
-                                    <AlertCircle className="w-4 h-4" />
-                                    {errors.description}
-                                  </p>
-                                )}
-                                <p className="text-xs text-gray-500 ml-auto">
-                                  {(formData.description || '').length}/500 ký tự
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex gap-2 pt-4">
-                              <Button 
-                                className="flex-1" 
-                                onClick={editingSubject ? handleUpdate : handleCreate}
-                                disabled={isSubmitting}
-                              >
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {isSubmitting ? 'Đang xử lý...' : (editingSubject ? 'Cập nhật' : 'Thêm mới')}
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                onClick={() => setIsDialogOpen(false)}
-                                disabled={isSubmitting}
-                              >
-                                Hủy
-                              </Button>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
+                    <BookOpen className="w-8 h-8 text-green-600" />
                   </div>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-auto">
-                  <div className="space-y-4">
-                    {loadingSubjects ? (
-                      <div className="text-center py-12">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                        <p className="text-gray-600">Đang tải môn học...</p>
-                      </div>
-                    ) : filteredSubjects.length === 0 ? (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <BookOpen className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <p className="text-gray-500 text-lg">
-                          {searchQuery ? 'Không tìm thấy môn học nào' : 'Chưa có môn học nào'}
-                        </p>
-                        <p className="text-gray-400 text-sm mt-2">
-                          {searchQuery ? 'Thử tìm kiếm với từ khóa khác' : 'Thêm môn học đầu tiên để bắt đầu'}
-                        </p>
-                      </div>
-                    ) : (
-                      filteredSubjects.map((subject) => (
-                        <div key={subject.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <BookOpen className="w-5 h-5 text-blue-600" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-lg">{subject.name}</h3>
-                              <p className="text-sm text-gray-600">{subject.code}</p>
-                              {subject.description && (
-                                <p className="text-sm text-gray-500 mt-1">{subject.description}</p>
-                              )}
-                              <p className="text-xs text-gray-400">
-                                Tạo: {subject.created_at ? new Date(subject.created_at).toLocaleDateString('vi-VN') : 'N/A'}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleEdit(subject)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleDelete(subject.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))
-                    )}
+                </CardContent>
+              </Card>
+              <Card className="card-transparent">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Môn học mới nhất</p>
+                      <p className="text-3xl font-bold">
+                        {subjects.length > 0 && subjects[0].created_at
+                          ? new Date(subjects[0].created_at).toLocaleDateString('vi-VN')
+                          : '--'}
+                      </p>
+                    </div>
+                    <BookOpen className="w-8 h-8 text-purple-600" />
                   </div>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Subjects List */}
+            <Card className="card-transparent flex-1 flex flex-col min-h-0">
+              <CardHeader className="card-transparent-header flex-shrink-0">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <CardTitle>Danh sách Môn học</CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">Quản lý tất cả môn học trong hệ thống</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        placeholder="Tìm kiếm môn học..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 w-64"
+                      />
+                    </div>
+                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button onClick={handleAdd}>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Thêm môn học
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>
+                            {editingSubject ? 'Chỉnh sửa môn học' : 'Thêm môn học mới'}
+                          </DialogTitle>
+                          <DialogDescription>
+                            {editingSubject ? 'Cập nhật thông tin môn học' : 'Thêm môn học mới vào hệ thống'}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="name">Tên môn học *</Label>
+                            <Input
+                              id="name"
+                              placeholder="Toán học"
+                              value={formData.name}
+                              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                              className={errors.name ? 'border-red-500' : ''}
+                            />
+                            {errors.name && (
+                              <p className="text-sm text-red-500 flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4" />
+                                {errors.name}
+                              </p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="code">Mã môn học *</Label>
+                            <Input
+                              id="code"
+                              placeholder="MATH"
+                              value={formData.code}
+                              onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                              className={errors.code ? 'border-red-500' : ''}
+                            />
+                            {errors.code && (
+                              <p className="text-sm text-red-500 flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4" />
+                                {errors.code}
+                              </p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="description">Mô tả</Label>
+                            <Input
+                              id="description"
+                              placeholder="Mô tả môn học..."
+                              value={formData.description}
+                              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                              className={errors.description ? 'border-red-500' : ''}
+                            />
+                            <div className="flex justify-between items-center">
+                              {errors.description && (
+                                <p className="text-sm text-red-500 flex items-center gap-1">
+                                  <AlertCircle className="w-4 h-4" />
+                                  {errors.description}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-500 ml-auto">
+                                {(formData.description || '').length}/500 ký tự
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 pt-4">
+                            <Button
+                              className="flex-1"
+                              onClick={editingSubject ? handleUpdate : handleCreate}
+                              disabled={isSubmitting}
+                            >
+                              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              {isSubmitting ? 'Đang xử lý...' : editingSubject ? 'Cập nhật' : 'Thêm mới'}
+                            </Button>
+                            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>
+                              Hủy
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-auto">
+                <div className="space-y-4">
+                  {loadingSubjects ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <p className="text-gray-600">Đang tải môn học...</p>
+                    </div>
+                  ) : filteredSubjects.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <BookOpen className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-gray-500 text-lg">
+                        {searchQuery ? 'Không tìm thấy môn học nào' : 'Chưa có môn học nào'}
+                      </p>
+                      <p className="text-gray-400 text-sm mt-2">
+                        {searchQuery ? 'Thử tìm kiếm với từ khóa khác' : 'Thêm môn học đầu tiên để bắt đầu'}
+                      </p>
+                    </div>
+                  ) : (
+                    filteredSubjects.map((subject) => (
+                      <div
+                        key={subject.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <BookOpen className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-lg">{subject.name}</h3>
+                            <p className="text-sm text-gray-600">{subject.code}</p>
+                            {subject.description && (
+                              <p className="text-sm text-gray-500 mt-1">{subject.description}</p>
+                            )}
+                            <p className="text-xs text-gray-400">
+                              Tạo: {subject.created_at ? new Date(subject.created_at).toLocaleDateString('vi-VN') : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleEdit(subject)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDelete(subject.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

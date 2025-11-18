@@ -44,7 +44,6 @@ export function LoginPage({ onLogin, loading = false, error: externalError }: Lo
     admin: { email: 'admin@school.com', password: 'password123' },
     teacher: { email: 'teacher@school.com', password: 'teacher123' },
     student: { email: 'student@school.com', password: 'student123' },
-    '': { email: '', password: '' }
   };
 
   const quickLogin = async (role: UserRole) => {

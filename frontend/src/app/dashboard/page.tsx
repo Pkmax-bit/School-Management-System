@@ -16,7 +16,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     // Try to get user from localStorage first (set by login page)
-    let currentUser = user;
     let currentRole = user?.role || '';
     
     try {

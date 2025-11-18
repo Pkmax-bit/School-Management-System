@@ -15,6 +15,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageWithBackground } from '@/components/PageWithBackground';
 
+type BackgroundType = 'radial' | 'solid' | 'gradient' | 'grid' | 'pattern';
+
+interface CustomBackgroundForm {
+  name: string;
+  type: BackgroundType;
+  color1: string;
+  color2: string;
+  position: string;
+  size: string;
+  direction: string;
+  gridSize: string;
+  gridLineWidth: string;
+  gridOpacity: string;
+  patternType: string;
+}
+
 export default function SettingsPage() {
   const { isCollapsed } = useSidebar();
   const { user, loading, logout } = useApiAuth();
@@ -32,9 +48,9 @@ export default function SettingsPage() {
   
   const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
   const [editingPreset, setEditingPreset] = useState<BackgroundPreset | null>(null);
-  const [customFormData, setCustomFormData] = useState({
+  const [customFormData, setCustomFormData] = useState<CustomBackgroundForm>({
     name: '',
-    type: 'radial' as 'radial' | 'solid' | 'gradient' | 'grid' | 'pattern',
+    type: 'radial',
     color1: '#ffffff',
     color2: '#10b981',
     position: '50% 90%',
@@ -271,8 +287,8 @@ export default function SettingsPage() {
                           <Label>Loại nền *</Label>
                           <Select
                             value={customFormData.type}
-                            onValueChange={(value: 'radial' | 'solid' | 'gradient' | 'grid' | 'pattern') => 
-                              setCustomFormData({ ...customFormData, type: value })
+                            onValueChange={(value: string) =>
+                              setCustomFormData({ ...customFormData, type: value as BackgroundType })
                             }
                           >
                             <SelectTrigger>
