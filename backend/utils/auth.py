@@ -55,97 +55,98 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
-    """Get current authenticated user using Supabase token"""
+    """Get current authenticated user
+    Supports both Supabase JWT tokens (for admin) and app JWT tokens (for teacher/student)
+    """
     try:
         token = credentials.credentials
+        supabase = get_supabase_client()
         
-        # Use anon client to verify JWT tokens from frontend
-        from services.supabase_client import get_supabase_anon_client
-        supabase = get_supabase_anon_client()
-        
+        # Try to verify as Supabase JWT token first (for admin)
         try:
-            # Get the user from Supabase using the JWT token
-            user_response = supabase.auth.get_user(token)
-
-            if not user_response or not hasattr(user_response, 'user') or not user_response.user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token"
-                )
+            from services.supabase_client import get_supabase_anon_client
+            supabase_anon = get_supabase_anon_client()
             
-            user_id = user_response.user.id
-            email = user_response.user.email
+            user_response = supabase_anon.auth.get_user(token)
             
-            if not user_id or not email:
+            if user_response and hasattr(user_response, 'user') and user_response.user:
+                # This is a Supabase JWT token (admin)
+                user_id = user_response.user.id
+                email = user_response.user.email
+                
+                if not user_id or not email:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid token payload"
+                    )
+                
+                # Get user from users table
+                result = supabase.table("users").select("*").eq("id", user_id).execute()
+                
+                if not result.data:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="User not found"
+                    )
+                
+                user_data = result.data[0]
+                
+                # Check if user is active
+                if not user_data.get("is_active", True):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="User account is deactivated"
+                    )
+                
+                return User(**user_data)
+        except HTTPException:
+            raise
+        except Exception:
+            # Not a Supabase token, try app JWT token (for teacher/student)
+            pass
+        
+        # Try to verify as app JWT token (for teacher/student)
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            user_id = payload.get("sub")
+            email = payload.get("email")
+            
+            if not user_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid token payload"
                 )
             
-        except HTTPException:
-            raise
-        except Exception as auth_error:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Token verification failed: {str(auth_error)}"
-            )
-        
-        # Use service client for database operations
-        supabase = get_supabase_client()
-        
-        # Get user profile from our users table
-        result = supabase.table("users").select("*").eq("id", user_id).execute()
-        
-        if not result.data:
-            # Create user profile if it doesn't exist
-            user_metadata = user_response.user.user_metadata or {}
-            app_metadata = user_response.user.app_metadata or {}
+            # Get user from users table
+            result = supabase.table("users").select("*").eq("id", user_id).execute()
             
-            user_data = {
-                "id": user_id,
-                "email": email,
-                "full_name": user_metadata.get("full_name", email.split("@")[0]),
-                "role": app_metadata.get("role", UserRole.STUDENT),  # default role
-                "is_active": True,
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
-            }
+            if not result.data:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found"
+                )
             
-            try:
-                result = supabase.table("users").insert(user_data).execute()
-                if result.data:
-                    user_data = result.data[0]
-                else:
-                    # If insert fails, try to get the user again (might be race condition)
-                    result = supabase.table("users").select("*").eq("id", user_id).execute()
-                    if result.data:
-                        user_data = result.data[0]
-                    else:
-                        raise HTTPException(
-                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Failed to create user profile"
-                        )
-            except Exception as insert_error:
-                # User might already exist, try to fetch again
-                result = supabase.table("users").select("*").eq("id", user_id).execute()
-                if result.data:
-                    user_data = result.data[0]
-                else:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to handle user profile: {str(insert_error)}"
-                    )
-        else:
             user_data = result.data[0]
-        
-        # Check if user is active
-        if not user_data.get("is_active", True):
+            
+            # Check if user is active
+            if not user_data.get("is_active", True):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User account is deactivated"
+                )
+            
+            return User(**user_data)
+            
+        except jwt.ExpiredSignatureError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account is deactivated"
+                detail="Token has expired"
             )
-        
-        return User(**user_data)
+        except PyJWTError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
         
     except HTTPException:
         raise

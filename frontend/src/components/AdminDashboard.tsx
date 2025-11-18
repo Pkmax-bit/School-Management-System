@@ -7,7 +7,15 @@ import { Button } from './ui/button';
 import { AdminSidebar } from './AdminSidebar';
 import { Users, UserCircle, School, DollarSign, TrendingUp, BookOpen, Calendar, Settings, BarChart, TrendingDown, MapPin, Loader2 } from 'lucide-react';
 
+interface UserInfo {
+  full_name?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
 interface AdminDashboardProps {
+  user?: UserInfo;
   onNavigate: (page: string) => void;
   onLogout: () => void;
 }
@@ -28,7 +36,7 @@ interface DashboardStats {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-export function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
+export function AdminDashboard({ user, onNavigate, onLogout }: AdminDashboardProps) {
   const [stats, setStats] = useState<DashboardStats>({
     totalTeachers: 0,
     totalStudents: 0,
@@ -196,7 +204,10 @@ export function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
       <AdminSidebar 
         currentPage="dashboard" 
         onNavigate={onNavigate} 
-        onLogout={onLogout} 
+        onLogout={onLogout}
+        userName={user?.full_name || user?.name || 'Admin'}
+        userEmail={user?.email || ''}
+        userRole={user?.role || 'admin'}
       />
       
       {/* Main Content */}
@@ -214,10 +225,17 @@ export function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
               <div className="flex items-center space-x-4">
                 <div className="text-right">
                   <p className="text-sm text-slate-500">Chào mừng trở lại</p>
-                  <p className="font-semibold text-slate-800">Admin</p>
+                  <p className="font-semibold text-slate-800">
+                    {user?.full_name || user?.name || 'Admin'}
+                  </p>
+                  {user?.email && (
+                    <p className="text-xs text-slate-500">{user.email}</p>
+                  )}
                 </div>
                 <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">A</span>
+                  <span className="text-white font-bold text-lg">
+                    {(user?.full_name || user?.name || 'A').charAt(0).toUpperCase()}
+                  </span>
                 </div>
               </div>
             </div>

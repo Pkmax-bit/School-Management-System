@@ -15,11 +15,31 @@ export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
-    console.log('Main Dashboard - User check:', { user, loading, role: user?.role });
-    if (!loading && user) {
-      const path = getRedirectPathByRole(user.role);
-      console.log('Main Dashboard - Redirecting to', path);
-      router.push(path);
+    // Try to get user from localStorage first (set by login page)
+    let currentUser = user;
+    let currentRole = user?.role || '';
+    
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser);
+        currentRole = parsedUser.role || currentRole;
+        console.log('Main Dashboard - User from localStorage:', parsedUser);
+      }
+    } catch (error) {
+      console.error('Error reading user from localStorage:', error);
+    }
+    
+    console.log('Main Dashboard - User check:', { user, loading, role: currentRole });
+    if (!loading) {
+      if (currentRole) {
+        const path = getRedirectPathByRole(currentRole);
+        console.log('Main Dashboard - Redirecting to', path);
+        router.push(path);
+      } else if (!user) {
+        // No user and no role, redirect to login
+        router.push('/login');
+      }
     }
   }, [user, loading, router]);
 

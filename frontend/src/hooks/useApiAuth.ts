@@ -56,8 +56,26 @@ export const useApiAuth = () => {
         console.log('useApiAuth - checkUser mapped data:', mappedUserData);
         setUser(mappedUserData);
       } else {
-        localStorage.removeItem('auth_token');
-        setUser(null);
+        console.warn('useApiAuth - /api/auth/me failed:', response.status, response.statusText);
+        // Don't remove token immediately - might be a temporary network issue
+        // Try to use cached user from localStorage as fallback
+        try {
+          const cachedUser = localStorage.getItem('user');
+          if (cachedUser) {
+            const parsed = JSON.parse(cachedUser);
+            const mapped = normalizeUser(parsed);
+            console.log('useApiAuth - Using cached user from localStorage:', mapped);
+            setUser(mapped);
+          } else {
+            // Only remove token if no cached user available
+            localStorage.removeItem('auth_token');
+            setUser(null);
+          }
+        } catch (cacheError) {
+          console.error('useApiAuth - Error reading cached user:', cacheError);
+          localStorage.removeItem('auth_token');
+          setUser(null);
+        }
       }
     } catch (error) {
       console.error('Error checking user:', error);
