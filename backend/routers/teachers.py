@@ -63,15 +63,25 @@ async def create_teacher(
         teacher_code = f"GV{str(uuid.uuid4())[:6].upper()}"
 
     try:
-        # 1) Tạo tài khoản Supabase Auth với mật khẩu mặc định 123456
+        # 1) Tạo tài khoản Supabase Auth với mật khẩu (mặc định 123456 nếu không có)
         from datetime import datetime
         now = datetime.now().isoformat()
+        
+        # Use provided password or default to '123456'
+        password = teacher_data.password if teacher_data.password and teacher_data.password.strip() else '123456'
+        
+        # Validate password length
+        if len(password) < 6:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 6 characters"
+            )
         
         # Tạo user trong Supabase Auth
         try:
             auth_resp = supabase.auth.sign_up({
                 'email': teacher_data.email,
-                'password': '123456'
+                'password': password
             })
             auth_user = getattr(auth_resp, 'user', None)
             if not auth_user:
@@ -88,10 +98,10 @@ async def create_teacher(
                 detail=f"Auth creation error: {str(e)}"
             )
 
-        # 2) Ghi bản ghi user ứng dụng, hash password 123456 để đồng bộ mô hình DB
+        # 2) Ghi bản ghi user ứng dụng, hash password để đồng bộ mô hình DB
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        password_hash = pwd_context.hash("123456")
+        password_hash = pwd_context.hash(password)
         
         user_result = supabase.table('users').insert({
             'id': user_id,

@@ -149,6 +149,7 @@ export interface Teacher {
 export interface CreateTeacherData {
   name: string;
   email: string;
+  password?: string;  // Optional password, default to '123456' if not provided
   phone?: string;
   address?: string;
   role: string;

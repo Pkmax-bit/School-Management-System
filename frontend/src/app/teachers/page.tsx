@@ -32,6 +32,7 @@ export default function TeachersPage() {
   const [formData, setFormData] = useState<CreateTeacherData>({
     name: '',
     email: '',
+    password: '',
     phone: '',
     address: '',
     role: 'teacher',
@@ -113,6 +114,11 @@ export default function TeachersPage() {
       newErrors.email = 'Email không hợp lệ';
     }
 
+    // Validate password (optional, but if provided must be at least 6 characters)
+    if (formData.password && formData.password.trim().length > 0 && formData.password.trim().length < 6) {
+      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
+    }
+
     // Validate phone (optional)
     if (formData.phone && !/^[0-9+\-\s()]+$/.test(formData.phone)) {
       newErrors.phone = 'Số điện thoại không hợp lệ';
@@ -139,15 +145,23 @@ export default function TeachersPage() {
       setIsSubmitting(true);
       setErrors({}); // Clear previous errors
       
-      const newTeacher = await teachersApi.createTeacher(formData);
+      // Prepare data - only send password if provided
+      const createData: CreateTeacherData = {
+        ...formData,
+        password: formData.password && formData.password.trim() ? formData.password.trim() : undefined
+      };
+      
+      const newTeacher = await teachersApi.createTeacher(createData);
       console.log('Created teacher:', newTeacher);
       
       await loadTeachers();
       setIsDialogOpen(false);
-      resetForm();
       
-      // Show success message
-      alert(`Tạo giáo viên "${newTeacher?.name}" thành công!`);
+      // Show success message with password info
+      const passwordUsed = formData.password && formData.password.trim() ? formData.password.trim() : '123456';
+      alert(`Tạo giáo viên "${newTeacher?.name}" thành công!\n\nEmail: ${formData.email}\nMật khẩu: ${passwordUsed}\n\nVui lòng ghi nhớ thông tin đăng nhập này để cung cấp cho giáo viên.`);
+      
+      resetForm();
     } catch (error: any) {
       console.error('Error creating teacher:', error);
       console.log('Error type:', typeof error);
@@ -276,6 +290,7 @@ export default function TeachersPage() {
     setFormData({
       name: '',
       email: '',
+      password: '',
       phone: '',
       address: '',
       role: 'teacher',
@@ -452,6 +467,29 @@ export default function TeachersPage() {
                             <div className="flex items-center text-red-500 text-sm">
                               <AlertCircle className="w-4 h-4 mr-1" />
                               {errors.email}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Password */}
+                        <div className="space-y-2">
+                          <Label htmlFor="password">Mật khẩu</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            className={errors.password ? 'border-red-500' : ''}
+                            placeholder="Để trống sẽ dùng mật khẩu mặc định: 123456"
+                            minLength={6}
+                          />
+                          <p className="text-xs text-gray-500">
+                            Để trống sẽ tự động tạo mật khẩu mặc định: <strong>123456</strong>
+                          </p>
+                          {errors.password && (
+                            <div className="flex items-center text-red-500 text-sm">
+                              <AlertCircle className="w-4 h-4 mr-1" />
+                              {errors.password}
                             </div>
                           )}
                         </div>

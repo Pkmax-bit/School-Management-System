@@ -22,6 +22,7 @@ class TeacherCreate(TeacherBase):
 class TeacherCreateFromUser(BaseModel):
     name: str
     email: str
+    password: Optional[str] = None  # Optional password, default to '123456' if not provided
     phone: Optional[str] = None
     address: Optional[str] = None
     role: str = "teacher"
