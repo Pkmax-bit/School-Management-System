@@ -217,72 +217,41 @@ export default function SubjectsPage() {
     }
   }, [user, loading, hasLoaded, loadSubjects]);
 
+  const renderLoading = () => (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Đang tải...</p>
+      </div>
+    </div>
+  );
 
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Đang tải...</p>
+  const renderAccessDenied = () => (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/20 max-w-md w-full mx-4 text-center space-y-3">
+        <h1 className="text-2xl font-bold text-gray-900">Truy cập bị từ chối</h1>
+        <p className="text-gray-600">Chỉ quản trị viên mới có thể truy cập trang Môn học.</p>
+        <p className="text-sm text-gray-500">
+          Vai trò hiện tại: <span className="font-semibold">{normalizedRole || 'Chưa đăng nhập'}</span>
+        </p>
+        <div className="space-y-2 pt-2">
+          <Button className="w-full" onClick={() => router.push('/admin/login')}>
+            Đăng nhập Admin
+          </Button>
+          <Button variant="outline" className="w-full" onClick={() => router.push('/login')}>
+            Đăng nhập chung
+          </Button>
         </div>
       </div>
-    );
+    </div>
+  );
+
+  if (loading) {
+    return renderLoading();
   }
 
   if (!user || normalizedRole !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/20 max-w-md w-full mx-4 text-center space-y-3">
-          <h1 className="text-2xl font-bold text-gray-900">Truy cập bị từ chối</h1>
-          <p className="text-gray-600">Chỉ quản trị viên mới có thể truy cập trang Môn học.</p>
-          <p className="text-sm text-gray-500">
-            Vai trò hiện tại: <span className="font-semibold">{normalizedRole || 'Chưa đăng nhập'}</span>
-          </p>
-          <div className="space-y-2 pt-2">
-            <Button className="w-full" onClick={() => router.push('/admin/login')}>
-              Đăng nhập Admin
-            </Button>
-            <Button variant="outline" className="w-full" onClick={() => router.push('/login')}>
-              Đăng nhập chung
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Đang tải...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user || normalizedRole !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/20 max-w-md w-full mx-4 text-center space-y-3">
-          <h1 className="text-2xl font-bold text-gray-900">Truy cập bị từ chối</h1>
-          <p className="text-gray-600">Chỉ quản trị viên mới có thể truy cập trang Môn học.</p>
-          <p className="text-sm text-gray-500">
-            Vai trò hiện tại: <span className="font-semibold">{normalizedRole || 'Chưa đăng nhập'}</span>
-          </p>
-          <div className="space-y-2 pt-2">
-            <Button className="w-full" onClick={() => router.push('/admin/login')}>
-              Đăng nhập Admin
-            </Button>
-            <Button variant="outline" className="w-full" onClick={() => router.push('/login')}>
-              Đăng nhập chung
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
+    return renderAccessDenied();
   }
 
   return (
