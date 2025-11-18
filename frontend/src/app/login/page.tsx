@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Eye, EyeOff, Mail, Lock, AlertCircle, User, Crown, BookOpen, GraduationCap, ArrowLeft } from 'lucide-react'
 import { supabase, isValidSupabaseConfig } from '@/lib/supabase'
 import { getApiEndpoint } from '@/lib/apiUrl'
+import { normalizeUser } from '@/lib/auth'
 
 // Test accounts with different roles
 const testAccounts = [
@@ -97,7 +98,9 @@ export default function LoginPage() {
                 .single()
 
               if (userData && !userError) {
-                localStorage.setItem('user', JSON.stringify(userData))
+                // Normalize user data before saving to localStorage
+                const normalizedUser = normalizeUser(userData)
+                localStorage.setItem('user', JSON.stringify(normalizedUser))
               }
             } catch (userLoadError) {
               console.log('Error loading user data:', userLoadError)
@@ -147,11 +150,13 @@ export default function LoginPage() {
               is_active: result.user.is_active !== false
             }
             
-            console.log('User data to save:', userData)
-            localStorage.setItem('user', JSON.stringify(userData))
+            // Normalize user data before saving to localStorage
+            const normalizedUser = normalizeUser(userData)
+            console.log('User data to save (normalized):', normalizedUser)
+            localStorage.setItem('user', JSON.stringify(normalizedUser))
             
-            // Redirect based on role
-            const role = (userData.role || '').toLowerCase()
+            // Redirect based on normalized role
+            const role = normalizedUser.role || ''
             if (role === 'admin') {
               router.push('/admin/dashboard')
             } else if (role === 'teacher') {
@@ -174,9 +179,12 @@ export default function LoginPage() {
                   role: payload.role || '',
                   is_active: true
                 }
-                localStorage.setItem('user', JSON.stringify(userData))
+                // Normalize user data before saving to localStorage
+                const normalizedUser = normalizeUser(userData)
+                localStorage.setItem('user', JSON.stringify(normalizedUser))
                 
-                const role = (userData.role || '').toLowerCase()
+                // Redirect based on normalized role
+                const role = normalizedUser.role || ''
                 if (role === 'admin') {
                   router.push('/admin/dashboard')
                 } else if (role === 'teacher') {

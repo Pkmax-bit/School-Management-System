@@ -57,8 +57,26 @@ export default function ClassesPage() {
 
   // Redirect if not admin
   useEffect(() => {
-    if (!loading && (!user || user.role !== 'admin')) {
-      router.push('/dashboard');
+    if (!loading) {
+      // Check both user from hook and localStorage
+      const storedUser = localStorage.getItem('user');
+      let currentRole = user?.role || '';
+      
+      if (!currentRole && storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          currentRole = parsed.role || '';
+        } catch (e) {
+          console.error('Error parsing stored user:', e);
+        }
+      }
+      
+      // Normalize role to lowercase for comparison
+      const normalizedRole = currentRole?.toLowerCase().trim();
+      
+      if (!user || normalizedRole !== 'admin') {
+        router.push('/dashboard');
+      }
     }
   }, [user, loading, router]);
 
@@ -66,71 +84,122 @@ export default function ClassesPage() {
     try {
       setLoadingTeachers(true);
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || localStorage.getItem('access_token') : null;
+      
+      if (!jwt) {
+        console.warn('No auth token found, redirecting to login');
+        logout();
+        return;
+      }
+      
       const res = await fetch(`${API_BASE_URL}/api/teachers?limit=1000`, {
         headers: {
           'Content-Type': 'application/json',
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          'Authorization': `Bearer ${jwt}`,
         },
       });
+      
+      if (res.status === 401) {
+        console.warn('Token expired, logging out');
+        logout();
+        return;
+      }
+      
       if (!res.ok) throw new Error('Failed to fetch teachers');
       const data = await res.json();
       const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
       const mapped = list.map((t: any) => ({ id: t.id, name: t.users?.full_name || t.name, email: t.users?.email }));
       setTeachers(mapped);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Load teachers failed', e);
+      if (e.message?.includes('401') || e.message?.includes('Authentication')) {
+        logout();
+      }
       setTeachers([]);
     } finally {
       setLoadingTeachers(false);
     }
-  }, []);
+  }, [logout]);
 
   const loadSubjects = useCallback(async () => {
     try {
       setLoadingSubjects(true);
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || localStorage.getItem('access_token') : null;
+      
+      if (!jwt) {
+        console.warn('No auth token found, redirecting to login');
+        logout();
+        return;
+      }
+      
       const res = await fetch(`${API_BASE_URL}/api/subjects?limit=1000`, {
         headers: {
           'Content-Type': 'application/json',
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          'Authorization': `Bearer ${jwt}`,
         },
       });
+      
+      if (res.status === 401) {
+        console.warn('Token expired, logging out');
+        logout();
+        return;
+      }
+      
       if (!res.ok) throw new Error('Failed to fetch subjects');
       const data = await res.json();
       const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
       setSubjects(list);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Load subjects failed', e);
+      if (e.message?.includes('401') || e.message?.includes('Authentication')) {
+        logout();
+      }
       setSubjects([]);
     } finally {
       setLoadingSubjects(false);
     }
-  }, []);
+  }, [logout]);
 
   const loadCampuses = useCallback(async () => {
     try {
       setLoadingCampuses(true);
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || localStorage.getItem('access_token') : null;
+      
+      if (!jwt) {
+        console.warn('No auth token found, redirecting to login');
+        logout();
+        return;
+      }
+      
       const res = await fetch(`${API_BASE_URL}/api/campuses?limit=1000`, {
         headers: {
           'Content-Type': 'application/json',
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          'Authorization': `Bearer ${jwt}`,
         },
       });
+      
+      if (res.status === 401) {
+        console.warn('Token expired, logging out');
+        logout();
+        return;
+      }
+      
       if (!res.ok) throw new Error('Failed to fetch campuses');
       const data = await res.json();
       const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
       setCampuses(list);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Load campuses failed', e);
+      if (e.message?.includes('401') || e.message?.includes('Authentication')) {
+        logout();
+      }
       setCampuses([]);
     } finally {
       setLoadingCampuses(false);
     }
-  }, []);
+  }, [logout]);
 
   const loadClasses = useCallback(async () => {
     try {
@@ -140,11 +209,15 @@ export default function ClassesPage() {
       setClasses(list);
     } catch (error: any) {
       console.error('Error loading classes:', error);
+      if (error.message?.includes('401') || error.message?.includes('Authentication')) {
+        console.warn('Token expired, logging out');
+        logout();
+      }
       setClasses([]);
     } finally {
       setLoadingClasses(false);
     }
-  }, []);
+  }, [logout]);
 
   const getNextCodeFromList = (list: Array<{ code?: string }>) => {
     let maxNum = 0;
@@ -164,7 +237,24 @@ export default function ClassesPage() {
 
   // Load data once
   useEffect(() => {
-    if (user && user.role === 'admin' && !hasLoaded) {
+    if (!user) return;
+    
+    // Check role from both user and localStorage
+    let currentRole = user.role || '';
+    const storedUser = localStorage.getItem('user');
+    if (!currentRole && storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        currentRole = parsed.role || '';
+      } catch (e) {
+        console.error('Error parsing stored user:', e);
+      }
+    }
+    
+    // Normalize role to lowercase for comparison
+    const normalizedRole = currentRole?.toLowerCase().trim();
+    
+    if (normalizedRole === 'admin' && !hasLoaded) {
       loadClasses();
       loadTeachers();
       loadSubjects();
@@ -173,20 +263,36 @@ export default function ClassesPage() {
         try {
           setLoadingStudents(true);
           const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-          const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+          const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || localStorage.getItem('access_token') : null;
+          
+          if (!jwt) {
+            console.warn('No auth token found');
+            return;
+          }
+          
           const res = await fetch(`${API_BASE_URL}/api/students?limit=1000`, {
             headers: {
               'Content-Type': 'application/json',
-              ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+              'Authorization': `Bearer ${jwt}`,
             },
           });
+          
+          if (res.status === 401) {
+            console.warn('Token expired, logging out');
+            logout();
+            return;
+          }
+          
           if (!res.ok) throw new Error('Failed to fetch students');
           const data = await res.json();
           const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
           const mapped = list.map((s: any) => ({ id: s.id, name: s.name || s.users?.full_name, email: s.email || s.users?.email, date_of_birth: s.date_of_birth || null }));
           setStudents(mapped);
-        } catch (e) {
+        } catch (e: any) {
           console.error('Load students failed', e);
+          if (e.message?.includes('401') || e.message?.includes('Authentication')) {
+            logout();
+          }
           setStudents([]);
         } finally {
           setLoadingStudents(false);
@@ -194,7 +300,7 @@ export default function ClassesPage() {
       })();
       setHasLoaded(true);
     }
-  }, [user, hasLoaded, loadClasses, loadTeachers]);
+  }, [user, hasLoaded, loadClasses, loadTeachers, loadSubjects, loadCampuses, logout]);
 
   const formatDob = (dob?: string | null) => {
     if (!dob) return '';

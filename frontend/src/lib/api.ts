@@ -18,9 +18,13 @@ const api = axios.create({
 // Request interceptor để thêm token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Check multiple possible token keys
+    const token = localStorage.getItem('auth_token') || 
+                  localStorage.getItem('access_token') ||
+                  localStorage.getItem('token');
+    
+    if (token && token.trim() !== '' && config.headers) {
+      config.headers.Authorization = `Bearer ${token.trim()}`;
     }
     return config;
   },
@@ -33,9 +37,19 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    if (error.response?.status === 401) {
+      // Clear all possible token keys
       localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Only redirect if we're not already on the login page
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    } else if (error.response?.status === 403) {
+      console.warn('Access forbidden - user may not have permission');
     }
     return Promise.reject(error);
   }

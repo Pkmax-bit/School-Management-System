@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -34,15 +34,9 @@ export default function CampusesPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const normalizedRole = (user?.role || '').toLowerCase().trim();
 
-  // Redirect if not admin
-  useEffect(() => {
-    if (!loading && (!user || user.role !== 'admin')) {
-      router.push('/dashboard');
-    }
-  }, [user, loading, router]);
-
-  const loadCampuses = useCallback(async () => {
+    const loadCampuses = useCallback(async () => {
     try {
       setLoadingCampuses(true);
       const data = await campusesApi.list(searchQuery);
@@ -56,15 +50,19 @@ export default function CampusesPage() {
     }
   }, [searchQuery]);
 
-  // Load data once
+  // Load campuses once admin session is confirmed
   useEffect(() => {
-    if (user && user.role === 'admin' && !hasLoaded) {
+    if (loading) {
+      return;
+    }
+
+    if (user?.role === 'admin' && !hasLoaded) {
       loadCampuses();
       setHasLoaded(true);
     }
-  }, [user, hasLoaded, loadCampuses]);
+  }, [user, loading, hasLoaded, loadCampuses]);
 
-  // Reload when search changes
+// Reload when search changes
   useEffect(() => {
     if (hasLoaded) {
       const timeoutId = setTimeout(() => {
@@ -173,16 +171,53 @@ export default function CampusesPage() {
     );
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Đang tải...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || normalizedRole !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/20 max-w-md w-full mx-4 text-center space-y-3">
+          <h1 className="text-2xl font-bold text-gray-900">Truy cập bị từ chối</h1>
+          <p className="text-gray-600">Chỉ quản trị viên mới có thể truy cập trang Cơ sở.</p>
+          <p className="text-sm text-gray-500">
+            Vai trò hiện tại: <span className="font-semibold">{normalizedRole || 'Chưa đăng nhập'}</span>
+          </p>
+          <div className="space-y-2 pt-2">
+            <Button className="w-full" onClick={() => router.push('/admin/login')}>
+              Đăng nhập Admin
+            </Button>
+            <Button variant="outline" className="w-full" onClick={() => router.push('/login')}>
+              Đăng nhập chung
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <PageWithBackground>
       <div className="min-h-screen">
-        <AdminSidebar 
-        currentPage="campuses" 
-        onNavigate={(page) => router.push(`/${page}`)} 
-        onLogout={logout} 
-      />
-      <div className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
-        <div className="flex-1 flex flex-col p-6 space-y-6">
+        <AdminSidebar
+          currentPage="campuses"
+          onNavigate={(page) => router.push(`/${page}`)}
+          onLogout={logout}
+        />
+        <div
+          className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${
+            isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+          }`}
+        >
+          <div className="flex-1 flex flex-col p-6 space-y-6">
           {/* Header */}
           <div>
             <h1 className="text-3xl mb-2 text-gray-900">Quản lý Cơ sở</h1>
@@ -381,8 +416,8 @@ export default function CampusesPage() {
             </CardContent>
           </Card>
         </div>
+        </div>
       </div>
-    </div>
     </PageWithBackground>
   );
 }

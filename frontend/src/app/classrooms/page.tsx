@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { useApiAuth } from '@/hooks/useApiAuth';
@@ -69,6 +69,8 @@ export default function ClassroomsPage() {
       c.description?.toLowerCase().includes(q)
     );
   }, [items, search]);
+
+  const normalizedRole = (user?.role || '').toLowerCase().trim();
 
   const handleOpenCreate = async () => {
     setEditing(null);
@@ -294,12 +296,10 @@ export default function ClassroomsPage() {
     );
   }
 
-  if (!user || !['admin', 'teacher'].includes(user.role)) {
+  if (!user || !['admin', 'teacher'].includes(normalizedRole)) {
     return (
       <div className="text-center py-12">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
-          Không có quyền truy cập
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">Không có quyền truy cập</h1>
         <p className="text-gray-600">
           Chỉ quản trị viên và giáo viên mới có thể truy cập trang này.
         </p>
@@ -314,7 +314,7 @@ export default function ClassroomsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Quản lý Lớp học</h1>
           <p className="text-gray-600">Quản lý thông tin lớp học trong hệ thống</p>
         </div>
-        {user.role === 'admin' && (
+        {normalizedRole === 'admin' && (
           <div className="flex gap-2">
             <Button type="button" onClick={handleOpenCreate} data-testid="open-create-classroom" aria-haspopup="dialog" aria-expanded={isDialogOpen}>
               <Plus className="w-4 h-4 mr-2" /> Thêm lớp học
@@ -348,7 +348,7 @@ export default function ClassroomsPage() {
                     <TableHead>Sĩ số</TableHead>
                     <TableHead>Giáo viên</TableHead>
                     <TableHead>Mô tả</TableHead>
-                    {user.role === 'admin' && <TableHead className="w-[200px]">Hành động</TableHead>}
+                    {normalizedRole === 'admin' && <TableHead className="w-[200px]">Hành động</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -363,7 +363,7 @@ export default function ClassroomsPage() {
                         return t ? (t.name || t.email || c.teacher_id) : c.teacher_id;
                       })()}</TableCell>
                       <TableCell>{c.description || '—'}</TableCell>
-                      {user.role === 'admin' && (
+                      {normalizedRole === 'admin' && (
                         <TableCell>
                           <div className="flex gap-2">
                             <Button variant="outline" size="sm" onClick={() => { window.location.href = `/classrooms/${c.id}`; }}>Xem</Button>
@@ -671,6 +671,6 @@ export default function ClassroomsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
   );
 }

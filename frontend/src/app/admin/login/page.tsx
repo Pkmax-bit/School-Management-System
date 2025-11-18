@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock, AlertCircle, Crown, ArrowLeft } from 'lucide-react';
 import { getApiEndpoint } from '@/lib/apiUrl';
+import { normalizeUser } from '@/lib/auth';
 
 export default function AdminLoginPage() {
   const [formData, setFormData] = useState({
@@ -65,11 +66,13 @@ export default function AdminLoginPage() {
               is_active: result.user.is_active !== false
             }
             
-            console.log('Admin user data to save:', userData)
-            localStorage.setItem('user', JSON.stringify(userData))
+            // Normalize user data before saving to localStorage
+            const normalizedUser = normalizeUser(userData)
+            console.log('Admin user data to save (normalized):', normalizedUser)
+            localStorage.setItem('user', JSON.stringify(normalizedUser))
             
             // Verify role is admin before redirecting
-            const role = (userData.role || '').toLowerCase()
+            const role = normalizedUser.role || ''
             if (role === 'admin') {
               router.push('/admin/dashboard')
             } else {
@@ -90,7 +93,9 @@ export default function AdminLoginPage() {
                   role: 'admin', // Default to admin for admin login page
                   is_active: true
                 }
-                localStorage.setItem('user', JSON.stringify(userData))
+                // Normalize user data before saving to localStorage
+                const normalizedUser = normalizeUser(userData)
+                localStorage.setItem('user', JSON.stringify(normalizedUser))
                 router.push('/admin/dashboard')
               } else {
                 setError('Token không hợp lệ')

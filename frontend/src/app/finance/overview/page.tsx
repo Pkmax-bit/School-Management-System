@@ -61,8 +61,26 @@ export default function FinanceOverviewPage() {
   const [paymentStatuses, setPaymentStatuses] = useState<PaymentStatus[]>([]);
 
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== 'admin')) {
-      router.push('/dashboard');
+    if (!authLoading) {
+      // Check both user from hook and localStorage
+      const storedUser = localStorage.getItem('user');
+      let currentRole = user?.role || '';
+      
+      if (!currentRole && storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          currentRole = parsed.role || '';
+        } catch (e) {
+          console.error('Error parsing stored user:', e);
+        }
+      }
+      
+      // Normalize role to lowercase for comparison
+      const normalizedRole = currentRole?.toLowerCase().trim();
+      
+      if (!user || normalizedRole !== 'admin') {
+        router.push('/dashboard');
+      }
     }
   }, [user, authLoading, router]);
 
@@ -231,7 +249,24 @@ export default function FinanceOverviewPage() {
   }, []);
 
   useEffect(() => {
-    if (user && user.role === 'admin') {
+    if (!user) return;
+    
+    // Check role from both user and localStorage
+    let currentRole = user.role || '';
+    const storedUser = localStorage.getItem('user');
+    if (!currentRole && storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        currentRole = parsed.role || '';
+      } catch (e) {
+        console.error('Error parsing stored user:', e);
+      }
+    }
+    
+    // Normalize role to lowercase for comparison
+    const normalizedRole = currentRole?.toLowerCase().trim();
+    
+    if (normalizedRole === 'admin') {
       loadOverview();
     }
   }, [user, loadOverview]);
@@ -273,7 +308,22 @@ export default function FinanceOverviewPage() {
     );
   }
 
-  if (!user || user.role !== 'admin') {
+  // Check role from both user and localStorage
+  let currentRole = user?.role || '';
+  const storedUser = localStorage.getItem('user');
+  if (!currentRole && storedUser) {
+    try {
+      const parsed = JSON.parse(storedUser);
+      currentRole = parsed.role || '';
+    } catch (e) {
+      console.error('Error parsing stored user:', e);
+    }
+  }
+  
+  // Normalize role to lowercase for comparison
+  const normalizedRole = currentRole?.toLowerCase().trim();
+  
+  if (!user || normalizedRole !== 'admin') {
     return (
       <div className="text-center py-12">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Không có quyền truy cập</h1>

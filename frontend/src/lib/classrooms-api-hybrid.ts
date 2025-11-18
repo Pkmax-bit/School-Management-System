@@ -12,18 +12,39 @@ async function apiRequest(url: string, options: {
   headers?: Record<string, string>
   body?: unknown
 } = {}): Promise<any> {
-  const jwtToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  const { data: { session } } = await supabase.auth.getSession();
+  // Try multiple token sources (like Phuc Dat pattern)
+  const jwtToken = typeof window !== 'undefined' 
+    ? localStorage.getItem('auth_token') || 
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('token')
+    : null;
+  
+  // Try to get Supabase session token
+  let session = null;
+  try {
+    const { data: { session: supabaseSession }, error: sessionError } = await supabase.auth.getSession();
+    session = supabaseSession;
+    if (sessionError) {
+      console.warn('Classrooms API - Supabase session error:', sessionError);
+    }
+  } catch (supabaseError) {
+    console.warn('Classrooms API - Failed to get Supabase session:', supabaseError);
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
 
-  if (jwtToken) {
-    headers.Authorization = `Bearer ${jwtToken}`;
+  // Priority: JWT token first, then Supabase token
+  if (jwtToken && jwtToken.trim() !== '') {
+    headers.Authorization = `Bearer ${jwtToken.trim()}`;
+    console.log('Classrooms API - Using JWT token for authentication');
   } else if (session?.access_token) {
     headers.Authorization = `Bearer ${session.access_token}`;
+    console.log('Classrooms API - Using Supabase OAuth2 token for authentication');
+  } else {
+    console.warn('Classrooms API - No authentication token found - request may fail');
   }
 
   const requestOptions: RequestInit = {
@@ -34,19 +55,40 @@ async function apiRequest(url: string, options: {
 
   try {
     const response = await fetch(url, requestOptions);
+    
     if (!response.ok) {
-      const text = await response.text();
-      if (response.status === 401) throw new Error('Authentication required (401)');
-      if (response.status === 403) throw new Error('Forbidden (403)');
-      if (response.status === 404) throw new Error('Not Found (404)');
-      if (response.status === 500) throw new Error('Server Error (500)');
-      throw new Error(`HTTP ${response.status}: ${text}`);
+      const errorText = await response.text();
+      console.error('Classrooms API Request failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+        url,
+        method: options.method || 'GET',
+        hasAuthHeader: !!headers.Authorization
+      });
+      
+      // Handle 401 Unauthorized - but don't clear token immediately (might be temporary)
+      if (response.status === 401) {
+        console.warn('Classrooms API - 401 Unauthorized. Token may be expired or invalid.');
+        // Don't clear token here - let useApiAuth handle it
+        throw new Error(`HTTP 401: ${errorText || 'Could not validate credentials'}`);
+      } else if (response.status === 403) {
+        throw new Error('Forbidden (403)');
+      } else if (response.status === 404) {
+        throw new Error('Not Found (404)');
+      } else if (response.status === 500) {
+        throw new Error('Server Error (500)');
+      } else {
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
     }
+    
     return await response.json();
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và đảm bảo backend server đang chạy.');
     }
+    console.error('Classrooms API Request failed:', error);
     throw error;
   }
 }

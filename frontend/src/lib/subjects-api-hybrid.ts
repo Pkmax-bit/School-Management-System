@@ -17,11 +17,25 @@ async function apiRequest(url: string, options: {
   body?: unknown
 } = {}): Promise<any> {
   try {
-    // Try to get JWT token from localStorage first (for backend auth)
-    const jwtToken = localStorage.getItem('auth_token');
+    // Try to get JWT token from localStorage (check multiple possible keys)
+    const jwtToken = localStorage.getItem('auth_token') || 
+                     localStorage.getItem('access_token') ||
+                     localStorage.getItem('token');
     
     // Try to get Supabase session token
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    let session = null;
+    try {
+      const { data: { session: supabaseSession }, error: sessionError } = await supabase.auth.getSession();
+      session = supabaseSession;
+      if (sessionError) {
+        console.warn('Supabase session error:', sessionError);
+      }
+    } catch (supabaseError) {
+      console.warn('Failed to get Supabase session:', supabaseError);
+    }
+    
+    // Check if we have any token at all
+    const hasAnyToken = !!(jwtToken || session?.access_token);
     
     console.log('Hybrid API Request Debug:', {
       url,
@@ -29,8 +43,15 @@ async function apiRequest(url: string, options: {
       hasJwtToken: !!jwtToken,
       hasSupabaseSession: !!session,
       hasAccessToken: !!session?.access_token,
-      sessionError
+      tokenLength: jwtToken?.length || 0,
+      hasAnyToken
     });
+    
+    // Warn if no token is available for protected endpoints
+    if (!hasAnyToken && typeof window !== 'undefined') {
+      console.warn('⚠️ No authentication token found. Request may fail with 401.');
+      // Don't redirect here, let the backend handle it and return 401
+    }
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -38,14 +59,15 @@ async function apiRequest(url: string, options: {
     };
 
     // Priority: JWT token first, then Supabase token
-    if (jwtToken) {
-      headers.Authorization = `Bearer ${jwtToken}`;
+    if (jwtToken && jwtToken.trim() !== '') {
+      headers.Authorization = `Bearer ${jwtToken.trim()}`;
       console.log('🔍 Using JWT token for authentication');
     } else if (session?.access_token) {
       headers.Authorization = `Bearer ${session.access_token}`;
       console.log('🔍 Using Supabase OAuth2 token for authentication');
     } else {
-      console.warn('🔍 No authentication token found');
+      console.warn('🔍 No authentication token found - request may fail');
+      // Don't throw error here, let the backend handle it
     }
 
     const requestOptions: RequestInit = {
@@ -66,11 +88,27 @@ async function apiRequest(url: string, options: {
         statusText: response.statusText,
         errorText,
         url,
-        method: options.method || 'GET'
+        method: options.method || 'GET',
+        hasAuthHeader: !!headers.Authorization
       });
       
-      // Handle specific error cases
-      if (response.status === 500) {
+      // Handle 401 Unauthorized - token expired or invalid
+      if (response.status === 401) {
+        // Clear all tokens
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          
+          // Redirect to login if not already there
+          if (!window.location.pathname.includes('/login')) {
+            console.log('🔐 Token expired or invalid, redirecting to login');
+            window.location.href = '/login';
+          }
+        }
+        throw new Error(`HTTP 401: ${errorText || 'Could not validate credentials'}`);
+      } else if (response.status === 500) {
         throw new Error(`Server Error: Backend đang gặp lỗi. Vui lòng thử lại sau.`);
       } else if (response.status === 403) {
         throw new Error(`Authentication Error: Bạn không có quyền thực hiện thao tác này.`);
