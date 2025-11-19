@@ -3,12 +3,14 @@ School Management System - Main Application
 Hệ thống quản lý trường học với FastAPI
 """
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse
 from supabase import Client
 import uvicorn
 from typing import List
+import traceback
 
 from database import get_db
 from config import settings
@@ -20,6 +22,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions"""
+    error_detail = str(exc)
+    traceback_str = traceback.format_exc()
+    print(f"Unhandled exception: {error_detail}")
+    print(f"Traceback: {traceback_str}")
+    
+    # Return a proper error response
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"Internal server error: {error_detail}",
+            "type": type(exc).__name__
+        }
+    )
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
@@ -27,6 +47,10 @@ async def health_check():
 
 # CORS middleware
 cors_origins = settings.CORS_ORIGINS.split(",") if settings.CORS_ORIGINS else ["http://localhost:3000"]
+# Add common Next.js dev server origins
+cors_origins.extend(["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"])
+cors_origins = list(set(cors_origins))  # Remove duplicates
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

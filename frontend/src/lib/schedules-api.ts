@@ -27,23 +27,42 @@ async function apiRequest(url: string, options: {
     ...(options.body ? { body: JSON.stringify(options.body) } : {}),
   };
 
-  const response = await fetch(url, requestOptions);
-  if (!response.ok) {
-    const text = await response.text();
-    // For 404 errors, return a more descriptive error
-    if (response.status === 404) {
-      let errorMessage = 'Not found';
-      try {
-        const json = JSON.parse(text);
-        errorMessage = json.detail || json.message || errorMessage;
-      } catch {
-        errorMessage = text || errorMessage;
+  try {
+    const response = await fetch(url, requestOptions);
+    if (!response.ok) {
+      const text = await response.text();
+      // For 404 errors, return a more descriptive error
+      if (response.status === 404) {
+        let errorMessage = 'Not found';
+        try {
+          const json = JSON.parse(text);
+          errorMessage = json.detail || json.message || errorMessage;
+        } catch {
+          errorMessage = text || errorMessage;
+        }
+        throw new Error(`HTTP ${response.status}: ${errorMessage}`);
       }
-      throw new Error(`HTTP ${response.status}: ${errorMessage}`);
+      // For 500 errors, try to parse error detail
+      if (response.status === 500) {
+        let errorMessage = 'Internal server error';
+        try {
+          const json = JSON.parse(text);
+          errorMessage = json.detail || json.message || errorMessage;
+        } catch {
+          errorMessage = text || errorMessage;
+        }
+        throw new Error(`HTTP ${response.status}: ${errorMessage}`);
+      }
+      throw new Error(`HTTP ${response.status}: ${text}`);
     }
-    throw new Error(`HTTP ${response.status}: ${text}`);
+    return await response.json();
+  } catch (error: any) {
+    // Handle network errors
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng hoặc đảm bảo backend đang chạy.');
+    }
+    throw error;
   }
-  return await response.json();
 }
 
 export interface Schedule {
@@ -55,6 +74,9 @@ export interface Schedule {
   start_time: string; // HH:MM format
   end_time: string; // HH:MM format
   room?: string;
+  room_id?: string;
+  campus_id?: string;
+  date?: string; // Ngày cụ thể (YYYY-MM-DD format)
   created_at?: string;
   updated_at?: string;
   // Joined data
@@ -71,13 +93,27 @@ export interface Schedule {
   };
   teacher?: {
     id: string;
-    name: string;
-    email: string;
+    user_id?: string;
+    teacher_code?: string;
+    display_name?: string;
+    email?: string;
+    user?: {
+      id?: string;
+      full_name?: string;
+      email?: string;
+    };
   };
   campus?: {
     id: string;
     name: string;
     code: string;
+  };
+  room_detail?: {
+    id: string;
+    name?: string;
+    code?: string;
+    capacity?: number;
+    campus_id?: string;
   };
 }
 
@@ -89,6 +125,9 @@ export interface ScheduleCreate {
   start_time: string;
   end_time: string;
   room?: string;
+  room_id?: string;
+  campus_id?: string;
+  date?: string; // Ngày cụ thể (YYYY-MM-DD format)
 }
 
 export interface ScheduleUpdate {
@@ -99,6 +138,9 @@ export interface ScheduleUpdate {
   start_time?: string;
   end_time?: string;
   room?: string;
+  room_id?: string;
+  campus_id?: string;
+  date?: string; // Ngày cụ thể (YYYY-MM-DD format)
 }
 
 export const schedulesApi = {

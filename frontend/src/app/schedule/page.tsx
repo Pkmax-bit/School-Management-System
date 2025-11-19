@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useApiAuth } from '@/hooks/useApiAuth';
@@ -16,6 +16,14 @@ import schedulesApi, { Schedule, ScheduleCreate } from '../../lib/schedules-api'
 import campusesApi from '../../lib/campuses-api';
 import classroomsHybridApi from '../../lib/classrooms-api-hybrid';
 import roomsApi, { Room } from '../../lib/rooms-api';
+import subjectsApi from '../../lib/subjects-api-hybrid';
+import { teachersApi } from '../../lib/teachers-api';
+
+type TeacherOption = {
+  id: string;
+  name?: string;
+  email?: string;
+};
 
 const DAYS_OF_WEEK = [
   'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'
@@ -27,6 +35,50 @@ const TIME_SLOTS = [
   '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30',
   '19:00', '19:30', '20:00', '20:30', '21:00'
 ];
+
+const getTeacherDisplayName = (teacher?: Schedule['teacher']) =>
+  teacher?.display_name ||
+  teacher?.user?.full_name ||
+  teacher?.email ||
+  teacher?.teacher_code ||
+  '';
+
+const getTeacherEmail = (teacher?: Schedule['teacher']) =>
+  teacher?.email || teacher?.user?.email || '';
+
+const getWeekStartDate = (date: Date) => {
+  const weekStart = new Date(date);
+  const day = weekStart.getDay(); // 0 (Sun) - 6 (Sat)
+  const diff = day === 0 ? -6 : 1 - day; // convert to Monday start
+  weekStart.setDate(weekStart.getDate() + diff);
+  weekStart.setHours(0, 0, 0, 0);
+  return weekStart;
+};
+
+const buildWeekDates = (startDate: Date) => {
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  return Array.from({ length: 7 }, (_, index) => {
+    const dateObj = new Date(start);
+    dateObj.setDate(start.getDate() + index);
+    dateObj.setHours(0, 0, 0, 0);
+    const isoDate = dateObj.toISOString().split('T')[0];
+    return {
+      dateObj,
+      isoDate,
+      display: dateObj.toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+      }),
+      fullDisplay: dateObj.toLocaleDateString('vi-VN', {
+        weekday: 'long',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }),
+    };
+  });
+};
 
 export default function SchedulePage() {
   const { isCollapsed } = useSidebar();
@@ -42,7 +94,7 @@ export default function SchedulePage() {
   const [loadingClassrooms, setLoadingClassrooms] = useState(false);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
-  const [teachers, setTeachers] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
@@ -58,7 +110,9 @@ export default function SchedulePage() {
     day_of_week: 0,
     start_time: '08:00',
     end_time: '09:00',
-    room: ''
+    room: '',
+    room_id: '',
+    campus_id: '',
   });
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [scheduleList, setScheduleList] = useState<Array<{
@@ -66,8 +120,11 @@ export default function SchedulePage() {
     start_time: string;
     end_time: string;
     room: string;
+    room_id?: string;
     date?: string;
   }>>([]);
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getWeekStartDate(new Date()));
+  const [classroomSchedules, setClassroomSchedules] = useState<Schedule[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -110,15 +167,7 @@ export default function SchedulePage() {
   const loadSubjects = useCallback(async () => {
     try {
       setLoadingSubjects(true);
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-      const res = await fetch(`${API_BASE_URL}/api/subjects?limit=1000`, {
-        headers: {
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        }
-      });
-      if (!res.ok) throw new Error('Failed to fetch subjects');
-      const data = await res.json();
+      const data = await subjectsApi.getSubjects({ limit: 1000 });
       const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
       setSubjects(list);
     } catch (error) {
@@ -132,17 +181,13 @@ export default function SchedulePage() {
   const loadTeachers = useCallback(async () => {
     try {
       setLoadingTeachers(true);
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-      const res = await fetch(`${API_BASE_URL}/api/teachers?limit=1000`, {
-        headers: {
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        }
-      });
-      if (!res.ok) throw new Error('Failed to fetch teachers');
-      const data = await res.json();
+      const data = await teachersApi.getTeachers();
       const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
-      const mapped = list.map((t: any) => ({ id: t.id, name: t.users?.full_name || t.name, email: t.users?.email }));
+      const mapped = list.map((t: any) => ({
+        id: t.id,
+        name: t.name || t.users?.full_name,
+        email: t.email || t.users?.email,
+      }));
       setTeachers(mapped);
     } catch (error) {
       console.error('Error loading teachers:', error);
@@ -195,19 +240,49 @@ export default function SchedulePage() {
     }
   }, [selectedCampus, selectedDay, hasLoaded, loadSchedules]);
 
-  const checkRoomConflict = async (room: string, dayOfWeek: number, startTime: string, endTime: string, campusId: string, excludeId?: string) => {
+  const checkRoomConflict = async (
+    room: string, 
+    dayOfWeek: number, 
+    startTime: string, 
+    endTime: string, 
+    campusId: string, 
+    excludeId?: string,
+    specificDate?: string  // Ngày cụ thể (YYYY-MM-DD format)
+  ) => {
     try {
-      // Lấy danh sách lịch học cùng phòng, cùng cơ sở, cùng ngày
+      // Lấy danh sách lịch học cùng phòng, cùng cơ sở
+      // Nếu có ngày cụ thể, lấy tất cả lịch để lọc theo ngày
+      // Nếu không có ngày cụ thể, lọc theo day_of_week
       const existingSchedules = await schedulesApi.list({
         campus_id: campusId,
-        day_of_week: dayOfWeek
+        ...(specificDate ? {} : { day_of_week: dayOfWeek })
       });
       
-      // Lọc các lịch học cùng phòng (trừ lịch hiện tại nếu đang edit)
-      const conflictingSchedules = existingSchedules.filter((schedule: Schedule) => 
-        schedule.room === room && 
-        (!excludeId || schedule.id !== excludeId)
-      );
+      // Lọc các lịch học cùng phòng
+      // Ưu tiên kiểm tra ngày cụ thể trước
+      let conflictingSchedules: Schedule[] = [];
+      
+      if (specificDate) {
+        // Kiểm tra theo ngày cụ thể: cùng phòng, cùng ngày cụ thể
+        conflictingSchedules = existingSchedules.filter((schedule: Schedule) => 
+          schedule.room === room && 
+          schedule.date === specificDate &&
+          (!excludeId || schedule.id !== excludeId)
+        );
+      } else {
+        // Kiểm tra theo day_of_week: cùng phòng, cùng thứ trong tuần, không có ngày cụ thể
+        conflictingSchedules = existingSchedules.filter((schedule: Schedule) => 
+          schedule.room === room && 
+          schedule.day_of_week === dayOfWeek &&
+          !schedule.date && // Chỉ lấy lịch không có ngày cụ thể
+          (!excludeId || schedule.id !== excludeId)
+        );
+      }
+      
+      // Nếu không có lịch cùng phòng, không có xung đột
+      if (conflictingSchedules.length === 0) {
+        return { hasConflict: false };
+      }
       
       // Kiểm tra xung đột thời gian
       const newStart = new Date(`2000-01-01T${startTime}`);
@@ -218,10 +293,14 @@ export default function SchedulePage() {
         const existingEnd = new Date(`2000-01-01T${schedule.end_time}`);
         
         if (newStart < existingEnd && newEnd > existingStart) {
+          const dateInfo = schedule.date 
+            ? new Date(schedule.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : `thứ ${dayOfWeek + 2}`;
+          
           return {
             hasConflict: true,
             conflictSchedule: schedule,
-            message: `Phòng ${room} đã được sử dụng trong khung giờ ${schedule.start_time} - ${schedule.end_time}`
+            message: `Phòng ${room} đã được sử dụng trong khung giờ ${schedule.start_time} - ${schedule.end_time} vào ${dateInfo}`
           };
         }
       }
@@ -238,7 +317,10 @@ export default function SchedulePage() {
     if (!formData.classroom_id) newErrors.classroom_id = 'Lớp học là bắt buộc';
     if (!formData.subject_id) newErrors.subject_id = 'Môn học là bắt buộc';
     if (!formData.teacher_id) newErrors.teacher_id = 'Giáo viên là bắt buộc';
-    if (!formData.room || !formData.room.trim()) newErrors.room = 'Phòng học là bắt buộc';
+    const requireRoom = selectedCampus && rooms.length > 0;
+    if (requireRoom && !formData.room_id) {
+      newErrors.room = 'Vui lòng chọn phòng học hợp lệ';
+    }
     if (formData.start_time >= formData.end_time) {
       newErrors.end_time = 'Thời gian kết thúc phải sau thời gian bắt đầu';
     }
@@ -258,7 +340,7 @@ export default function SchedulePage() {
     }
 
     // Tất cả lịch phải có phòng học
-    const hasMissingRoom = scheduleList.some(item => !item.room || !item.room.trim());
+    const hasMissingRoom = scheduleList.some(item => !item.room_id);
     if (hasMissingRoom) {
       alert('Vui lòng nhập phòng học cho tất cả lịch trước khi tạo');
       return;
@@ -268,30 +350,42 @@ export default function SchedulePage() {
       setIsSubmitting(true);
       setErrors({});
       
+      const selectedClassroom = classrooms.find(c => c.id === formData.classroom_id);
+      const campusForSchedule = selectedCampus || selectedClassroom?.campus_id || formData.campus_id;
+
       // Tạo từng lịch học
       for (const scheduleItem of scheduleList) {
-        const scheduleData = {
+        const scheduleData: ScheduleCreate = {
           ...formData,
           day_of_week: scheduleItem.day_of_week,
           start_time: scheduleItem.start_time,
           end_time: scheduleItem.end_time,
-          room: scheduleItem.room
+          room: scheduleItem.room,
+          room_id: scheduleItem.room_id || undefined,
+          campus_id: campusForSchedule || undefined,
         };
 
-        // Kiểm tra xung đột phòng học
-        if (scheduleItem.room && selectedCampus) {
+        // Kiểm tra xung đột phòng học (ưu tiên kiểm tra ngày cụ thể trước)
+        if (scheduleItem.room && campusForSchedule) {
           const conflictCheck = await checkRoomConflict(
             scheduleItem.room,
             scheduleItem.day_of_week,
             scheduleItem.start_time,
             scheduleItem.end_time,
-            selectedCampus
+            campusForSchedule,
+            undefined,
+            scheduleItem.date  // Truyền ngày cụ thể nếu có
           );
           
           if (conflictCheck.hasConflict) {
-            alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${conflictCheck.message}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác trong tuần`);
+            alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${conflictCheck.message}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác`);
             return;
           }
+        }
+
+        // Thêm date vào scheduleData nếu có
+        if (scheduleItem.date) {
+          scheduleData.date = scheduleItem.date;
         }
 
         await schedulesApi.create(scheduleData);
@@ -319,26 +413,35 @@ export default function SchedulePage() {
   const handleUpdate = async () => {
     if (!editingSchedule || !validateForm()) return;
     
-    // Kiểm tra xung đột phòng học trước khi cập nhật
-    if (formData.room && selectedCampus) {
+    // Kiểm tra xung đột phòng học trước khi cập nhật (ưu tiên kiểm tra ngày cụ thể trước)
+    const selectedClassroom = classrooms.find(c => c.id === formData.classroom_id);
+    const campusForSchedule = selectedCampus || selectedClassroom?.campus_id || formData.campus_id || editingSchedule.campus_id || editingSchedule.campus?.id || '';
+
+    if (formData.room && campusForSchedule) {
       const conflictCheck = await checkRoomConflict(
         formData.room,
         formData.day_of_week,
         formData.start_time,
         formData.end_time,
-        selectedCampus,
-        editingSchedule.id
+        campusForSchedule,
+        editingSchedule.id,
+        (formData as any).date  // Truyền ngày cụ thể nếu có
       );
       
       if (conflictCheck.hasConflict) {
-        alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${conflictCheck.message}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác trong tuần`);
+        alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${conflictCheck.message}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác`);
         return;
       }
     }
     
     try {
       setIsSubmitting(true);
-      await schedulesApi.update(editingSchedule.id, formData);
+      const payload: ScheduleCreate = {
+        ...formData,
+        room_id: formData.room_id || undefined,
+        campus_id: campusForSchedule || undefined,
+      };
+      await schedulesApi.update(editingSchedule.id, payload);
       await loadSchedules();
       setIsDialogOpen(false);
       setEditingSchedule(null);
@@ -388,10 +491,13 @@ export default function SchedulePage() {
       day_of_week: schedule.day_of_week,
       start_time: schedule.start_time,
       end_time: schedule.end_time,
-      room: schedule.room || ''
+      room: schedule.room || '',
+      room_id: schedule.room_id || '',
+      campus_id: schedule.campus_id || schedule.campus?.id || '',
     });
     setErrors({});
     setIsDialogOpen(true);
+    setClassroomSchedules(schedules.filter(item => item.classroom_id === schedule.classroom_id));
     
     // Load rooms if campus is available from schedule
     if (schedule.campus?.id) {
@@ -404,6 +510,7 @@ export default function SchedulePage() {
     setEditingSchedule(null);
     resetForm();
     setIsDialogOpen(true);
+    setClassroomSchedules([]);
   };
 
   const loadRooms = useCallback(async (campusId?: string) => {
@@ -428,6 +535,14 @@ export default function SchedulePage() {
     setSelectedCampus(campusId);
     loadClassrooms(campusId);
     loadRooms(campusId);
+    setFormData(prev => ({ ...prev, campus_id: campusId, room: '', room_id: '' }));
+    setScheduleList(prev =>
+      prev.map(item => ({
+        ...item,
+        room: '',
+        room_id: undefined,
+      }))
+    );
   };
 
   const handleClassroomChange = (classroomId: string) => {
@@ -438,7 +553,17 @@ export default function SchedulePage() {
         classroom_id: classroomId,
         teacher_id: classroom.teacher_id || '',
         subject_id: classroom.subject_id || '', // Auto-fill subject from classroom
+        room: '',
+        room_id: '',
       }));
+
+      if (classroom.campus_id && classroom.campus_id !== selectedCampus) {
+        setSelectedCampus(classroom.campus_id);
+        loadClassrooms(classroom.campus_id);
+        loadRooms(classroom.campus_id);
+      } else {
+        loadRooms(selectedCampus);
+      }
 
       // Không tự động chọn ngày, chỉ hiển thị khoảng thời gian để người dùng chọn
       // Xóa selectedDates khi chọn lớp học mới
@@ -454,12 +579,15 @@ export default function SchedulePage() {
       day_of_week: 0,
       start_time: '08:00',
       end_time: '09:00',
-      room: ''
+      room: '',
+      room_id: '',
+      campus_id: '',
     });
     setSelectedDates([]);
     setScheduleList([]);
     setErrors({});
     setRooms([]);
+    setClassroomSchedules([]);
   };
 
 
@@ -551,6 +679,7 @@ export default function SchedulePage() {
       start_time: string;
       end_time: string;
       room: string;
+      room_id?: string;
       date?: string;
     }> = [];
     
@@ -563,6 +692,7 @@ export default function SchedulePage() {
           start_time: formData.start_time,
           end_time: formData.end_time,
           room: formData.room || '',
+          room_id: formData.room_id || undefined,
           date: date
         };
       });
@@ -587,25 +717,115 @@ export default function SchedulePage() {
     ));
   };
 
+  const handleFormRoomSelect = (roomId: string) => {
+    if (!roomId) {
+      setFormData(prev => ({ ...prev, room_id: '', room: '' }));
+      return;
+    }
+    const selectedRoom = rooms.find(r => r.id === roomId);
+    if (selectedRoom) {
+      setFormData(prev => ({
+        ...prev,
+        room_id: selectedRoom.id,
+        room: selectedRoom.code || selectedRoom.name || '',
+      }));
+    }
+  };
+
+  const handleScheduleRoomSelect = (index: number, roomId: string) => {
+    if (!roomId) {
+      setScheduleList(prev => prev.map((item, i) =>
+        i === index ? { ...item, room_id: undefined, room: '' } : item
+      ));
+      return;
+    }
+    const selectedRoom = rooms.find(r => r.id === roomId);
+    if (selectedRoom) {
+      setScheduleList(prev => prev.map((item, i) =>
+        i === index
+          ? { ...item, room_id: selectedRoom.id, room: selectedRoom.code || selectedRoom.name || '' }
+          : item
+      ));
+    }
+  };
+
+  const weekDates = useMemo(() => buildWeekDates(currentWeekStart), [currentWeekStart]);
+  const weekStartDate = weekDates[0]?.dateObj;
+  const weekEndDate = weekDates[6]?.dateObj;
+  const weekRangeLabel = weekDates.length > 0
+    ? `${weekDates[0].fullDisplay} ➜ ${weekDates[6].fullDisplay}`
+    : '';
+
   const filteredSchedules = schedules.filter((schedule) => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
         schedule.classroom?.name?.toLowerCase().includes(query) ||
         schedule.subject?.name?.toLowerCase().includes(query) ||
-        schedule.teacher?.name?.toLowerCase().includes(query) ||
+        getTeacherDisplayName(schedule.teacher).toLowerCase().includes(query) ||
         schedule.room?.toLowerCase().includes(query)
       );
     }
     return true;
   });
 
+  const schedulesForView = useMemo(() => {
+    if (!weekStartDate || !weekEndDate) {
+      return filteredSchedules;
+    }
+    const start = new Date(weekStartDate);
+    const end = new Date(weekEndDate);
+    return filteredSchedules.filter(schedule => {
+      if (!schedule.date) {
+        return true;
+      }
+      const scheduleDate = new Date(schedule.date);
+      scheduleDate.setHours(0, 0, 0, 0);
+      return scheduleDate >= start && scheduleDate <= end;
+    });
+  }, [filteredSchedules, weekStartDate, weekEndDate]);
+
   // Group schedules by day of week for grid view
-  const groupedSchedules = DAYS_OF_WEEK.map((day, index) => ({
-    day,
-    dayIndex: index,
-    schedules: filteredSchedules.filter(s => s.day_of_week === index)
-  }));
+  const groupedSchedules = DAYS_OF_WEEK.map((day, index) => {
+    const columnDateInfo = weekDates[index];
+    const columnIsoDate = columnDateInfo?.isoDate;
+    const daySchedules = schedulesForView.filter(schedule => {
+      if (schedule.date) {
+        return columnIsoDate ? schedule.date === columnIsoDate : false;
+      }
+      return schedule.day_of_week === index;
+    });
+    return {
+      day,
+      dayIndex: index,
+      dateLabel: columnDateInfo?.display || '',
+      fullDateLabel: columnDateInfo?.fullDisplay || '',
+      schedules: daySchedules
+    };
+  });
+
+  const shiftWeek = (offset: number) => {
+    setCurrentWeekStart(prev => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() + offset * 7);
+      return getWeekStartDate(next);
+    });
+  };
+
+  const shiftMonth = (offset: number) => {
+    setCurrentWeekStart(prev => {
+      const next = new Date(prev);
+      next.setMonth(next.getMonth() + offset);
+      return getWeekStartDate(next);
+    });
+  };
+
+  const resetWeekToToday = () => {
+    setCurrentWeekStart(getWeekStartDate(new Date()));
+  };
+
+  const requiresRoomSelection = Boolean(selectedCampus && rooms.length > 0);
+  const missingRoomSelection = requiresRoomSelection && !formData.room_id;
 
   if (loading) {
     return (
@@ -620,13 +840,13 @@ export default function SchedulePage() {
 
   return (
     <PageWithBackground>
-      <div className="min-h-screen">
+      <div className="min-h-screen overflow-y-auto">
         <AdminSidebar 
         currentPage="schedule" 
         onNavigate={(page) => router.push(`/${page}`)} 
         onLogout={logout} 
       />
-      <div className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+      <div className={`flex-1 min-h-screen flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
         <div className="flex-1 flex flex-col p-6 space-y-6">
           {/* Header */}
           <div className="bg-white rounded-xl shadow-lg p-6">
@@ -702,14 +922,61 @@ export default function SchedulePage() {
           {/* Schedule Grid */}
           <Card className="card-transparent shadow-lg flex-1 flex flex-col min-h-0">
             <CardHeader className="card-transparent-header flex-shrink-0">
-              <CardTitle className="text-2xl flex items-center gap-2">
-                📚 Lịch học theo tuần
-                <span className="text-sm font-normal text-gray-600">
-                  ({filteredSchedules.length} lịch học)
-                </span>
-              </CardTitle>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  📚 Lịch học theo tuần
+                  <span className="text-sm font-normal text-gray-600">
+                    ({schedulesForView.length} lịch học)
+                  </span>
+                </CardTitle>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => shiftMonth(-1)}
+                    className="text-xs md:text-sm"
+                  >
+                    Tháng trước
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => shiftWeek(-1)}
+                    className="text-xs md:text-sm"
+                  >
+                    Tuần trước
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={resetWeekToToday}
+                    className="text-xs md:text-sm"
+                  >
+                    Tuần hiện tại
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => shiftWeek(1)}
+                    className="text-xs md:text-sm"
+                  >
+                    Tuần sau
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => shiftMonth(1)}
+                    className="text-xs md:text-sm"
+                  >
+                    Tháng sau
+                  </Button>
+                  <span className="text-xs md:text-sm font-semibold text-gray-600">
+                    {weekRangeLabel}
+                  </span>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="p-6 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-transparent hover:scrollbar-thumb-blue-400">
+            <CardContent className="p-6 flex-1 overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)', scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
               {loadingSchedules ? (
                 <div className="flex items-center justify-center py-16">
                   <div className="text-center">
@@ -719,106 +986,134 @@ export default function SchedulePage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-7 gap-6">
-                  {groupedSchedules.map(({ day, dayIndex, schedules }) => (
+                  {groupedSchedules.map(({ day, dayIndex, dateLabel, fullDateLabel, schedules }) => (
                     <div key={dayIndex} className="space-y-4">
                       <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl border-2 border-blue-200 shadow-md">
-                        <h3 className="text-lg font-bold text-blue-900 mb-2">{day}</h3>
+                        <h3 className="text-lg font-bold text-blue-900 mb-1">{day}</h3>
+                        {dateLabel && (
+                          <p className="text-sm text-blue-700 mb-2" title={fullDateLabel}>
+                            {dateLabel}
+                          </p>
+                        )}
                         <div className="text-2xl font-bold text-blue-700 mb-1">{schedules.length}</div>
                         <p className="text-sm text-blue-600">lịch học</p>
                       </div>
-                      <div className="space-y-3 min-h-[300px] max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-transparent hover:scrollbar-thumb-blue-400 pr-2">
-                        {schedules.map((schedule) => (
-                          <div
-                            key={schedule.id}
-                            className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-5 hover:shadow-xl hover:border-blue-300 transition-all duration-200 cursor-pointer group"
-                            onClick={() => handleEdit(schedule)}
-                          >
-                            {/* Classroom Information */}
-                            <div className="mb-4">
-                              <div className="text-base font-bold text-gray-900 flex items-center gap-2 mb-2">
-                                <BookOpen className="w-5 h-5 text-indigo-600" />
-                                <span className="text-gray-900">{schedule.classroom?.name || 'N/A'}</span>
-                                {schedule.classroom?.code && (
-                                  <span className="text-sm bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full font-semibold">
-                                    {schedule.classroom.code}
-                                  </span>
-                                )}
-                              </div>
-                              {schedule.campus && (
-                                <div className="text-sm text-gray-700 flex items-center gap-2">
-                                  <Building2 className="w-4 h-4 text-gray-600" />
-                                  <span className="font-semibold">{schedule.campus.name}</span>
-                                  {schedule.campus.code && (
-                                    <span className="text-gray-500 text-xs">({schedule.campus.code})</span>
+                      <div className="space-y-3 min-h-[300px] max-h-[600px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#93c5fd #f1f5f9' }}>
+                        {schedules.map((schedule) => {
+                          const roomLabel = schedule.room_detail
+                            ? `${schedule.room_detail.name || 'Phòng'} (${schedule.room_detail.code || schedule.room || ''})`
+                            : schedule.room;
+                          const teacherName = getTeacherDisplayName(schedule.teacher) || 'N/A';
+                          const teacherEmail = getTeacherEmail(schedule.teacher);
+                          return (
+                            <div
+                              key={schedule.id}
+                              className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-5 hover:shadow-xl hover:border-blue-300 transition-all duration-200 cursor-pointer group"
+                              onClick={() => handleEdit(schedule)}
+                            >
+                              {/* Classroom Information */}
+                              <div className="mb-4">
+                                <div className="text-base font-bold text-gray-900 flex items-center gap-2 mb-2">
+                                  <BookOpen className="w-5 h-5 text-indigo-600" />
+                                  <span className="text-gray-900">{schedule.classroom?.name || 'N/A'}</span>
+                                  {schedule.classroom?.code && (
+                                    <span className="text-sm bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full font-semibold">
+                                      {schedule.classroom.code}
+                                    </span>
                                   )}
                                 </div>
-                              )}
-                            </div>
-
-                            {/* Subject Information */}
-                            <div className="mb-4">
-                              <div className="text-base font-semibold text-gray-800">
-                                <span className="text-gray-900">{schedule.subject?.name || 'N/A'}</span>
-                                {schedule.subject?.code && (
-                                  <span className="text-sm text-gray-600 ml-2 font-normal">({schedule.subject.code})</span>
+                                {schedule.campus && (
+                                  <div className="text-sm text-gray-700 flex items-center gap-2">
+                                    <Building2 className="w-4 h-4 text-gray-600" />
+                                    <span className="font-semibold">{schedule.campus.name}</span>
+                                    {schedule.campus.code && (
+                                      <span className="text-gray-500 text-xs">({schedule.campus.code})</span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            </div>
 
-                            {/* Time and Room */}
-                            <div className="mb-4 space-y-2">
-                              <div className="text-sm text-gray-700 flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-gray-600" />
-                                <span className="font-semibold">{schedule.start_time} - {schedule.end_time}</span>
-                              </div>
-                              {schedule.room && (
-                                <div className="text-sm text-gray-700 flex items-center gap-2">
-                                  <MapPin className="w-4 h-4 text-gray-600" />
-                                  <span className="font-semibold">Phòng: {schedule.room}</span>
+                              {/* Subject Information */}
+                              <div className="mb-4">
+                                <div className="text-base font-semibold text-gray-800">
+                                  <span className="text-gray-900">{schedule.subject?.name || 'N/A'}</span>
+                                  {schedule.subject?.code && (
+                                    <span className="text-sm text-gray-600 ml-2 font-normal">({schedule.subject.code})</span>
+                                  )}
                                 </div>
-                              )}
-                            </div>
+                              </div>
 
-                            {/* Teacher Information */}
-                            <div className="mb-4">
-                              <div className="text-sm text-gray-700 flex items-center gap-2">
-                                <User className="w-4 h-4 text-gray-600" />
-                                <span className="font-bold text-gray-900">{schedule.teacher?.name || 'N/A'}</span>
-                                {schedule.teacher?.email && (
-                                  <span className="text-gray-500 ml-1 text-xs">({schedule.teacher.email})</span>
+                              {/* Time and Room */}
+                              <div className="mb-4 space-y-2">
+                                <div className="text-sm text-gray-700 flex items-center gap-2">
+                                  <Clock className="w-4 h-4 text-gray-600" />
+                                  <span className="font-semibold">{schedule.start_time} - {schedule.end_time}</span>
+                                </div>
+                                {schedule.date && (
+                                  <div className="text-xs text-blue-700 flex items-center gap-2">
+                                    <Calendar className="w-4 h-4" />
+                                    <span>
+                                      Ngày: {new Date(schedule.date).toLocaleDateString('vi-VN', {
+                                        weekday: 'long',
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric',
+                                      })}
+                                    </span>
+                                  </div>
+                                )}
+                                {roomLabel && (
+                                  <div className="text-sm text-gray-700 flex items-center gap-2">
+                                    <MapPin className="w-4 h-4 text-gray-600" />
+                                    <span className="font-semibold">Phòng: {roomLabel}</span>
+                                  </div>
                                 )}
                               </div>
-                            </div>
 
-                            {/* Action Buttons */}
-                            <div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 px-4 text-sm border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-semibold"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEdit(schedule);
-                                }}
-                              >
-                                <Edit className="w-4 h-4 mr-1" />
-                                Sửa
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 px-4 text-sm border-2 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 font-semibold"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(schedule.id);
-                                }}
-                              >
-                                <Trash2 className="w-3 h-3 mr-1" />
-                                Xóa
-                              </Button>
+                              {/* Teacher Information */}
+                              <div className="mb-4">
+                                <div className="text-sm text-gray-700 flex items-center gap-2">
+                                  <User className="w-4 h-4 text-gray-600" />
+                                  <span className="font-bold text-gray-900">{teacherName}</span>
+                                </div>
+                                {teacherEmail && (
+                                  <div className="text-xs text-gray-500 flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <span>Email:</span>
+                                    <span>{teacherEmail}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-4 text-sm border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-semibold"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEdit(schedule);
+                                  }}
+                                >
+                                  <Edit className="w-4 h-4 mr-1" />
+                                  Sửa
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-4 text-sm border-2 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 font-semibold"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(schedule.id);
+                                  }}
+                                >
+                                  <Trash2 className="w-3 h-3 mr-1" />
+                                  Xóa
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {schedules.length === 0 && (
                           <div className="text-center text-gray-500 text-sm py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                             <div className="text-4xl mb-2">📅</div>
@@ -835,7 +1130,7 @@ export default function SchedulePage() {
           </Card>
 
           {/* Schedule Summary */}
-          {schedules.length > 0 && (
+          {schedulesForView.length > 0 && (
             <Card className="card-transparent">
               <CardHeader className="card-transparent-header">
                 <CardTitle className="flex items-center gap-2">
@@ -846,24 +1141,24 @@ export default function SchedulePage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-                    <div className="text-3xl font-bold text-blue-800">{schedules.length}</div>
+                    <div className="text-3xl font-bold text-blue-800">{schedulesForView.length}</div>
                     <div className="text-sm font-semibold text-blue-700">Tổng số lịch học</div>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
                     <div className="text-3xl font-bold text-green-800">
-                      {new Set(schedules.map(s => s.classroom?.name).filter(Boolean)).size}
+                      {new Set(schedulesForView.map(s => s.classroom?.name).filter(Boolean)).size}
                     </div>
                     <div className="text-sm font-semibold text-green-700">Lớp học</div>
                   </div>
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
                     <div className="text-3xl font-bold text-purple-800">
-                      {new Set(schedules.map(s => s.subject?.name).filter(Boolean)).size}
+                      {new Set(schedulesForView.map(s => s.subject?.name).filter(Boolean)).size}
                     </div>
                     <div className="text-sm font-semibold text-purple-700">Môn học</div>
                   </div>
                   <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
                     <div className="text-3xl font-bold text-orange-800">
-                      {new Set(schedules.map(s => s.teacher?.name).filter(Boolean)).size}
+                      {new Set(schedulesForView.map(s => getTeacherDisplayName(s.teacher)).filter(Boolean)).size}
                     </div>
                     <div className="text-sm font-semibold text-orange-700">Giáo viên</div>
                   </div>
@@ -874,7 +1169,7 @@ export default function SchedulePage() {
                   <h4 className="text-lg font-bold text-gray-800 mb-4">Phân bố theo ngày trong tuần</h4>
                   <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
                     {DAYS_OF_WEEK.map((day, index) => {
-                      const daySchedules = schedules.filter(s => s.day_of_week === index);
+                      const daySchedules = schedulesForView.filter(s => s.day_of_week === index);
                       return (
                         <div key={index} className="text-center p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
                           <div className="font-semibold text-gray-800 mb-2">{day}</div>
@@ -1066,13 +1361,13 @@ export default function SchedulePage() {
                             <select
                               id="room"
                               className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
-                              value={formData.room}
-                              onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                              disabled={loadingRooms}
+                              value={formData.room_id || ''}
+                              onChange={(e) => handleFormRoomSelect(e.target.value)}
+                              disabled={loadingRooms || rooms.length === 0}
                             >
                               <option value="">Chọn phòng học</option>
                               {rooms.map((room) => (
-                                <option key={room.id} value={room.code}>
+                                <option key={room.id} value={room.id}>
                                   {room.name} ({room.code}){room.capacity ? ` - ${room.capacity} chỗ` : ''}
                                 </option>
                               ))}
@@ -1083,6 +1378,11 @@ export default function SchedulePage() {
                             {!loadingRooms && rooms.length === 0 && (
                               <p className="text-xs text-yellow-600">
                                 ⚠️ Cơ sở này chưa có phòng học. Vui lòng thêm phòng học trong trang Quản lý Cơ sở.
+                              </p>
+                            )}
+                            {missingRoomSelection && (
+                              <p className="text-xs text-red-500">
+                                Vui lòng chọn phòng học trước khi thêm vào danh sách.
                               </p>
                             )}
                           </>
@@ -1165,7 +1465,12 @@ export default function SchedulePage() {
                       variant="outline"
                       onClick={addToScheduleList}
                       className="flex-1 py-3 border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-semibold"
-                      disabled={selectedDates.length === 0 || !formData.start_time || !formData.end_time || !formData.room || !formData.room.trim()}
+                      disabled={
+                        selectedDates.length === 0 ||
+                        !formData.start_time ||
+                        !formData.end_time ||
+                        missingRoomSelection
+                      }
                     >
                       <Plus className="w-5 h-5 mr-2" />
                       Thêm vào danh sách
@@ -1185,6 +1490,65 @@ export default function SchedulePage() {
                 
                 {/* Cột phải - Danh sách lịch học sẽ tạo */}
                 <div className="space-y-6">
+                  {editingSchedule && classroomSchedules.length > 0 && (
+                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">
+                        📘 Lịch hiện có của lớp {editingSchedule.classroom?.name || 'N/A'}
+                        <span className="text-sm font-normal text-gray-600 ml-2">
+                          ({classroomSchedules.length} lịch)
+                        </span>
+                      </h3>
+                      <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                        {classroomSchedules.map((item, idx) => {
+                          const roomLabel = item.room_detail
+                            ? `${item.room_detail.name || 'Phòng'} (${item.room_detail.code || item.room || ''})`
+                            : item.room;
+                          const teacherName = getTeacherDisplayName(item.teacher) || 'N/A';
+                          return (
+                            <div
+                              key={item.id || idx}
+                              className="p-4 bg-white rounded-xl border border-blue-100 shadow-sm"
+                            >
+                              <div className="flex justify-between items-center mb-2">
+                                <div>
+                                  <p className="font-semibold text-blue-700">
+                                    {item.date
+                                      ? new Date(item.date).toLocaleDateString('vi-VN', {
+                                          weekday: 'long',
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                        })
+                                      : DAYS_OF_WEEK[item.day_of_week]}
+                                  </p>
+                                  {item.date && (
+                                    <p className="text-xs text-gray-500">
+                                      {DAYS_OF_WEEK[item.day_of_week]}
+                                    </p>
+                                  )}
+                                </div>
+                                <p className="text-sm font-semibold text-gray-700">
+                                  {item.start_time} - {item.end_time}
+                                </p>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                <p>
+                                  <strong>Phòng:</strong> {roomLabel || 'Chưa có'}
+                                </p>
+                                <p>
+                                  <strong>Giáo viên:</strong> {teacherName}
+                                </p>
+                                <p>
+                                  <strong>Môn:</strong> {item.subject?.name || 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="bg-gradient-to-r from-orange-50 to-yellow-50 p-6 rounded-lg">
                     <h3 className="text-lg font-bold text-gray-900 mb-4">
                       📋 Danh sách lịch học sẽ tạo 
@@ -1195,11 +1559,16 @@ export default function SchedulePage() {
 
                     {scheduleList.length > 0 ? (
                       <div className="space-y-3">
-                        {scheduleList.map((schedule, index) => (
-                          <div
-                            key={index}
-                            className="p-5 bg-gradient-to-r from-white to-gray-50 rounded-xl border-2 border-gray-200 hover:border-orange-300 transition-all"
-                          >
+                        {scheduleList.map((schedule, index) => {
+                          const draftRoom = rooms.find(room => room.id === schedule.room_id);
+                          const draftRoomLabel = draftRoom
+                            ? `${draftRoom.name || 'Phòng'} (${draftRoom.code})`
+                            : schedule.room;
+                          return (
+                            <div
+                              key={index}
+                              className="p-5 bg-gradient-to-r from-white to-gray-50 rounded-xl border-2 border-gray-200 hover:border-orange-300 transition-all"
+                            >
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-orange-100 text-orange-700 rounded-full flex items-center justify-center text-lg font-bold">
@@ -1271,12 +1640,12 @@ export default function SchedulePage() {
                               {selectedCampus && rooms.length > 0 ? (
                                 <select
                                   className="w-full px-3 py-2 text-sm border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
-                                  value={schedule.room}
-                                  onChange={(e) => updateScheduleInList(index, 'room', e.target.value)}
+                                  value={schedule.room_id || ''}
+                                  onChange={(e) => handleScheduleRoomSelect(index, e.target.value)}
                                 >
                                   <option value="">Chọn phòng học</option>
                                   {rooms.map((room) => (
-                                    <option key={room.id} value={room.code}>
+                                    <option key={room.id} value={room.id}>
                                       {room.name} ({room.code}){room.capacity ? ` - ${room.capacity} chỗ` : ''}
                                     </option>
                                   ))}
@@ -1291,12 +1660,13 @@ export default function SchedulePage() {
                               )}
                             </div>
                             
-                            <div className="mt-3 text-sm text-gray-600 bg-gray-100 p-3 rounded-lg">
-                              <strong>Thời gian:</strong> {schedule.start_time} - {schedule.end_time} | 
-                              <strong> Phòng:</strong> {schedule.room || 'Chưa chọn'}
+                              <div className="mt-3 text-sm text-gray-600 bg-gray-100 p-3 rounded-lg">
+                                <strong>Thời gian:</strong> {schedule.start_time} - {schedule.end_time} | 
+                                <strong> Phòng:</strong> {draftRoomLabel || 'Chưa chọn'}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="text-center py-12 text-gray-500">
