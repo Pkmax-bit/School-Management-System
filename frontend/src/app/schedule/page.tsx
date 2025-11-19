@@ -984,6 +984,71 @@ export default function SchedulePage() {
                     </div>
                   </div>
                   
+                  {/* Thời gian và phòng học */}
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">⏰ Thời gian và Phòng học</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="start_time" className="text-base font-semibold text-gray-700">🕐 Thời gian bắt đầu *</Label>
+                        <select
+                          id="start_time"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                          value={formData.start_time}
+                          onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                        >
+                          {TIME_SLOTS.map((time) => (
+                            <option key={time} value={time}>
+                              {time}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.start_time && (
+                          <p className="text-sm text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            {errors.start_time}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="end_time" className="text-base font-semibold text-gray-700">🕐 Thời gian kết thúc *</Label>
+                        <select
+                          id="end_time"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                          value={formData.end_time}
+                          onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                        >
+                          {TIME_SLOTS.map((time) => (
+                            <option key={time} value={time}>
+                              {time}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.end_time && (
+                          <p className="text-sm text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            {errors.end_time}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="room" className="text-base font-semibold text-gray-700">🚪 Phòng học *</Label>
+                        <Input
+                          id="room"
+                          type="text"
+                          placeholder="VD: A101, B202..."
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                          value={formData.room}
+                          onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                        />
+                        {errors.room && (
+                          <p className="text-sm text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" />
+                            {errors.room}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   
                   {/* Chọn ngày cụ thể */}
                   <div className="bg-gradient-to-r from-cyan-50 to-blue-50 p-6 rounded-lg">
