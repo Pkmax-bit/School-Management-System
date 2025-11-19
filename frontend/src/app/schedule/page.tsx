@@ -153,110 +153,18 @@ export default function SchedulePage() {
     try {
       setLoadingSchedules(true);
       
-      // For now, use mock data to test the display
-      const mockData = [
-        {
-          "id": "4714d3bc-72c3-4795-898b-61b0f901651f",
-          "classroom_id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
-          "subject_id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
-          "teacher_id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
-          "day_of_week": 0,
-          "start_time": "08:00:00",
-          "end_time": "09:00:00",
-          "room": "1",
-          "created_at": "2025-10-28T17:45:54.367209+00:00",
-          "updated_at": "2025-10-28T17:45:54.367209+00:00",
-          "classroom": {
-            "id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
-            "name": "hehe",
-            "code": "Class0004",
-            "campus_id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590"
-          },
-          "subject": {
-            "id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
-            "name": "Test Subject1",
-            "code": "TEST001"
-          },
-          "teacher": {
-            "id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
-            "name": "Teacher User",
-            "email": "teacher@school.com"
-          },
-          "campus": {
-            "id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590",
-            "name": "Cở sở 1 - q6",
-            "code": "CS001"
-          }
-        },
-        {
-          "id": "685cd226-1458-46f0-8b14-d7aceccc7d1f",
-          "classroom_id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
-          "subject_id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
-          "teacher_id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
-          "day_of_week": 1,
-          "start_time": "08:30:00",
-          "end_time": "09:30:00",
-          "room": "A101",
-          "created_at": "2025-10-28T17:51:19.602182+00:00",
-          "updated_at": "2025-10-28T17:51:19.602182+00:00",
-          "classroom": {
-            "id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
-            "name": "hehe",
-            "code": "Class0004",
-            "campus_id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590"
-          },
-          "subject": {
-            "id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
-            "name": "Test Subject1",
-            "code": "TEST001"
-          },
-          "teacher": {
-            "id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
-            "name": "Teacher User",
-            "email": "teacher@school.com"
-          },
-          "campus": {
-            "id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590",
-            "name": "Cở sở 1 - q6",
-            "code": "CS001"
-          }
-        },
-        {
-          "id": "71d4b2d5-bf44-4097-9532-4736d24eef1a",
-          "classroom_id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
-          "subject_id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
-          "teacher_id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
-          "day_of_week": 1,
-          "start_time": "08:00:00",
-          "end_time": "09:00:00",
-          "room": "A101",
-          "created_at": "2025-10-28T17:54:34.765017+00:00",
-          "updated_at": "2025-10-28T17:54:34.765017+00:00",
-          "classroom": {
-            "id": "9e43a26f-c352-42a9-a480-5a7a308ca7c9",
-            "name": "hehe",
-            "code": "Class0004",
-            "campus_id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590"
-          },
-          "subject": {
-            "id": "dc4aa965-db18-4319-9c1d-fb93763849ea",
-            "name": "Test Subject1",
-            "code": "TEST001"
-          },
-          "teacher": {
-            "id": "0700abd0-79c4-4ea9-b30a-5f039b346e82",
-            "name": "Teacher User",
-            "email": "teacher@school.com"
-          },
-          "campus": {
-            "id": "2b06f738-d5fd-47a8-a3fb-46c71bee2590",
-            "name": "Cở sở 1 - q6",
-            "code": "CS001"
-          }
-        }
-      ];
+      // Load schedules from API
+      const params: any = {};
+      if (selectedCampus) {
+        params.campus_id = selectedCampus;
+      }
+      if (selectedDay !== null) {
+        params.day_of_week = selectedDay;
+      }
       
-      setSchedules(mockData);
+      const data = await schedulesApi.list(params);
+      const schedulesList = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+      setSchedules(schedulesList);
     } catch (error: any) {
       console.error('Error loading schedules:', error);
       setSchedules([]);
@@ -451,7 +359,15 @@ export default function SchedulePage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc chắn muốn xóa lịch học này?')) return;
     try {
-      await schedulesApi.delete(id);
+      const result = await schedulesApi.delete(id);
+      
+      // Check if schedule was not found (already deleted)
+      if (result?.notFound) {
+        await loadSchedules();
+        alert('Lịch học không tồn tại hoặc đã được xóa. Danh sách đã được cập nhật.');
+        return;
+      }
+      
       await loadSchedules();
       alert('Xóa lịch học thành công!');
     } catch (error: any) {
@@ -764,7 +680,7 @@ export default function SchedulePage() {
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 flex-1 overflow-auto">
+            <CardContent className="p-6 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-transparent hover:scrollbar-thumb-blue-400">
               {loadingSchedules ? (
                 <div className="flex items-center justify-center py-16">
                   <div className="text-center">
@@ -781,7 +697,7 @@ export default function SchedulePage() {
                         <div className="text-2xl font-bold text-blue-700 mb-1">{schedules.length}</div>
                         <p className="text-sm text-blue-600">lịch học</p>
                       </div>
-                      <div className="space-y-3 min-h-[300px]">
+                      <div className="space-y-3 min-h-[300px] max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-transparent hover:scrollbar-thumb-blue-400 pr-2">
                         {schedules.map((schedule) => (
                           <div
                             key={schedule.id}

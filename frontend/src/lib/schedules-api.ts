@@ -30,6 +30,17 @@ async function apiRequest(url: string, options: {
   const response = await fetch(url, requestOptions);
   if (!response.ok) {
     const text = await response.text();
+    // For 404 errors, return a more descriptive error
+    if (response.status === 404) {
+      let errorMessage = 'Not found';
+      try {
+        const json = JSON.parse(text);
+        errorMessage = json.detail || json.message || errorMessage;
+      } catch {
+        errorMessage = text || errorMessage;
+      }
+      throw new Error(`HTTP ${response.status}: ${errorMessage}`);
+    }
     throw new Error(`HTTP ${response.status}: ${text}`);
   }
   return await response.json();
@@ -120,8 +131,17 @@ export const schedulesApi = {
   update: (id: string, data: ScheduleUpdate) =>
     apiRequest(`${API_BASE_URL}/api/schedules/${id}`, { method: 'PUT', body: data }),
 
-  delete: (id: string) =>
-    apiRequest(`${API_BASE_URL}/api/schedules/${id}`, { method: 'DELETE' }),
+  delete: async (id: string) => {
+    try {
+      return await apiRequest(`${API_BASE_URL}/api/schedules/${id}`, { method: 'DELETE' });
+    } catch (error: any) {
+      // For 404 errors, don't throw - schedule might already be deleted
+      if (error?.message?.includes('404') || error?.message?.includes('not found')) {
+        return { deleted: false, notFound: true };
+      }
+      throw error;
+    }
+  },
 };
 
 export default schedulesApi;
