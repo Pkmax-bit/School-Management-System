@@ -15,6 +15,7 @@ import { Calendar, Plus, Edit, Trash2, Search, AlertCircle, Loader2, Building2, 
 import schedulesApi, { Schedule, ScheduleCreate } from '../../lib/schedules-api';
 import campusesApi from '../../lib/campuses-api';
 import classroomsHybridApi from '../../lib/classrooms-api-hybrid';
+import roomsApi, { Room } from '../../lib/rooms-api';
 
 const DAYS_OF_WEEK = [
   'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'
@@ -43,6 +44,8 @@ export default function SchedulePage() {
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [teachers, setTeachers] = useState<any[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -376,7 +379,7 @@ export default function SchedulePage() {
     }
   };
 
-  const handleEdit = (schedule: Schedule) => {
+  const handleEdit = async (schedule: Schedule) => {
     setEditingSchedule(schedule);
     setFormData({
       classroom_id: schedule.classroom_id,
@@ -389,6 +392,12 @@ export default function SchedulePage() {
     });
     setErrors({});
     setIsDialogOpen(true);
+    
+    // Load rooms if campus is available from schedule
+    if (schedule.campus?.id) {
+      setSelectedCampus(schedule.campus.id);
+      await loadRooms(schedule.campus.id);
+    }
   };
 
   const handleAdd = () => {
@@ -397,9 +406,28 @@ export default function SchedulePage() {
     setIsDialogOpen(true);
   };
 
+  const loadRooms = useCallback(async (campusId?: string) => {
+    if (!campusId) {
+      setRooms([]);
+      return;
+    }
+    try {
+      setLoadingRooms(true);
+      const data = await roomsApi.list(campusId);
+      const list = Array.isArray(data) ? data : [];
+      setRooms(list);
+    } catch (error) {
+      console.error('Error loading rooms:', error);
+      setRooms([]);
+    } finally {
+      setLoadingRooms(false);
+    }
+  }, []);
+
   const handleCampusChange = (campusId: string) => {
     setSelectedCampus(campusId);
     loadClassrooms(campusId);
+    loadRooms(campusId);
   };
 
   const handleClassroomChange = (classroomId: string) => {
@@ -431,6 +459,7 @@ export default function SchedulePage() {
     setSelectedDates([]);
     setScheduleList([]);
     setErrors({});
+    setRooms([]);
   };
 
 
@@ -1032,14 +1061,44 @@ export default function SchedulePage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="room" className="text-base font-semibold text-gray-700">🚪 Phòng học *</Label>
-                        <Input
-                          id="room"
-                          type="text"
-                          placeholder="VD: A101, B202..."
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
-                          value={formData.room}
-                          onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                        />
+                        {selectedCampus ? (
+                          <>
+                            <select
+                              id="room"
+                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                              value={formData.room}
+                              onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                              disabled={loadingRooms}
+                            >
+                              <option value="">Chọn phòng học</option>
+                              {rooms.map((room) => (
+                                <option key={room.id} value={room.code}>
+                                  {room.name} ({room.code}){room.capacity ? ` - ${room.capacity} chỗ` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            {loadingRooms && (
+                              <p className="text-xs text-gray-500">Đang tải danh sách phòng học...</p>
+                            )}
+                            {!loadingRooms && rooms.length === 0 && (
+                              <p className="text-xs text-yellow-600">
+                                ⚠️ Cơ sở này chưa có phòng học. Vui lòng thêm phòng học trong trang Quản lý Cơ sở.
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Input
+                              id="room"
+                              type="text"
+                              placeholder="Vui lòng chọn cơ sở trước"
+                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-100"
+                              value={formData.room}
+                              disabled
+                            />
+                            <p className="text-xs text-gray-500">Vui lòng chọn cơ sở để hiển thị danh sách phòng học</p>
+                          </>
+                        )}
                         {errors.room && (
                           <p className="text-sm text-red-500 flex items-center gap-1">
                             <AlertCircle className="w-4 h-4" />
@@ -1209,12 +1268,27 @@ export default function SchedulePage() {
                             
                             <div className="mt-4">
                               <Label className="text-sm font-semibold text-gray-700 mb-2">Phòng học</Label>
-                              <Input
-                                className="text-sm px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
-                                value={schedule.room}
-                                onChange={(e) => updateScheduleInList(index, 'room', e.target.value)}
-                                placeholder="Tên phòng học"
-                              />
+                              {selectedCampus && rooms.length > 0 ? (
+                                <select
+                                  className="w-full px-3 py-2 text-sm border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                                  value={schedule.room}
+                                  onChange={(e) => updateScheduleInList(index, 'room', e.target.value)}
+                                >
+                                  <option value="">Chọn phòng học</option>
+                                  {rooms.map((room) => (
+                                    <option key={room.id} value={room.code}>
+                                      {room.name} ({room.code}){room.capacity ? ` - ${room.capacity} chỗ` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <Input
+                                  className="text-sm px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                                  value={schedule.room}
+                                  onChange={(e) => updateScheduleInList(index, 'room', e.target.value)}
+                                  placeholder="Nhập mã phòng học"
+                                />
+                              )}
                             </div>
                             
                             <div className="mt-3 text-sm text-gray-600 bg-gray-100 p-3 rounded-lg">

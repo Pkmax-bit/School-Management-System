@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Building2, Plus, Edit, Trash2, Search, AlertCircle, Loader2 } from 'lucide-react';
+import { Building2, Plus, Edit, Trash2, Search, AlertCircle, Loader2, DoorOpen } from 'lucide-react';
 import campusesApi, { Campus, CampusCreate } from '../../lib/campuses-api';
+import roomsApi, { Room, RoomCreate } from '../../lib/rooms-api';
 
 export default function CampusesPage() {
   const { isCollapsed } = useSidebar();
@@ -34,6 +35,16 @@ export default function CampusesPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [roomFormData, setRoomFormData] = useState<RoomCreate>({
+    campus_id: '',
+    name: '',
+    code: '',
+    capacity: 30,
+    description: ''
+  });
+  const [isAddingRoom, setIsAddingRoom] = useState(false);
   const normalizedRole = (user?.role || '').toLowerCase().trim();
 
     const loadCampuses = useCallback(async () => {
@@ -88,11 +99,19 @@ export default function CampusesPage() {
     try {
       setIsSubmitting(true);
       setErrors({});
-      await campusesApi.create(formData);
+      const newCampus = await campusesApi.create(formData);
       await loadCampuses();
-      setIsDialogOpen(false);
-      resetForm();
-      alert(`Tạo cơ sở "${formData.name}" thành công!`);
+      // Set as editing to allow adding rooms
+      setEditingCampus(newCampus);
+      setRoomFormData({
+        campus_id: newCampus.id,
+        name: '',
+        code: '',
+        capacity: 30,
+        description: ''
+      });
+      await loadRooms(newCampus.id);
+      alert(`Tạo cơ sở "${formData.name}" thành công! Bạn có thể thêm phòng học ngay bây giờ.`);
     } catch (error: any) {
       console.error('Error creating campus:', error);
       alert(error?.message || 'Có lỗi khi tạo cơ sở');
@@ -131,6 +150,24 @@ export default function CampusesPage() {
     }
   };
 
+  const loadRooms = useCallback(async (campusId: string) => {
+    if (!campusId) {
+      setRooms([]);
+      return;
+    }
+    try {
+      setLoadingRooms(true);
+      const data = await roomsApi.list(campusId);
+      const list = Array.isArray(data) ? data : [];
+      setRooms(list);
+    } catch (error: any) {
+      console.error('Error loading rooms:', error);
+      setRooms([]);
+    } finally {
+      setLoadingRooms(false);
+    }
+  }, []);
+
   const handleEdit = (campus: Campus) => {
     setEditingCampus(campus);
     setFormData({
@@ -141,12 +178,74 @@ export default function CampusesPage() {
     });
     setErrors({});
     setIsDialogOpen(true);
+    loadRooms(campus.id);
+    setRoomFormData({
+      campus_id: campus.id,
+      name: '',
+      code: '',
+      capacity: 30,
+      description: ''
+    });
   };
 
   const handleAdd = () => {
     setEditingCampus(null);
     resetForm();
     setIsDialogOpen(true);
+    setRooms([]);
+    setRoomFormData({
+      campus_id: '',
+      name: '',
+      code: '',
+      capacity: 30,
+      description: ''
+    });
+  };
+
+  const handleCreateRoom = async () => {
+    if (!editingCampus) {
+      alert('Vui lòng tạo cơ sở trước khi thêm phòng học');
+      return;
+    }
+    if (!roomFormData.name.trim() || !roomFormData.code.trim()) {
+      alert('Vui lòng điền đầy đủ tên và mã phòng học');
+      return;
+    }
+    try {
+      setIsAddingRoom(true);
+      await roomsApi.create({
+        ...roomFormData,
+        campus_id: editingCampus.id
+      });
+      await loadRooms(editingCampus.id);
+      setRoomFormData({
+        campus_id: editingCampus.id,
+        name: '',
+        code: '',
+        capacity: 30,
+        description: ''
+      });
+      alert('Thêm phòng học thành công!');
+    } catch (error: any) {
+      console.error('Error creating room:', error);
+      alert(error?.message || 'Có lỗi khi thêm phòng học');
+    } finally {
+      setIsAddingRoom(false);
+    }
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa phòng học này?')) return;
+    try {
+      await roomsApi.delete(roomId);
+      if (editingCampus) {
+        await loadRooms(editingCampus.id);
+      }
+      alert('Xóa phòng học thành công!');
+    } catch (error: any) {
+      console.error('Error deleting room:', error);
+      alert(error?.message || 'Có lỗi khi xóa phòng học');
+    }
   };
 
   const resetForm = () => {
@@ -286,7 +385,7 @@ export default function CampusesPage() {
                         Thêm cơ sở
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>
                           {editingCampus ? 'Chỉnh sửa cơ sở' : 'Thêm cơ sở mới'}
@@ -295,7 +394,7 @@ export default function CampusesPage() {
                           {editingCampus ? 'Cập nhật thông tin cơ sở' : 'Thêm cơ sở mới vào hệ thống'}
                         </DialogDescription>
                       </DialogHeader>
-                      <div className="space-y-4 py-4">
+                      <div className="space-y-6 py-4">
                         <div className="space-y-2">
                           <Label htmlFor="code">Mã cơ sở *</Label>
                           <Input
@@ -360,6 +459,109 @@ export default function CampusesPage() {
                           </Button>
                           <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>Hủy</Button>
                         </div>
+
+                        {/* Quản lý phòng học - chỉ hiển thị khi đã có cơ sở */}
+                        {editingCampus && (
+                          <div className="border-t pt-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-lg font-semibold flex items-center gap-2">
+                                <DoorOpen className="w-5 h-5" />
+                                Quản lý Phòng học ({rooms.length} phòng)
+                              </h3>
+                            </div>
+
+                            {/* Form thêm phòng học */}
+                            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="space-y-2">
+                                  <Label htmlFor="room_name">Tên phòng *</Label>
+                                  <Input
+                                    id="room_name"
+                                    value={roomFormData.name}
+                                    onChange={(e) => setRoomFormData({ ...roomFormData, name: e.target.value })}
+                                    placeholder="VD: Phòng A101"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="room_code">Mã phòng *</Label>
+                                  <Input
+                                    id="room_code"
+                                    value={roomFormData.code}
+                                    onChange={(e) => setRoomFormData({ ...roomFormData, code: e.target.value.toUpperCase() })}
+                                    placeholder="VD: A101"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="room_capacity">Sức chứa</Label>
+                                  <Input
+                                    id="room_capacity"
+                                    type="number"
+                                    value={roomFormData.capacity}
+                                    onChange={(e) => setRoomFormData({ ...roomFormData, capacity: parseInt(e.target.value) || 30 })}
+                                    placeholder="30"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="room_description">Mô tả</Label>
+                                <Input
+                                  id="room_description"
+                                  value={roomFormData.description}
+                                  onChange={(e) => setRoomFormData({ ...roomFormData, description: e.target.value })}
+                                  placeholder="Mô tả phòng học..."
+                                />
+                              </div>
+                              <Button 
+                                onClick={handleCreateRoom} 
+                                disabled={isAddingRoom || !roomFormData.name.trim() || !roomFormData.code.trim()}
+                                className="w-full"
+                              >
+                                {isAddingRoom && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                <Plus className="w-4 h-4 mr-2" />
+                                Thêm phòng học
+                              </Button>
+                            </div>
+
+                            {/* Danh sách phòng học */}
+                            {loadingRooms ? (
+                              <div className="text-center py-4">
+                                <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                                <p className="text-sm text-gray-600 mt-2">Đang tải phòng học...</p>
+                              </div>
+                            ) : rooms.length === 0 ? (
+                              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                                <DoorOpen className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                                <p className="text-gray-500">Chưa có phòng học nào</p>
+                                <p className="text-sm text-gray-400 mt-1">Thêm phòng học đầu tiên cho cơ sở này</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {rooms.map((room) => (
+                                  <div key={room.id} className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-gray-50">
+                                    <div className="flex items-center gap-3">
+                                      <DoorOpen className="w-5 h-5 text-blue-600" />
+                                      <div>
+                                        <div className="font-semibold">{room.name}</div>
+                                        <div className="text-sm text-gray-600">Mã: {room.code} | Sức chứa: {room.capacity || 'N/A'}</div>
+                                        {room.description && (
+                                          <div className="text-xs text-gray-500 mt-1">{room.description}</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      onClick={() => handleDeleteRoom(room.id)}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </DialogContent>
                   </Dialog>
