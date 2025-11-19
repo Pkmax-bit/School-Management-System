@@ -36,6 +36,44 @@ const TIME_SLOTS = [
   '19:00', '19:30', '20:00', '20:30', '21:00'
 ];
 
+const formatDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateOnly = (dateString?: string | null) => {
+  if (!dateString) return null;
+  const [yearStr, monthStr, dayStr] = dateString.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const formatDateDisplay = (
+  dateString?: string | null,
+  options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }
+) => {
+  const date = parseDateOnly(dateString);
+  if (!date) return '';
+  return date.toLocaleDateString('vi-VN', options);
+};
+
+const getScheduleDayIndex = (date: Date) => {
+  const jsDay = date.getDay(); // 0 (Sun) - 6 (Sat)
+  return jsDay === 0 ? 6 : jsDay - 1; // Convert to 0 = Monday
+};
+
 const getTeacherDisplayName = (teacher?: Schedule['teacher']) =>
   teacher?.display_name ||
   teacher?.user?.full_name ||
@@ -62,7 +100,7 @@ const buildWeekDates = (startDate: Date) => {
     const dateObj = new Date(start);
     dateObj.setDate(start.getDate() + index);
     dateObj.setHours(0, 0, 0, 0);
-    const isoDate = dateObj.toISOString().split('T')[0];
+    const isoDate = formatDateKey(dateObj);
     return {
       dateObj,
       isoDate,
@@ -294,7 +332,7 @@ export default function SchedulePage() {
         
         if (newStart < existingEnd && newEnd > existingStart) {
           const dateInfo = schedule.date 
-            ? new Date(schedule.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            ? formatDateDisplay(schedule.date, { day: '2-digit', month: '2-digit', year: 'numeric' })
             : `thứ ${dayOfWeek + 2}`;
           
           return {
@@ -601,32 +639,23 @@ export default function SchedulePage() {
     });
   };
 
-  const generateDateRange = (startDate: Date, endDate: Date): string[] => {
-    const dates: string[] = [];
-    const currentDate = new Date(startDate);
-    
-    while (currentDate <= endDate) {
-      dates.push(currentDate.toISOString().split('T')[0]);
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    return dates;
-  };
-
   const getClassroomDateRange = () => {
     // Nếu đã chọn lớp học và có ngày mở/đóng
     if (formData.classroom_id) {
       const classroom = classrooms.find(c => c.id === formData.classroom_id);
       if (classroom && classroom.open_date && classroom.close_date) {
-        const startDate = new Date(classroom.open_date);
-        const endDate = new Date(classroom.close_date);
+        const startDate = parseDateOnly(classroom.open_date);
+        const endDate = parseDateOnly(classroom.close_date);
+        if (!startDate || !endDate) {
+          return [];
+        }
         const dates = [];
         
         const currentDate = new Date(startDate);
         while (currentDate <= endDate) {
           dates.push({
-            date: currentDate.toISOString().split('T')[0],
-            dayOfWeek: currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1, // Convert to 0=Monday, 6=Sunday
+            date: formatDateKey(currentDate),
+            dayOfWeek: getScheduleDayIndex(currentDate),
             display: currentDate.toLocaleDateString('vi-VN', { 
               weekday: 'short', 
               day: '2-digit', 
@@ -646,8 +675,8 @@ export default function SchedulePage() {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       dates.push({
-        date: date.toISOString().split('T')[0],
-        dayOfWeek: date.getDay() === 0 ? 6 : date.getDay() - 1, // Convert to 0=Monday, 6=Sunday
+        date: formatDateKey(date),
+        dayOfWeek: getScheduleDayIndex(date), // Convert to 0=Monday, 6=Sunday
         display: date.toLocaleDateString('vi-VN', { 
           weekday: 'short', 
           day: '2-digit', 
@@ -686,14 +715,14 @@ export default function SchedulePage() {
     // Thêm từ ngày cụ thể
     if (selectedDates.length > 0) {
       const dateSchedules = selectedDates.map(date => {
-        const dateObj = new Date(date);
+        const dateObj = parseDateOnly(date);
         return {
-          day_of_week: dateObj.getDay(),
+          day_of_week: dateObj ? getScheduleDayIndex(dateObj) : formData.day_of_week,
           start_time: formData.start_time,
           end_time: formData.end_time,
           room: formData.room || '',
           room_id: formData.room_id || undefined,
-          date: date
+          date
         };
       });
       newSchedules.push(...dateSchedules);
@@ -779,8 +808,10 @@ export default function SchedulePage() {
       if (!schedule.date) {
         return true;
       }
-      const scheduleDate = new Date(schedule.date);
-      scheduleDate.setHours(0, 0, 0, 0);
+      const scheduleDate = parseDateOnly(schedule.date);
+      if (!scheduleDate) {
+        return true;
+      }
       return scheduleDate >= start && scheduleDate <= end;
     });
   }, [filteredSchedules, weekStartDate, weekEndDate]);
@@ -1053,12 +1084,7 @@ export default function SchedulePage() {
                                   <div className="text-xs text-blue-700 flex items-center gap-2">
                                     <Calendar className="w-4 h-4" />
                                     <span>
-                                      Ngày: {new Date(schedule.date).toLocaleDateString('vi-VN', {
-                                        weekday: 'long',
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                      })}
+                                      Ngày: {formatDateDisplay(schedule.date)}
                                     </span>
                                   </div>
                                 )}
@@ -1415,8 +1441,8 @@ export default function SchedulePage() {
                     {formData.classroom_id && (() => {
                       const classroom = classrooms.find(c => c.id === formData.classroom_id);
                       if (classroom && classroom.open_date && classroom.close_date) {
-                        const startDate = new Date(classroom.open_date).toLocaleDateString('vi-VN');
-                        const endDate = new Date(classroom.close_date).toLocaleDateString('vi-VN');
+                        const startDate = formatDateDisplay(classroom.open_date, { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        const endDate = formatDateDisplay(classroom.close_date, { day: '2-digit', month: '2-digit', year: 'numeric' });
                         return (
                           <div className="text-sm text-blue-700 bg-blue-100 p-3 rounded-lg mb-4">
                             <strong>📅 Khoảng thời gian lớp học:</strong> {startDate} - {endDate}
@@ -1513,12 +1539,7 @@ export default function SchedulePage() {
                                 <div>
                                   <p className="font-semibold text-blue-700">
                                     {item.date
-                                      ? new Date(item.date).toLocaleDateString('vi-VN', {
-                                          weekday: 'long',
-                                          day: '2-digit',
-                                          month: '2-digit',
-                                          year: 'numeric',
-                                        })
+                                      ? formatDateDisplay(item.date)
                                       : DAYS_OF_WEEK[item.day_of_week]}
                                   </p>
                                   {item.date && (
@@ -1577,12 +1598,7 @@ export default function SchedulePage() {
                                 <div>
                                   <div className="font-bold text-gray-900 text-xl">
                                     {schedule.date 
-                                      ? new Date(schedule.date).toLocaleDateString('vi-VN', { 
-                                          weekday: 'long', 
-                                          day: '2-digit', 
-                                          month: '2-digit',
-                                          year: 'numeric'
-                                        })
+                                      ? formatDateDisplay(schedule.date)
                                       : DAYS_OF_WEEK[schedule.day_of_week]
                                     }
                                   </div>
