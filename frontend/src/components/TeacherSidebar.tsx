@@ -133,20 +133,21 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
 
       {/* Sidebar */}
       <div className={cn(
-        "bg-white/95 backdrop-blur-md border-r border-blue-200/60 shadow-xl text-slate-800 transition-all duration-300 ease-in-out fixed left-0 top-0 h-full z-50",
+        "bg-white border-r border-gray-200 shadow-lg text-gray-800 transition-all duration-300 ease-in-out fixed left-0 top-0 h-full z-50",
         isCollapsed ? "w-16" : "w-64",
         isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
+        <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-blue-200/60 bg-gradient-to-r from-blue-600 to-indigo-600">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white flex-shrink-0">
         {!isCollapsed && (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
+            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
               <span className="text-white font-bold text-sm">T</span>
             </div>
             <div>
-              <h1 className="font-bold text-lg text-white">Teacher</h1>
-              <p className="text-xs text-blue-100 font-medium">Giảng dạy</p>
+              <h1 className="font-bold text-lg text-gray-800">Teacher</h1>
+              <p className="text-xs text-gray-500">Giảng dạy</p>
             </div>
           </div>
         )}
@@ -154,7 +155,7 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
           variant="ghost"
           size="sm"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden lg:flex text-white hover:text-white hover:bg-white/20"
+          className="hidden lg:flex text-gray-600 hover:text-gray-800 hover:bg-gray-100"
         >
           {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </Button>
@@ -162,7 +163,7 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
           variant="ghost"
           size="sm"
           onClick={() => setIsMobileOpen(false)}
-          className="lg:hidden text-white hover:text-white hover:bg-white/20"
+          className="lg:hidden text-gray-600 hover:text-gray-800 hover:bg-gray-100"
         >
           <X className="w-4 h-4" />
         </Button>
@@ -170,23 +171,23 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
 
       {/* User Info */}
       {!isCollapsed && user && (
-        <div className="p-4 border-b border-blue-200/60 bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-              <span className="text-white font-bold text-base">
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-sm">
+              <span className="text-white font-semibold text-sm">
                 {(user.name?.charAt(0) || user.email?.charAt(0) || 'T').toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold truncate text-gray-900">{user.name || 'Giáo viên'}</p>
-              <p className="text-xs text-gray-600 truncate">{user.email || ''}</p>
+              <p className="text-sm font-semibold truncate text-gray-800">{user.name || 'Giáo viên'}</p>
+              <p className="text-xs text-gray-500 truncate">{user.email || ''}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Navigation Menu */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-transparent hover:scrollbar-thumb-blue-400">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentPage === item.id;
@@ -196,31 +197,23 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
               key={item.id}
               onClick={() => handleNavigation(item)}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative",
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
                 isActive
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30"
-                  : "text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-700 hover:bg-gray-100"
               )}
             >
-              <div className={cn(
-                "p-1.5 rounded-lg transition-all duration-200",
-                isActive 
-                  ? "bg-white/20" 
-                  : "bg-blue-100/70 group-hover:bg-white"
-              )}>
-                <Icon className={cn(
-                  "w-5 h-5 transition-all duration-200",
-                  isActive ? "text-white" : "text-blue-700 group-hover:text-blue-900"
-                )} />
-              </div>
+              <Icon className={cn(
+                "w-5 h-5 transition-all duration-200 flex-shrink-0",
+                isActive ? "text-white" : "text-gray-600"
+              )} />
               {!isCollapsed && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate text-slate-900">{item.label}</p>
-                  <p className="text-xs text-slate-900 font-semibold truncate">{item.description}</p>
+                  <p className="text-sm font-medium truncate">{item.label}</p>
                 </div>
               )}
               {isCollapsed && (
-                <div className="absolute left-16 bg-slate-800 text-white px-3 py-2 rounded-lg text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-lg z-50">
+                <div className="absolute left-16 bg-gray-800 text-white px-3 py-2 rounded-lg text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-lg z-50">
                   {item.label}
                 </div>
               )}
@@ -230,28 +223,20 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-blue-200/60 bg-gradient-to-r from-blue-50 to-indigo-50">
-        {!isCollapsed && (
-          <div className="mb-4">
-            <div className="flex items-center space-x-2 text-xs text-blue-800">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span className="font-medium">Trực tuyến</span>
-            </div>
-          </div>
-        )}
-        
+      <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
         <Button
           onClick={onLogout}
           variant="outline"
           size="sm"
           className={cn(
-            "w-full bg-white/80 hover:bg-white border-blue-200 hover:border-blue-300 text-blue-800 hover:text-blue-900 font-semibold py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200",
+            "w-full bg-white hover:bg-gray-50 border-gray-300 hover:border-red-400 text-gray-700 hover:text-red-600 font-medium py-2 rounded-lg transition-all duration-200",
             isCollapsed ? "px-2" : "px-3"
           )}
         >
           <LogOut className="w-4 h-4 mr-2" />
           {!isCollapsed && <span>Đăng xuất</span>}
         </Button>
+      </div>
       </div>
       </div>
 

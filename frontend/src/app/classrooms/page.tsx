@@ -80,7 +80,16 @@ export default function ClassroomsPage() {
     );
   }, [items, search]);
 
-  const normalizedRole = (user?.role || '').toLowerCase().trim();
+  // Determine user role - check both useApiAuth and useTeacherAuth
+  const normalizedRole = (() => {
+    if (user?.role) {
+      return (user.role || '').toLowerCase().trim();
+    }
+    if (teacherAuth.user?.role) {
+      return (teacherAuth.user.role || '').toLowerCase().trim();
+    }
+    return '';
+  })();
 
   const handleOpenCreate = async () => {
     setEditing(null);
@@ -174,6 +183,20 @@ export default function ClassroomsPage() {
   const loadSubjects = async () => {
     try {
       setLoadingSubjects(true);
+      // Determine current role
+      const currentRole = (() => {
+        if (user?.role) return (user.role || '').toLowerCase().trim();
+        if (teacherAuth.user?.role) return (teacherAuth.user.role || '').toLowerCase().trim();
+        return '';
+      })();
+      
+      // Only load subjects if user is admin
+      if (currentRole !== 'admin') {
+        setSubjects([]);
+        setLoadingSubjects(false);
+        return;
+      }
+      
       const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
       const res = await fetch(`${API_BASE_URL}/api/subjects?limit=1000`, {
         headers: {
@@ -182,6 +205,12 @@ export default function ClassroomsPage() {
         },
       });
       if (!res.ok) {
+        // Don't throw error for 403, just log and set empty array
+        if (res.status === 403) {
+          console.warn('No permission to load subjects');
+          setSubjects([]);
+          return;
+        }
         throw new Error(`Failed to load subjects (${res.status})`);
       }
       const data = await res.json();
@@ -198,6 +227,20 @@ export default function ClassroomsPage() {
   const loadCampuses = async () => {
     try {
       setLoadingCampuses(true);
+      // Determine current role
+      const currentRole = (() => {
+        if (user?.role) return (user.role || '').toLowerCase().trim();
+        if (teacherAuth.user?.role) return (teacherAuth.user.role || '').toLowerCase().trim();
+        return '';
+      })();
+      
+      // Only load campuses if user is admin
+      if (currentRole !== 'admin') {
+        setCampuses([]);
+        setLoadingCampuses(false);
+        return;
+      }
+      
       const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
       const res = await fetch(`${API_BASE_URL}/api/campuses?limit=1000`, {
         headers: {
@@ -206,6 +249,12 @@ export default function ClassroomsPage() {
         },
       });
       if (!res.ok) {
+        // Don't throw error for 403, just log and set empty array
+        if (res.status === 403) {
+          console.warn('No permission to load campuses');
+          setCampuses([]);
+          return;
+        }
         throw new Error(`Failed to load campuses (${res.status})`);
       }
       const data = await res.json();

@@ -165,13 +165,13 @@ export function AttendanceSheet({
                 <UserCheck className="w-8 h-8 text-blue-600" />
                 Điểm danh lớp học
               </CardTitle>
-              <CardDescription className="text-slate-600 mt-2">
+              <div className="text-slate-600 mt-2">
                 <div className="flex items-center gap-4 text-sm">
                   <span><strong>Lớp:</strong> {className}</span>
                   <span><strong>Môn:</strong> {subject}</span>
                   <span><strong>Ngày:</strong> {date}</span>
                 </div>
-              </CardDescription>
+              </div>
             </div>
             <div className="text-right">
               <div className="text-3xl font-bold text-blue-600">{stats.total}</div>
