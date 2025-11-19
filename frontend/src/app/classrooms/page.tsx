@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useApiAuth } from '@/hooks/useApiAuth';
+import { useTeacherAuth } from '@/hooks/useTeacherAuth';
 import classroomsHybridApi from '../../lib/classrooms-api-hybrid';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,10 +10,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Loader2, Plus, Edit, Trash2, Search } from 'lucide-react';
+import { PageWithBackground } from '@/components/PageWithBackground';
+import { AdminSidebar } from '@/components/AdminSidebar';
+import { TeacherSidebar } from '@/components/TeacherSidebar';
+import { useRouter } from 'next/navigation';
+import { useSidebar } from '@/contexts/SidebarContext';
 
 export default function ClassroomsPage() {
-  const { user, loading: authLoading } = useApiAuth();
+  const { user, loading: authLoading, logout } = useApiAuth();
+  const teacherAuth = useTeacherAuth();
+  const router = useRouter();
+  const { isCollapsed } = useSidebar();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -307,32 +317,67 @@ export default function ClassroomsPage() {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Quản lý Lớp học</h1>
-          <p className="text-gray-600">Quản lý thông tin lớp học trong hệ thống</p>
-        </div>
-        {normalizedRole === 'admin' && (
-          <div className="flex gap-2">
-            <Button type="button" onClick={handleOpenCreate} data-testid="open-create-classroom" aria-haspopup="dialog" aria-expanded={isDialogOpen}>
-              <Plus className="w-4 h-4 mr-2" /> Thêm lớp học
-            </Button>
-          </div>
-        )}
-      </div>
+  // Determine which sidebar to use based on user role
+  const isTeacher = normalizedRole === 'teacher';
+  const displayUser = isTeacher ? teacherAuth.user : user;
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Danh sách lớp học</span>
-            <div className="relative w-72">
-              <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input placeholder="Tìm theo tên, mã, mô tả" className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+  return (
+    <PageWithBackground>
+      <div className="min-h-screen">
+        {isTeacher ? (
+          <TeacherSidebar
+            currentPage="classrooms"
+            onNavigate={(page) => router.push(`/${page}`)}
+            onLogout={teacherAuth.logout || logout}
+            user={{ name: displayUser?.name, email: displayUser?.email }}
+          />
+        ) : (
+          <AdminSidebar
+            currentPage="classes"
+            onNavigate={(page) => router.push(`/${page}`)}
+            onLogout={logout}
+          />
+        )}
+        <div className={`flex-1 h-screen flex flex-col p-4 lg:p-6 overflow-hidden transition-all duration-300 ml-0 ${
+          isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+        }`}>
+          <div className="space-y-4 lg:space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-2xl p-4 lg:p-6 text-white shadow-lg w-full sm:w-auto">
+                <h1 className="text-2xl lg:text-4xl font-bold mb-2">Quản lý Lớp học</h1>
+                <p className="text-indigo-100 text-sm lg:text-lg">Quản lý thông tin lớp học trong hệ thống</p>
+              </div>
+              {normalizedRole === 'admin' && (
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <Button 
+                    type="button" 
+                    onClick={handleOpenCreate} 
+                    data-testid="open-create-classroom" 
+                    aria-haspopup="dialog" 
+                    aria-expanded={isDialogOpen}
+                    className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                  >
+                    <Plus className="w-4 h-4 mr-2" /> Thêm lớp học
+                  </Button>
+                </div>
+              )}
             </div>
-          </CardTitle>
-        </CardHeader>
+
+            <Card className="card-transparent">
+              <CardHeader className="card-transparent-header">
+                <CardTitle className="flex items-center justify-between text-2xl font-bold text-gray-900">
+                  <span>Danh sách lớp học</span>
+                  <div className="relative w-72">
+                    <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Input 
+                      placeholder="Tìm theo tên, mã, mô tả" 
+                      className="pl-8 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" 
+                      value={search} 
+                      onChange={(e) => setSearch(e.target.value)} 
+                    />
+                  </div>
+                </CardTitle>
+              </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -353,44 +398,67 @@ export default function ClassroomsPage() {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-medium">{c.name}</TableCell>
-                      <TableCell>{c.code}</TableCell>
-                      <TableCell>{c.capacity ?? 30}</TableCell>
-                      <TableCell>{(() => {
-                        if (!c.teacher_id) return 'N/A';
-                        const t = teachers.find((t) => t.id === c.teacher_id);
-                        return t ? (t.name || t.email || c.teacher_id) : c.teacher_id;
-                      })()}</TableCell>
-                      <TableCell>{c.description || '—'}</TableCell>
+                    <TableRow key={c.id} className="hover:bg-indigo-50/50 transition-colors">
+                      <TableCell className="font-bold text-gray-900">{c.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 font-semibold">
+                          {c.code}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-gray-700 font-medium">{c.capacity ?? 30}</TableCell>
+                      <TableCell className="text-gray-700">
+                        {(() => {
+                          if (!c.teacher_id) return <span className="text-gray-400">Chưa gán</span>;
+                          const t = teachers.find((t) => t.id === c.teacher_id);
+                          return t ? (t.name || t.email || c.teacher_id) : c.teacher_id;
+                        })()}
+                      </TableCell>
+                      <TableCell className="text-gray-700">{c.description || <span className="text-gray-400">—</span>}</TableCell>
                       {normalizedRole === 'admin' && (
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => { window.location.href = `/classrooms/${c.id}`; }}>Xem</Button>
-                            <Button variant="outline" size="sm" onClick={() => {
-                              setEditing(c);
-                              setFormName(c.name || '');
-                              setFormCode(c.code || '');
-                              setFormCapacity(typeof c.capacity === 'number' ? c.capacity : 30);
-                              setFormTeacherId(c.teacher_id || '');
-                              setFormSubjectId(c.subject_id || '');
-                              setFormCampusId(c.campus_id || '');
-                              setFormDescription(c.description || '');
-                              setFormOpenDate(c.open_date ? c.open_date.slice(0, 10) : '');
-                              setFormCloseDate(c.close_date ? c.close_date.slice(0, 10) : '');
-                              setFormTuitionPerSession(typeof c.tuition_per_session === 'number' ? c.tuition_per_session : 50000);
-                              setSessionsPerWeek(typeof c.sessions_per_week === 'number' ? c.sessions_per_week : 2);
-                              setErrorMsg('');
-                              setIsDialogOpen(true);
-                            }}>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => { window.location.href = `/classrooms/${c.id}`; }}
+                              className="border-indigo-300 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 transition-all duration-200"
+                            >
+                              Xem
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                setEditing(c);
+                                setFormName(c.name || '');
+                                setFormCode(c.code || '');
+                                setFormCapacity(typeof c.capacity === 'number' ? c.capacity : 30);
+                                setFormTeacherId(c.teacher_id || '');
+                                setFormSubjectId(c.subject_id || '');
+                                setFormCampusId(c.campus_id || '');
+                                setFormDescription(c.description || '');
+                                setFormOpenDate(c.open_date ? c.open_date.slice(0, 10) : '');
+                                setFormCloseDate(c.close_date ? c.close_date.slice(0, 10) : '');
+                                setFormTuitionPerSession(typeof c.tuition_per_session === 'number' ? c.tuition_per_session : 50000);
+                                setSessionsPerWeek(typeof c.sessions_per_week === 'number' ? c.sessions_per_week : 2);
+                                setErrorMsg('');
+                                setIsDialogOpen(true);
+                              }}
+                              className="border-indigo-300 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 transition-all duration-200"
+                            >
                               <Edit className="w-4 h-4" />
                             </Button>
-                            <Button variant="destructive" size="sm" onClick={async () => {
-                              if (confirm('Xóa lớp học này?')) {
-                                await classroomsHybridApi.remove(c.id);
-                                loadData();
-                              }
-                            }}>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={async () => {
+                                if (confirm('Xóa lớp học này?')) {
+                                  await classroomsHybridApi.remove(c.id);
+                                  loadData();
+                                }
+                              }}
+                              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 transition-all duration-200"
+                            >
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
@@ -671,6 +739,9 @@ export default function ClassroomsPage() {
           </div>
         </DialogContent>
       </Dialog>
+          </div>
+        </div>
       </div>
+    </PageWithBackground>
   );
 }

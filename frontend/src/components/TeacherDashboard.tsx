@@ -2,6 +2,7 @@ import { StatCard } from './StatCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { TeacherSidebar } from './TeacherSidebar';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { Users, BookOpen, Calendar, ClipboardCheck, Clock, FileText, Award, School, CheckCircle, Home, Settings } from 'lucide-react';
 import { Badge } from './ui/badge';
 
@@ -16,6 +17,8 @@ interface TeacherDashboardProps {
 }
 
 export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboardProps) {
+  const { isCollapsed } = useSidebar();
+  
   return (
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
       {/* Sidebar */}
@@ -27,69 +30,105 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
       />
       
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-8 space-y-8">
+      <div className={`flex-1 overflow-y-auto transition-all duration-300 ml-0 ${
+        isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+      }`}>
+        <div className="p-4 lg:p-8 space-y-6 lg:space-y-8">
           {/* Header */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-blue-200/60">
-            <div className="flex items-center justify-between">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 lg:p-6 text-white shadow-xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent mb-2">
-                  Teacher Dashboard
-                </h1>
-                <p className="text-slate-900 text-lg font-bold">Quản lý lớp học và giảng dạy</p>
+                <h1 className="text-2xl lg:text-4xl font-bold mb-2">Teacher Dashboard</h1>
+                <p className="text-blue-100 text-sm lg:text-lg">Quản lý lớp học và giảng dạy</p>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="text-right">
-                  <p className="text-sm text-slate-500">Chào mừng trở lại</p>
-                  <p className="font-semibold text-slate-800">{user?.name || 'Giáo viên'}</p>
-                  <p className="text-xs text-slate-400">{user?.email || ''}</p>
+                  <p className="text-sm text-blue-100">Chào mừng trở lại</p>
+                  <p className="font-bold text-white text-lg">{user?.name || 'Giáo viên'}</p>
+                  <p className="text-xs text-blue-200">{user?.email || ''}</p>
                 </div>
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-700 to-indigo-700 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">{(user?.name?.charAt(0) || user?.email?.charAt(0) || 'T').toUpperCase()}</span>
+                <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border-2 border-white/30 shadow-lg">
+                  <span className="text-white font-bold text-xl">{(user?.name?.charAt(0) || user?.email?.charAt(0) || 'T').toUpperCase()}</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard
-              title="Tổng lớp học"
-              value="--"
-              icon={School}
-              color="blue"
-            />
-            <StatCard
-              title="Tổng học sinh"
-              value="--"
-              icon={Users}
-              color="green"
-            />
-            <StatCard
-              title="Bài tập chờ chấm"
-              value="--"
-              icon={ClipboardCheck}
-              color="red"
-            />
-            <StatCard
-              title="Lịch dạy tuần này"
-              value="--"
-              icon={Calendar}
-              color="purple"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <Card className="card-transparent border-l-4 border-l-blue-500">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Tổng lớp học</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                      --
+                    </p>
+                  </div>
+                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <School className="w-7 h-7 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="card-transparent border-l-4 border-l-green-500">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Tổng học sinh</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">
+                      --
+                    </p>
+                  </div>
+                  <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Users className="w-7 h-7 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="card-transparent border-l-4 border-l-red-500">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Bài tập chờ chấm</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">
+                      --
+                    </p>
+                  </div>
+                  <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <ClipboardCheck className="w-7 h-7 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="card-transparent border-l-4 border-l-purple-500">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Lịch dạy tuần này</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">
+                      --
+                    </p>
+                  </div>
+                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Calendar className="w-7 h-7 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="bg-white/80 backdrop-blur-sm border-blue-200/60 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+            <Card className="card-transparent hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <School className="w-6 h-6 text-blue-700" />
+                  <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg">
+                    <School className="w-6 h-6 text-white" />
                   </div>
-                  <span className="text-slate-800 font-bold">Lớp học</span>
+                  <span className="text-gray-900 font-bold">Lớp học</span>
                 </CardTitle>
-                <CardDescription className="text-slate-900 font-bold">Quản lý các lớp đang giảng dạy</CardDescription>
+                <CardDescription className="text-gray-700 font-medium">Quản lý các lớp đang giảng dạy</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -113,7 +152,7 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
                   </div>
                 </div>
                 <Button 
-                  className="w-full mt-6 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300" 
+                  className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300" 
                   onClick={() => onNavigate('classrooms')}
                 >
                   Xem lớp học
@@ -121,15 +160,15 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
               </CardContent>
             </Card>
 
-            <Card className="bg-white/80 backdrop-blur-sm border-blue-200/60 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <Card className="card-transparent hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <ClipboardCheck className="w-6 h-6 text-blue-700" />
+                  <div className="p-2 bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg">
+                    <ClipboardCheck className="w-6 h-6 text-white" />
                   </div>
-                  <span className="text-slate-800 font-bold">Bài tập</span>
+                  <span className="text-gray-900 font-bold">Bài tập</span>
                 </CardTitle>
-                <CardDescription className="text-slate-900 font-bold">Tạo và chấm bài tập</CardDescription>
+                <CardDescription className="text-gray-700 font-medium">Tạo và chấm bài tập</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -153,7 +192,7 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
                   </div>
                 </div>
                 <Button 
-                  className="w-full mt-6 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300" 
+                  className="w-full mt-6 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300" 
                   onClick={() => onNavigate('assignments')}
                 >
                   Quản lý bài tập
@@ -161,15 +200,15 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
               </CardContent>
             </Card>
 
-            <Card className="bg-white/80 backdrop-blur-sm border-blue-200/60 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <Card className="card-transparent hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-3 text-xl">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                    <Calendar className="w-6 h-6 text-blue-700" />
+                  <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg">
+                    <Calendar className="w-6 h-6 text-white" />
                   </div>
-                  <span className="text-slate-800 font-bold">Lịch dạy</span>
+                  <span className="text-gray-900 font-bold">Lịch dạy</span>
                 </CardTitle>
-                <CardDescription className="text-slate-900 font-bold">Xem lịch giảng dạy</CardDescription>
+                <CardDescription className="text-gray-700 font-medium">Xem lịch giảng dạy</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -197,7 +236,7 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
                   </div>
                 </div>
                 <Button 
-                  className="w-full mt-6 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300" 
+                  className="w-full mt-6 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300" 
                   onClick={() => onNavigate('schedule')}
                 >
                   Xem lịch dạy
@@ -208,15 +247,15 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
 
           {/* Schedule Today and Recent Assignments */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+            <Card className="card-transparent">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Calendar className="w-6 h-6 text-purple-600" />
+                  <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg">
+                    <Calendar className="w-6 h-6 text-white" />
                   </div>
-                  <span className="text-slate-800 font-bold">Lịch dạy hôm nay</span>
+                  <span className="text-gray-900 font-bold">Lịch dạy hôm nay</span>
                 </CardTitle>
-                <CardDescription className="text-slate-900 font-bold">Các buổi học trong ngày</CardDescription>
+                <CardDescription className="text-gray-700 font-medium">Các buổi học trong ngày</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-12">
@@ -229,15 +268,15 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
               </CardContent>
             </Card>
 
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+            <Card className="card-transparent">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <ClipboardCheck className="w-6 h-6 text-orange-600" />
+                  <div className="p-2 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg">
+                    <ClipboardCheck className="w-6 h-6 text-white" />
                   </div>
-                  <span className="text-slate-800 font-bold">Bài tập cần chấm</span>
+                  <span className="text-gray-900 font-bold">Bài tập cần chấm</span>
                 </CardTitle>
-                <CardDescription className="text-slate-900 font-bold">Bài tập chưa chấm điểm</CardDescription>
+                <CardDescription className="text-gray-700 font-medium">Bài tập chưa chấm điểm</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-12">
@@ -252,15 +291,15 @@ export function TeacherDashboard({ onNavigate, onLogout, user }: TeacherDashboar
           </div>
 
           {/* Students Performance */}
-          <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+          <Card className="card-transparent">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Award className="w-6 h-6 text-green-600" />
+                <div className="p-2 bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg">
+                  <Award className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-slate-800 font-bold">Thành tích học sinh</span>
+                <span className="text-gray-900 font-bold">Thành tích học sinh</span>
               </CardTitle>
-                <CardDescription className="text-slate-900 font-bold">Hiệu suất học tập của các lớp</CardDescription>
+              <CardDescription className="text-gray-700 font-medium">Hiệu suất học tập của các lớp</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center py-12">

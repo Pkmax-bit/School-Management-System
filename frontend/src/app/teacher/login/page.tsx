@@ -49,16 +49,16 @@ export default function TeacherLoginPage() {
           </Link>
         </div>
 
-        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <Card className="card-transparent shadow-xl">
           <CardHeader className="space-y-4 text-center">
             <div className="flex justify-center">
-              <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center">
-                <GraduationCap className="w-10 h-10 text-white" />
+              <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
+                <GraduationCap className="w-12 h-12 text-white" />
               </div>
             </div>
             <div>
-              <CardTitle className="text-3xl text-black">Đăng nhập Giáo viên</CardTitle>
-              <CardDescription className="text-black">Truy cập Teacher Dashboard</CardDescription>
+              <CardTitle className="text-3xl font-bold text-gray-900">Đăng nhập Giáo viên</CardTitle>
+              <CardDescription className="text-gray-600 font-medium">Truy cập Teacher Dashboard</CardDescription>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -109,7 +109,7 @@ export default function TeacherLoginPage() {
 
               <Button 
                 type="submit" 
-                className="w-full bg-green-600 hover:bg-green-700"
+                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold shadow-lg hover:shadow-xl transition-all duration-300"
                 disabled={loading}
               >
                 {loading ? 'Đang đăng nhập...' : 'Đăng nhập Teacher'}

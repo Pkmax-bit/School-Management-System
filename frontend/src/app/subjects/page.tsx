@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { BookOpen, Plus, Edit, Trash2, Search, AlertCircle, Loader2 } from 'lucide-react';
+import { BookOpen, Plus, Edit, Trash2, Search, AlertCircle, Loader2, Calendar } from 'lucide-react';
 import { subjectsApi, Subject, CreateSubjectData, UpdateSubjectData } from '@/lib/subjects-api-hybrid';
 
 export default function SubjectsPage() {
@@ -263,55 +263,63 @@ export default function SubjectsPage() {
           onLogout={logout}
         />
         <div
-          className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${
+          className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ml-0 ${
             isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
           }`}
         >
-          <div className="flex-1 flex flex-col p-6 space-y-6">
+          <div className="flex-1 flex flex-col p-4 lg:p-6 space-y-4 lg:space-y-6">
             {/* Header */}
-            <div>
-              <h1 className="text-3xl mb-2 text-gray-900">Quản lý Môn học</h1>
-              <p className="text-gray-600">Quản lý danh sách môn học trong hệ thống</p>
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 lg:p-6 text-white shadow-lg">
+              <h1 className="text-2xl lg:text-4xl font-bold mb-2">Quản lý Môn học</h1>
+              <p className="text-blue-100 text-sm lg:text-lg">Quản lý danh sách môn học trong hệ thống</p>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="card-transparent">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+              <Card className="card-transparent border-l-4 border-l-blue-500">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Tổng môn học</p>
-                      <p className="text-3xl font-bold">{subjects.length}</p>
+                      <p className="text-sm font-medium text-gray-600 mb-1">Tổng môn học</p>
+                      <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                        {subjects.length}
+                      </p>
                     </div>
-                    <BookOpen className="w-8 h-8 text-blue-600" />
+                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <BookOpen className="w-7 h-7 text-white" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="card-transparent">
+              <Card className="card-transparent border-l-4 border-l-green-500">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Môn học có mô tả</p>
-                      <p className="text-3xl font-bold">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Môn học có mô tả</p>
+                      <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">
                         {subjects.filter((s) => s.description && s.description.trim()).length}
                       </p>
                     </div>
-                    <BookOpen className="w-8 h-8 text-green-600" />
+                    <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <BookOpen className="w-7 h-7 text-white" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="card-transparent">
+              <Card className="card-transparent border-l-4 border-l-purple-500">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Môn học mới nhất</p>
-                      <p className="text-3xl font-bold">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Môn học mới nhất</p>
+                      <p className="text-lg font-bold text-gray-900">
                         {subjects.length > 0 && subjects[0].created_at
                           ? new Date(subjects[0].created_at).toLocaleDateString('vi-VN')
                           : '--'}
                       </p>
                     </div>
-                    <BookOpen className="w-8 h-8 text-purple-600" />
+                    <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <BookOpen className="w-7 h-7 text-white" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -322,22 +330,25 @@ export default function SubjectsPage() {
               <CardHeader className="card-transparent-header flex-shrink-0">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <CardTitle>Danh sách Môn học</CardTitle>
+                    <CardTitle className="text-2xl font-bold text-gray-900">Danh sách Môn học</CardTitle>
                     <p className="text-sm text-gray-600 mt-1">Quản lý tất cả môn học trong hệ thống</p>
                   </div>
-                  <div className="flex gap-2">
-                    <div className="relative">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative w-full sm:w-64">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                       <Input
                         placeholder="Tìm kiếm môn học..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 w-64"
+                        className="pl-10 w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                       />
                     </div>
                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button onClick={handleAdd}>
+                        <Button 
+                          onClick={handleAdd}
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                        >
                           <Plus className="w-4 h-4 mr-2" />
                           Thêm môn học
                         </Button>
@@ -447,31 +458,41 @@ export default function SubjectsPage() {
                     filteredSubjects.map((subject) => (
                       <div
                         key={subject.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                        className="group flex items-center justify-between p-5 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md bg-white/50 backdrop-blur-sm transition-all duration-300"
                       >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <BookOpen className="w-5 h-5 text-blue-600" />
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <BookOpen className="w-6 h-6 text-white" />
                           </div>
-                          <div>
-                            <h3 className="font-semibold text-lg">{subject.name}</h3>
-                            <p className="text-sm text-gray-600">{subject.code}</p>
+                          <div className="flex-1">
+                            <h3 className="font-bold text-lg text-gray-900 mb-1">{subject.name}</h3>
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                                {subject.code}
+                              </span>
+                            </div>
                             {subject.description && (
-                              <p className="text-sm text-gray-500 mt-1">{subject.description}</p>
+                              <p className="text-sm text-gray-600 mb-2 line-clamp-2">{subject.description}</p>
                             )}
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-gray-500 flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
                               Tạo: {subject.created_at ? new Date(subject.created_at).toLocaleDateString('vi-VN') : 'N/A'}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEdit(subject)}>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleEdit(subject)}
+                            className="border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-all duration-200"
+                          >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 transition-all duration-200"
                             onClick={() => handleDelete(subject.id)}
                           >
                             <Trash2 className="w-4 h-4" />

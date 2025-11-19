@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTeacherAuth } from '@/hooks/useTeacherAuth';
 import { useRouter } from 'next/navigation';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Quiz, QuizBuilder } from '@/components/assignments/QuizBuilder';
@@ -12,8 +13,9 @@ import { TeacherSidebar } from '@/components/TeacherSidebar';
 import { Plus } from 'lucide-react';
 
 export default function TeacherAssignmentsPage() {
-  const { user, loading } = useTeacherAuth();
+  const { user, loading, logout } = useTeacherAuth();
   const router = useRouter();
+  const { isCollapsed } = useSidebar();
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -112,16 +114,28 @@ export default function TeacherAssignmentsPage() {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
-      <TeacherSidebar currentPage="assignments" onNavigate={(path) => router.push(path)} onLogout={() => router.push('/login')} user={{ name: user.name, email: user.email }} />
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-6xl mx-auto space-y-6">
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-blue-200/60">
-            <div className="flex items-center justify-between">
+      <TeacherSidebar 
+        currentPage="assignments" 
+        onNavigate={(path) => router.push(path)} 
+        onLogout={logout}
+        user={{ name: user?.name, email: user?.email }}
+      />
+      <div className={`flex-1 overflow-y-auto p-4 lg:p-6 transition-all duration-300 ml-0 ${
+        isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+      }`}>
+        <div className="max-w-6xl mx-auto space-y-4 lg:space-y-6">
+          <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl p-4 lg:p-6 text-white shadow-xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent mb-2">Bài tập trắc nghiệm</h1>
-                <p className="text-slate-900 font-bold">Tạo và quản lý các bài trắc nghiệm cho học sinh</p>
+                <h1 className="text-2xl lg:text-4xl font-bold mb-2">Bài tập trắc nghiệm</h1>
+                <p className="text-green-100 text-sm lg:text-lg">Tạo và quản lý các bài trắc nghiệm cho học sinh</p>
               </div>
-              <Button onClick={handleCreate} className="bg-blue-700 hover:bg-blue-800 text-white font-bold"><Plus className="w-4 h-4 mr-1" /> Tạo bài mới</Button>
+              <Button 
+                onClick={handleCreate} 
+                className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/30 font-bold shadow-lg"
+              >
+                <Plus className="w-4 h-4 mr-1" /> Tạo bài mới
+              </Button>
             </div>
           </div>
 

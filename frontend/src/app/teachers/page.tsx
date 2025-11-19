@@ -354,19 +354,21 @@ export default function TeachersPage() {
         userEmail={user?.email}
       />
       
-      <div className={`flex-1 h-screen flex flex-col p-6 overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+      <div className={`flex-1 h-screen flex flex-col p-4 lg:p-6 overflow-hidden transition-all duration-300 ml-0 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
         <div className="flex-1 flex flex-col">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Quản lý Giáo viên</h1>
-            <p className="text-gray-600">Quản lý danh sách giáo viên trong hệ thống</p>
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl p-4 lg:p-6 text-white shadow-lg mb-4 lg:mb-6">
+              <h1 className="text-2xl lg:text-4xl font-bold mb-2">Quản lý Giáo viên</h1>
+              <p className="text-green-100 text-sm lg:text-lg">Quản lý danh sách giáo viên trong hệ thống</p>
+            </div>
             {user && (
-              <div className="mt-4 flex items-center gap-3 p-3 rounded-lg bg-white/70 border border-gray-200 w-fit">
-                <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200 w-fit shadow-md">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold shadow-lg">
                   {(user.name?.charAt(0) || user.email?.charAt(0) || 'U').toUpperCase()}
                 </div>
                 <div className="leading-tight">
-                  <div className="text-sm font-semibold text-gray-900">{user.name || 'User'}</div>
+                  <div className="text-sm font-bold text-gray-900">{user.name || 'User'}</div>
                   <div className="text-xs text-gray-600">{user.email}</div>
                 </div>
               </div>
@@ -374,32 +376,34 @@ export default function TeachersPage() {
           </div>
 
           {/* Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <Card className="card-transparent">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6 mb-6 lg:mb-8">
+            <Card className="card-transparent border-l-4 border-l-green-500">
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <User className="w-6 h-6 text-blue-600" />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Tổng giáo viên</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">
+                      {teachers.length}
+                    </p>
                   </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Tổng giáo viên</p>
-                    <p className="text-2xl font-bold text-gray-900">{teachers.length}</p>
+                  <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <User className="w-7 h-7 text-white" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="card-transparent">
+            <Card className="card-transparent border-l-4 border-l-purple-500">
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Calendar className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Có địa chỉ</p>
-                    <p className="text-2xl font-bold text-gray-900">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Có địa chỉ</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">
                       {teachers.filter(t => t.address && t.address.trim().length > 0).length}
                     </p>
+                  </div>
+                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Calendar className="w-7 h-7 text-white" />
                   </div>
                 </div>
               </CardContent>
@@ -411,22 +415,25 @@ export default function TeachersPage() {
             <CardHeader className="card-transparent-header">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                  <CardTitle>Danh sách Giáo viên</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-gray-900">Danh sách Giáo viên</CardTitle>
                   <p className="text-sm text-gray-600">Tổng số {filteredTeachers.length} giáo viên</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <div className="relative flex-1 md:w-64">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
                       placeholder="Tìm kiếm giáo viên..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 border-gray-300 focus:border-green-500 focus:ring-green-500"
                     />
                   </div>
                   <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button onClick={handleAdd}>
+                      <Button 
+                        onClick={handleAdd}
+                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                      >
                         <Plus className="w-4 h-4 mr-2" />
                         Thêm giáo viên
                       </Button>
@@ -647,27 +654,29 @@ export default function TeachersPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredTeachers.map((teacher) => (
-                      <TableRow key={teacher.id}>
-                        <TableCell className="font-medium">{teacher.name}</TableCell>
+                      <TableRow key={teacher.id} className="hover:bg-green-50/50 transition-colors">
+                        <TableCell className="font-bold text-gray-900">{teacher.name}</TableCell>
                         <TableCell>
-                          <div className="flex items-center">
-                            <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                            {teacher.email}
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-4 h-4 text-gray-400" />
+                            <span className="text-gray-700">{teacher.email}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{teacher.teacher_code}</Badge>
+                          <Badge variant="secondary" className="bg-green-100 text-green-700 font-semibold">
+                            {teacher.teacher_code}
+                          </Badge>
                         </TableCell>
-                        <TableCell>{teacher.phone || 'Chưa cập nhật'}</TableCell>
-                        <TableCell>{teacher.address || 'Chưa cập nhật'}</TableCell>
+                        <TableCell className="text-gray-700">{teacher.phone || <span className="text-gray-400">Chưa cập nhật</span>}</TableCell>
+                        <TableCell className="text-gray-700">{teacher.address || <span className="text-gray-400">Chưa cập nhật</span>}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">
+                          <Badge variant="outline" className="border-purple-300 text-purple-700">
                             {teacher.education_level || 'Chưa cập nhật'}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm text-gray-600">
-                            {teacher.degree_name || 'Chưa cập nhật'}
+                          <span className="text-sm text-gray-700 font-medium">
+                            {teacher.degree_name || <span className="text-gray-400">Chưa cập nhật</span>}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -676,6 +685,7 @@ export default function TeachersPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleEdit(teacher)}
+                              className="border-green-300 text-green-600 hover:bg-green-50 hover:border-green-400 transition-all duration-200"
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -683,7 +693,7 @@ export default function TeachersPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleDelete(teacher.id)}
-                              className="text-red-600 hover:text-red-700"
+                              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 transition-all duration-200"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>

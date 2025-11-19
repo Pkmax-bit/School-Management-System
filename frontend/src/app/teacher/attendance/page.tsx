@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useTeacherAuth } from '@/hooks/useTeacherAuth';
 import { useRouter } from 'next/navigation';
+import { useSidebar } from '@/contexts/SidebarContext';
+import { TeacherSidebar } from '@/components/TeacherSidebar';
 import { AttendanceSheet } from '@/components/AttendanceSheet';
 import { ClassConfirmation } from '@/components/ClassConfirmation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,8 +61,9 @@ interface AttendanceRecord {
 }
 
 export default function AttendancePage() {
-  const { user, loading } = useTeacherAuth();
+  const { user, loading, logout } = useTeacherAuth();
   const router = useRouter();
+  const { isCollapsed } = useSidebar();
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   // const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
@@ -261,19 +264,26 @@ export default function AttendancePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
+      <TeacherSidebar 
+        currentPage="attendance" 
+        onNavigate={(path) => router.push(path)} 
+        onLogout={logout}
+        user={{ name: user?.name, email: user?.email }}
+      />
+      <div className={`flex-1 overflow-y-auto p-4 lg:p-6 transition-all duration-300 ml-0 ${
+        isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+      }`}>
+        <div className="max-w-7xl mx-auto space-y-4 lg:space-y-6">
         {/* Header */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-blue-200/60">
-          <div className="flex items-center justify-between">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 lg:p-6 text-white shadow-xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent mb-2">
-                Quản lý điểm danh
-              </h1>
-              <p className="text-slate-900 text-lg font-bold">Điểm danh học sinh và xác nhận lớp dạy</p>
+              <h1 className="text-2xl lg:text-4xl font-bold mb-2">Quản lý điểm danh</h1>
+              <p className="text-blue-100 text-sm lg:text-lg">Điểm danh học sinh và xác nhận lớp dạy</p>
             </div>
             <div className="flex items-center gap-4">
-              <Button className="bg-blue-700 hover:bg-blue-800 text-white font-bold">
+              <Button className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/30 font-bold shadow-lg">
                 <Plus className="w-4 h-4 mr-2" />
                 Tạo lớp mới
               </Button>
@@ -282,9 +292,9 @@ export default function AttendancePage() {
         </div>
 
         {/* Filters */}
-        <Card>
+        <Card className="card-transparent">
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="search" className="text-sm font-bold text-slate-900 mb-2 block">
                   Tìm kiếm
@@ -342,16 +352,16 @@ export default function AttendancePage() {
         </Card>
 
         {/* Classes List */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
           {filteredClasses.map((classItem) => (
-            <Card key={classItem.id} className="hover:shadow-lg transition-shadow">
+            <Card key={classItem.id} className="card-transparent hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-xl text-slate-800">{classItem.name}</CardTitle>
-                    <CardDescription className="text-slate-600">{classItem.subject}</CardDescription>
+                    <CardTitle className="text-xl font-bold text-gray-900">{classItem.name}</CardTitle>
+                    <CardDescription className="text-gray-600 font-medium">{classItem.subject}</CardDescription>
                   </div>
-                  <Badge className={cn("text-xs font-medium", getStatusColor(classItem.status))}>
+                  <Badge className={cn("text-xs font-semibold", getStatusColor(classItem.status))}>
                     {getStatusLabel(classItem.status)}
                   </Badge>
                 </div>
@@ -389,7 +399,7 @@ export default function AttendancePage() {
                       <Button
                         size="sm"
                         onClick={() => handleStartAttendance(classItem)}
-                        className="flex-1 bg-blue-700 hover:bg-blue-800 font-bold"
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-lg"
                       >
                         <Users className="w-4 h-4 mr-1" />
                         Điểm danh
@@ -401,7 +411,7 @@ export default function AttendancePage() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleStartAttendance(classItem)}
-                        className="flex-1"
+                        className="flex-1 border-blue-300 text-blue-600 hover:bg-blue-50"
                       >
                         <Eye className="w-4 h-4 mr-1" />
                         Xem điểm danh
@@ -412,7 +422,7 @@ export default function AttendancePage() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleConfirmClass(classItem)}
-                      className="flex-1"
+                      className="flex-1 border-green-300 text-green-600 hover:bg-green-50"
                     >
                       <CheckCircle className="w-4 h-4 mr-1" />
                       Xác nhận
@@ -438,6 +448,7 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
 
       {/* Attendance Sheet Modal */}

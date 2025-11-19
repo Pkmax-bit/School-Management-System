@@ -14,9 +14,12 @@ import {
   Award,
   FileText,
   BarChart3,
-  Bell
+  Bell,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from './ui/utils';
+import { useSidebar } from '@/contexts/SidebarContext';
 
 interface TeacherSidebarProps {
   currentPage?: string;
@@ -30,7 +33,8 @@ interface TeacherSidebarProps {
 }
 
 export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout, user }: TeacherSidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { isCollapsed, setIsCollapsed } = useSidebar();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const menuItems = [
     {
@@ -114,23 +118,35 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
 
   const handleNavigation = (item: typeof menuItems[0]) => {
     onNavigate(item.path);
+    setIsMobileOpen(false); // Close mobile menu after navigation
   };
 
   return (
-    <div className={cn(
-      "bg-white/95 backdrop-blur-md border-r border-blue-200/60 shadow-xl text-slate-800 transition-all duration-300 ease-in-out",
-      isCollapsed ? "w-16" : "w-64"
-    )}>
+    <>
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div className={cn(
+        "bg-white/95 backdrop-blur-md border-r border-blue-200/60 shadow-xl text-slate-800 transition-all duration-300 ease-in-out fixed left-0 top-0 h-full z-50",
+        isCollapsed ? "w-16" : "w-64",
+        isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-blue-200/60 bg-gradient-to-r from-blue-50 to-indigo-50">
+      <div className="flex items-center justify-between p-4 border-b border-blue-200/60 bg-gradient-to-r from-blue-600 to-indigo-600">
         {!isCollapsed && (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-700 to-indigo-700 rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
               <span className="text-white font-bold text-sm">T</span>
             </div>
             <div>
-              <h1 className="font-bold text-lg text-slate-800">Teacher</h1>
-              <p className="text-xs text-slate-900 font-bold">Giảng dạy</p>
+              <h1 className="font-bold text-lg text-white">Teacher</h1>
+              <p className="text-xs text-blue-100 font-medium">Giảng dạy</p>
             </div>
           </div>
         )}
@@ -138,24 +154,32 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
           variant="ghost"
           size="sm"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-blue-700 hover:text-blue-900 hover:bg-white/60"
+          className="hidden lg:flex text-white hover:text-white hover:bg-white/20"
         >
-          {isCollapsed ? <Menu className="w-4 h-4" /> : <X className="w-4 h-4" />}
+          {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsMobileOpen(false)}
+          className="lg:hidden text-white hover:text-white hover:bg-white/20"
+        >
+          <X className="w-4 h-4" />
         </Button>
       </div>
 
       {/* User Info */}
       {!isCollapsed && user && (
-        <div className="p-4 border-b border-blue-200/60">
+        <div className="p-4 border-b border-blue-200/60 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-sm">
-                {(user.name?.charAt(0) || user.email?.charAt(0) || 'T')}
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+              <span className="text-white font-bold text-base">
+                {(user.name?.charAt(0) || user.email?.charAt(0) || 'T').toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold truncate text-slate-900">{user.name || 'Giáo viên'}</p>
-              <p className="text-xs text-slate-700 truncate">{user.email || ''}</p>
+              <p className="text-sm font-bold truncate text-gray-900">{user.name || 'Giáo viên'}</p>
+              <p className="text-xs text-gray-600 truncate">{user.email || ''}</p>
             </div>
           </div>
         </div>
@@ -174,8 +198,8 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative",
                 isActive
-                  ? "bg-gradient-to-r from-blue-700 to-indigo-700 text-white shadow-lg shadow-blue-700/25"
-                  : "text-slate-800 hover:bg-blue-50 hover:text-blue-900 hover:shadow-md"
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30"
+                  : "text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md"
               )}
             >
               <div className={cn(
@@ -229,6 +253,17 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
           {!isCollapsed && <span>Đăng xuất</span>}
         </Button>
       </div>
-    </div>
+      </div>
+
+      {/* Mobile menu button */}
+      <Button
+        variant="outline"
+        size="sm"
+        className="fixed top-4 left-4 z-40 lg:hidden bg-white/90 backdrop-blur-sm shadow-lg border-blue-200"
+        onClick={() => setIsMobileOpen(true)}
+      >
+        <Menu className="w-4 h-4" />
+      </Button>
+    </>
   );
 }

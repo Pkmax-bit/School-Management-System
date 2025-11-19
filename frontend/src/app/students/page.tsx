@@ -367,72 +367,76 @@ export default function StudentsPage() {
     <PageWithBackground>
       <div className="flex min-h-screen">
         <AdminSidebar currentPage={currentPage} onNavigate={handleNavigate} onLogout={logout} />
-      <div className={`flex-1 h-screen flex flex-col p-6 overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+      <div className={`flex-1 h-screen flex flex-col p-4 lg:p-6 overflow-hidden transition-all duration-300 ml-0 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
         <div className="flex-1 flex flex-col">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Quản lý Học sinh</h1>
-            <p className="text-gray-600 mt-2">Quản lý thông tin học sinh trong hệ thống</p>
+            <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-4 lg:p-6 text-white shadow-lg mb-4 lg:mb-6">
+              <h1 className="text-2xl lg:text-4xl font-bold mb-2">Quản lý Học sinh</h1>
+              <p className="text-purple-100 text-sm lg:text-lg">Quản lý thông tin học sinh trong hệ thống</p>
+            </div>
           </div>
 
           {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card className="card-transparent">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
+            <Card className="card-transparent border-l-4 border-l-blue-500">
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Users className="w-6 h-6 text-blue-600" />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Tổng học sinh</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                      {students.length}
+                    </p>
                   </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Tổng học sinh</p>
-                    <p className="text-2xl font-bold text-gray-900">{students.length}</p>
+                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Users className="w-7 h-7 text-white" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="card-transparent">
+            <Card className="card-transparent border-l-4 border-l-green-500">
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <MapPin className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Có địa chỉ</p>
-                    <p className="text-2xl font-bold text-gray-900">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Có địa chỉ</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">
                       {students.filter(s => s.address && s.address.trim().length > 0).length}
                     </p>
                   </div>
+                  <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <MapPin className="w-7 h-7 text-white" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="card-transparent">
+            <Card className="card-transparent border-l-4 border-l-purple-500">
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-purple-100 rounded-lg">
-                    <Calendar className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Có ngày sinh</p>
-                    <p className="text-2xl font-bold text-gray-900">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Có ngày sinh</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">
                       {students.filter(s => s.date_of_birth && s.date_of_birth.trim().length > 0).length}
                     </p>
                   </div>
+                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Calendar className="w-7 h-7 text-white" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="card-transparent">
+            <Card className="card-transparent border-l-4 border-l-orange-500">
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 bg-orange-100 rounded-lg">
-                    <UserCheck className="w-6 h-6 text-orange-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Có thông tin phụ huynh</p>
-                    <p className="text-2xl font-bold text-gray-900">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Có thông tin phụ huynh</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-orange-800 bg-clip-text text-transparent">
                       {students.filter(s => s.parent_name && s.parent_name.trim().length > 0).length}
                     </p>
+                  </div>
+                  <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <UserCheck className="w-7 h-7 text-white" />
                   </div>
                 </div>
               </CardContent>
@@ -444,10 +448,10 @@ export default function StudentsPage() {
             <CardHeader className="card-transparent-header">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                  <CardTitle>Danh sách Học sinh</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-gray-900">Danh sách Học sinh</CardTitle>
                   <p className="text-sm text-gray-600">Tổng số {filteredStudents.length} học sinh</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-3 flex-wrap">
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -691,12 +695,15 @@ export default function StudentsPage() {
                       placeholder="Tìm kiếm học sinh..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 border-gray-300 focus:border-purple-500 focus:ring-purple-500"
                     />
                   </div>
                   <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button onClick={handleAdd}>
+                      <Button 
+                        onClick={handleAdd}
+                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                      >
                         <Plus className="w-4 h-4 mr-2" />
                         Thêm học sinh
                       </Button>
@@ -912,25 +919,27 @@ export default function StudentsPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredStudents.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell className="font-medium">{student.name}</TableCell>
+                      <TableRow key={student.id} className="hover:bg-purple-50/50 transition-colors">
+                        <TableCell className="font-bold text-gray-900">{student.name}</TableCell>
                         <TableCell>
-                          <div className="flex items-center">
-                            <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                            {student.email}
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-4 h-4 text-gray-400" />
+                            <span className="text-gray-700">{student.email}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{student.student_code}</Badge>
+                          <Badge variant="secondary" className="bg-purple-100 text-purple-700 font-semibold">
+                            {student.student_code}
+                          </Badge>
                         </TableCell>
-                        <TableCell>{student.phone || 'Chưa cập nhật'}</TableCell>
-                        <TableCell>{student.address || 'Chưa cập nhật'}</TableCell>
-                        <TableCell>
-                          {student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
+                        <TableCell className="text-gray-700">{student.phone || <span className="text-gray-400">Chưa cập nhật</span>}</TableCell>
+                        <TableCell className="text-gray-700">{student.address || <span className="text-gray-400">Chưa cập nhật</span>}</TableCell>
+                        <TableCell className="text-gray-700">
+                          {student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString('vi-VN') : <span className="text-gray-400">Chưa cập nhật</span>}
                         </TableCell>
                         <TableCell>
                           <div className="text-sm">
-                            <div className="font-medium">{student.parent_name || 'Chưa cập nhật'}</div>
+                            <div className="font-medium text-gray-700">{student.parent_name || <span className="text-gray-400">Chưa cập nhật</span>}</div>
                             {student.parent_phone && (
                               <div className="text-gray-500">{student.parent_phone}</div>
                             )}
@@ -942,6 +951,7 @@ export default function StudentsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleEdit(student)}
+                              className="border-purple-300 text-purple-600 hover:bg-purple-50 hover:border-purple-400 transition-all duration-200"
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -949,7 +959,7 @@ export default function StudentsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleDelete(student)}
-                              className="text-red-600 hover:text-red-700"
+                              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 transition-all duration-200"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
