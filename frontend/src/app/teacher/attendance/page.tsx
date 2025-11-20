@@ -94,6 +94,14 @@ type ScheduleAttendanceInfo = {
   excusedCount: number;
 };
 
+const extractApiDataArray = (response: any) => {
+  if (!response) return [];
+  const payload = response.data !== undefined ? response.data : response;
+  if (Array.isArray(payload)) return payload;
+  if (payload?.data && Array.isArray(payload.data)) return payload.data;
+  return [];
+};
+
 export default function AttendancePage() {
   const { user, loading, logout } = useTeacherAuth();
   const router = useRouter();
@@ -143,12 +151,13 @@ export default function AttendancePage() {
       date: queryDate,
     });
 
-    const attendance =
-      attendanceResponse?.data &&
-      Array.isArray(attendanceResponse.data) &&
-      attendanceResponse.data.length > 0
-        ? attendanceResponse.data[0]
-        : null;
+    const attendanceList = extractApiDataArray(attendanceResponse);
+    let attendance = attendanceList.find(
+      (item: any) =>
+        item &&
+        item.classroom_id === classId &&
+        item.date === scheduleDate
+    ) || attendanceList[0];
 
     if (!attendance) {
       return null;
@@ -319,10 +328,12 @@ export default function AttendancePage() {
               classroom_id: classroom.id,
               date: today
             });
+            const attendanceList = extractApiDataArray(attendanceResponse);
+            const attendance = attendanceList.find(
+              (item: any) => item && item.classroom_id === classroom.id && item.date === today
+            ) || attendanceList[0];
             
-            if (attendanceResponse?.data && Array.isArray(attendanceResponse.data) && attendanceResponse.data.length > 0) {
-              const attendance = attendanceResponse.data[0];
-              
+            if (attendance) {
               // Parse records using utility function
               const records = parseAttendanceRecords(attendance.records);
               
@@ -589,48 +600,43 @@ export default function AttendancePage() {
         const scheduleKey = `${classId}_${schedule.id}_${schedule.date}`;
         
         try {
-          const attendanceResponse = await attendancesAPI.getAttendances({
-            classroom_id: classId,
-            date: schedule.date
-          });
+          const attendance = await fetchAttendanceForSchedule(classId, schedule.date);
 
-          if (attendanceResponse?.data && Array.isArray(attendanceResponse.data) && attendanceResponse.data.length > 0) {
-            const attendance = attendanceResponse.data[0];
-            
+          if (attendance) {
             // Parse records using utility function
             const records = parseAttendanceRecords(attendance.records);
             const stats = countAttendanceStats(records);
             const attendedCount = stats.total;
-              
-              console.log(`Schedule ${schedule.id} attendance:`, {
-                scheduleKey,
-                totalStudents,
-                attendedCount,
-                recordsKeys: Object.keys(records)
-              });
-              
+            
+            console.log(`Schedule ${schedule.id} attendance:`, {
+              scheduleKey,
+              totalStudents,
+              attendedCount,
+              recordsKeys: Object.keys(records)
+            });
+
             let status: ScheduleAttendanceInfo['status'] = 'not_started';
-              if (attendedCount === 0) {
+            if (attendedCount === 0) {
               status = 'not_started';
-              } else if (attendedCount < totalStudents) {
+            } else if (attendedCount < totalStudents) {
               status = 'incomplete';
-              } else {
+            } else {
               status = 'complete';
             }
 
-                attendanceStatusMap[scheduleKey] = {
-                  totalStudents,
-                  attendedCount,
+            attendanceStatusMap[scheduleKey] = {
+              totalStudents,
+              attendedCount,
               status,
               presentCount: stats.present,
               absentCount: stats.absent,
               lateCount: stats.late,
               excusedCount: stats.excused
             };
-            } else {
-              attendanceStatusMap[scheduleKey] = {
-                totalStudents,
-                attendedCount: 0,
+          } else {
+            attendanceStatusMap[scheduleKey] = {
+              totalStudents,
+              attendedCount: 0,
               status: 'not_started',
               presentCount: 0,
               absentCount: 0,
@@ -696,7 +702,7 @@ export default function AttendancePage() {
     } catch (err) {
       console.error('Error loading attendance status:', err);
     }
-  }, [students, loadStudentsForClass]);
+  }, [students, loadStudentsForClass, fetchAttendanceForSchedule]);
 
   const handleSelectAttendanceStatus = useCallback((scheduleContext: { schedule: Schedule; classItem: Class } | null, studentId: string, status: 'present' | 'absent' | 'late' | 'excused') => {
     if (!scheduleContext?.schedule?.date || !studentId) return;
@@ -1472,23 +1478,27 @@ export default function AttendancePage() {
       });
 
       // Check if attendance already exists
-      let existingAttendance;
+      let existingAttendanceRecord: any = null;
       try {
-        existingAttendance = await attendancesAPI.getAttendances({
+        const existingAttendance = await attendancesAPI.getAttendances({
           classroom_id: classItem.id,
           date: today
         });
-        console.log('Existing attendance check:', existingAttendance);
+        const existingList = extractApiDataArray(existingAttendance);
+        existingAttendanceRecord = existingList.find(
+          (item: any) => item && item.classroom_id === classItem.id && item.date === today
+        ) || existingList[0];
+        console.log('Existing attendance check:', existingAttendanceRecord);
       } catch (err) {
         console.warn('Error checking existing attendance:', err);
-        existingAttendance = null;
+        existingAttendanceRecord = null;
       }
 
-      if (existingAttendance?.data && Array.isArray(existingAttendance.data) && existingAttendance.data.length > 0) {
+      if (existingAttendanceRecord?.id) {
         // Update existing attendance
         try {
-          console.log('Updating existing attendance:', existingAttendance.data[0].id);
-          await attendancesAPI.updateAttendance(existingAttendance.data[0].id, {
+          console.log('Updating existing attendance:', existingAttendanceRecord.id);
+          await attendancesAPI.updateAttendance(existingAttendanceRecord.id, {
             records,
             confirmed_at: new Date().toISOString()
           });
@@ -1529,8 +1539,12 @@ export default function AttendancePage() {
                 classroom_id: classItem.id,
                 date: today
               });
-              if (retryAttendance?.data && Array.isArray(retryAttendance.data) && retryAttendance.data.length > 0) {
-                await attendancesAPI.updateAttendance(retryAttendance.data[0].id, {
+              const retryList = extractApiDataArray(retryAttendance);
+              const retryRecord = retryList.find(
+                (item: any) => item && item.classroom_id === classItem.id && item.date === today
+              ) || retryList[0];
+              if (retryRecord?.id) {
+                await attendancesAPI.updateAttendance(retryRecord.id, {
                   records,
                   confirmed_at: new Date().toISOString()
                 });
@@ -1622,10 +1636,14 @@ export default function AttendancePage() {
         classroom_id: selectedClass.id,
         date: attendanceDate
       });
+      const existingList = extractApiDataArray(existingAttendance);
+      const existingRecord = existingList.find(
+        (item: any) => item && item.classroom_id === selectedClass.id && item.date === attendanceDate
+      ) || existingList[0];
       
-      if (existingAttendance?.data && Array.isArray(existingAttendance.data) && existingAttendance.data.length > 0) {
+      if (existingRecord?.id) {
         // Update existing attendance
-        await attendancesAPI.updateAttendance(existingAttendance.data[0].id, {
+        await attendancesAPI.updateAttendance(existingRecord.id, {
           records,
           confirmed_at: new Date().toISOString()
         });
@@ -1905,127 +1923,19 @@ export default function AttendancePage() {
                             Chỉ có thể điểm danh trong ngày học
                           </div>
                         )}
-                         <Button
-                           size="sm"
-                           variant="outline"
-                           onClick={async () => {
-                             await loadStudentsForClass(classItem.id);
-                             setSelectedSchedule({ schedule: todaySchedule, classItem });
-                             
-                             // Load attendance records for this date
-                             setLoadingAttendanceForStudentList(true);
-                             try {
-                               // Ensure date format is correct (YYYY-MM-DD)
-                               const today = new Date().toISOString().split('T')[0];
-                               const queryDate = todaySchedule.date || today;
-                               
-                               console.log('Querying attendance with:', {
-                                 classroom_id: classItem.id,
-                                 schedule_date: todaySchedule.date,
-                                 query_date: queryDate,
-                                 today: today
-                               });
-                               
-                               const attendanceResponse = await attendancesAPI.getAttendances({
-                                 classroom_id: classItem.id,
-                                 date: queryDate
-                               });
-                               
-                               console.log('=== Loading Attendance for Student List ===');
-                               console.log('Query date:', queryDate);
-                               console.log('Today:', today);
-                               console.log('Schedule date:', todaySchedule.date);
-                               console.log('Attendance response:', attendanceResponse);
-                               console.log('Attendance response.data:', attendanceResponse?.data);
-                               console.log('Attendance response.data type:', typeof attendanceResponse?.data);
-                               console.log('Attendance response.data is array?', Array.isArray(attendanceResponse?.data));
-                               
-                               const attendance = attendanceResponse?.data && Array.isArray(attendanceResponse.data) && attendanceResponse.data.length > 0 
-                                 ? attendanceResponse.data[0] 
-                                 : null;
-                               
-                               console.log('Selected attendance:', attendance);
-                               console.log('Selected attendance ID:', attendance?.id);
-                               console.log('Selected attendance date:', attendance?.date);
-                               console.log('Records raw:', attendance?.records);
-                               console.log('Records type:', typeof attendance?.records);
-                               console.log('Records is string?', typeof attendance?.records === 'string');
-                               console.log('Records is object?', typeof attendance?.records === 'object' && !Array.isArray(attendance?.records));
-                               if (attendance?.records) {
-                                 if (typeof attendance.records === 'string') {
-                                   console.log('Records string length:', attendance.records.length);
-                                   console.log('Records string preview:', attendance.records.substring(0, 200));
-                                 } else if (typeof attendance.records === 'object') {
-                                   console.log('Records object keys:', Object.keys(attendance.records));
-                                   console.log('Records object keys count:', Object.keys(attendance.records).length);
-                                 }
-                               }
-                               
-                               // Parse records if it's a string and create a new object to avoid mutation
-                               const attendanceToSet = attendance ? { ...attendance } : null;
-                               
-                               if (attendanceToSet && attendanceToSet.records) {
-                                 console.log('Before parsing - records type:', typeof attendanceToSet.records);
-                                 console.log('Before parsing - records value:', attendanceToSet.records);
-                                 
-                                 if (typeof attendanceToSet.records === 'string') {
-                                   try {
-                                     const parsed = JSON.parse(attendanceToSet.records);
-                                     attendanceToSet.records = parsed;
-                                     console.log('✅ Parsed records from string:', parsed);
-                                     console.log('Parsed records type:', typeof parsed);
-                                     console.log('Parsed records keys:', Object.keys(parsed));
-                                   } catch (err) {
-                                     console.error('❌ Error parsing records:', err);
-                                     attendanceToSet.records = {};
-                                   }
-                                 } else if (typeof attendanceToSet.records === 'object' && !Array.isArray(attendanceToSet.records)) {
-                                   // Clone the object to avoid mutation
-                                   attendanceToSet.records = { ...attendanceToSet.records };
-                                   console.log('✅ Records is already an object, cloned it');
-                                   console.log('Records keys:', Object.keys(attendanceToSet.records));
-                                 }
-                                 
-                                 // Final validation
-                                 console.log('Final attendanceToSet.records:', attendanceToSet.records);
-                                 console.log('Final records type:', typeof attendanceToSet.records);
-                                 console.log('Final records keys count:', Object.keys(attendanceToSet.records || {}).length);
-                                 
-                                 // Log each key-value pair
-                                 if (attendanceToSet.records && typeof attendanceToSet.records === 'object') {
-                                   Object.entries(attendanceToSet.records).forEach(([key, value]) => {
-                                     console.log(`Record key: "${key}" (type: ${typeof key}), value:`, value);
-                                   });
-                                 }
-                               } else {
-                                 console.warn('⚠️ No attendance or records found');
-                               }
-                               
-                               setAttendanceForStudentList(attendanceToSet);
-                               console.log('✅ Set attendanceForStudentList:', attendanceToSet);
-                               console.log('✅ Records in attendanceToSet:', attendanceToSet?.records);
-                               console.log('✅ Records keys count:', attendanceToSet?.records ? Object.keys(attendanceToSet.records).length : 0);
-                               
-                               // CRITICAL: Only show modal after attendance is loaded
-                               if (attendanceToSet) {
-                                 setShowStudentList(true);
-                               } else {
-                                 console.warn('⚠️ No attendance data, not showing modal');
-                                 alert('Không tìm thấy dữ liệu điểm danh cho lịch học này.');
-                               }
-                             } catch (err) {
-                               console.error('Error loading attendance for student list:', err);
-                               setAttendanceForStudentList(null);
-                               alert('Không thể tải dữ liệu điểm danh. Vui lòng thử lại.');
-                             } finally {
-                               setLoadingAttendanceForStudentList(false);
-                             }
-                           }}
-                           className="flex-1 border-blue-300 text-blue-600 hover:bg-blue-50"
-                         >
-                           <Eye className="w-4 h-4 mr-1" />
-                           Xem học sinh
-                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewAttendance(classItem, todaySchedule)}
+                          disabled={!todaySchedule.date || loadingAttendanceForStudentList}
+                          className={cn(
+                            "flex-1 border-blue-300 text-blue-600 hover:bg-blue-50",
+                            (!todaySchedule.date || loadingAttendanceForStudentList) && "opacity-60 cursor-not-allowed"
+                          )}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          Xem học sinh
+                        </Button>
                       </div>
                     </div>
                   );
@@ -2477,7 +2387,7 @@ export default function AttendancePage() {
                           )}
                           <Button
                             variant="ghost"
-                            onClick={() => handleViewAttendance(detailSchedule.classItem, detailSchedule.schedule)}
+                                  onClick={() => handleViewAttendance(detailSchedule.classItem, detailSchedule.schedule)}
                             className="text-blue-600 hover:text-blue-700"
                           >
                             <Eye className="w-4 h-4 mr-2" />
