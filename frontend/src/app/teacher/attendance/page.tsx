@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTeacherAuth } from '@/hooks/useTeacherAuth';
 import { useRouter } from 'next/navigation';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -19,6 +19,7 @@ import {
   Plus,
   Search,
   Filter,
+  RefreshCcw,
   Download,
   Eye,
   BookOpen,
@@ -31,6 +32,7 @@ import classroomsHybridApi from '@/lib/classrooms-api-hybrid';
 import { attendancesAPI } from '@/lib/api';
 import { studentsApi } from '@/lib/students-api';
 import schedulesApi, { Schedule } from '@/lib/schedules-api';
+import { supabase } from '@/lib/supabase';
 import { ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { 
   parseAttendanceRecords, 
@@ -82,6 +84,16 @@ interface AttendanceRecord {
   confirmedAt?: string;
 }
 
+type ScheduleAttendanceInfo = {
+  totalStudents: number;
+  attendedCount: number;
+  status: 'complete' | 'incomplete' | 'not_started';
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+};
+
 export default function AttendancePage() {
   const { user, loading, logout } = useTeacherAuth();
   const router = useRouter();
@@ -100,11 +112,7 @@ export default function AttendancePage() {
   const [loadingSchedules, setLoadingSchedules] = useState<Record<string, boolean>>({});
   const [showStudentList, setShowStudentList] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<{ schedule: Schedule; classItem: Class } | null>(null);
-  const [scheduleAttendances, setScheduleAttendances] = useState<Record<string, {
-    totalStudents: number;
-    attendedCount: number;
-    status: 'complete' | 'incomplete' | 'not_started';
-  }>>({});
+  const [scheduleAttendances, setScheduleAttendances] = useState<Record<string, ScheduleAttendanceInfo>>({});
   const [classAttendanceStats, setClassAttendanceStats] = useState<Record<string, {
     totalSchedules: number;
     completedCount: number;
@@ -113,6 +121,12 @@ export default function AttendancePage() {
   const [quickAttendanceLoading, setQuickAttendanceLoading] = useState<Record<string, boolean>>({});
   const [attendanceForStudentList, setAttendanceForStudentList] = useState<any>(null);
   const [loadingAttendanceForStudentList, setLoadingAttendanceForStudentList] = useState(false);
+  const [activeClassForDetail, setActiveClassForDetail] = useState<Class | null>(null);
+  const [detailSchedule, setDetailSchedule] = useState<{ schedule: Schedule; classItem: Class } | null>(null);
+  const [detailAttendance, setDetailAttendance] = useState<any>(null);
+  const [loadingDetailAttendance, setLoadingDetailAttendance] = useState(false);
+  const [pendingAttendanceChanges, setPendingAttendanceChanges] = useState<Record<string, Record<string, 'present' | 'absent' | 'late' | 'excused'>>>({});
+  const [savingAttendance, setSavingAttendance] = useState<Record<string, boolean>>({});
   
   const fetchAttendanceForSchedule = useCallback(async (classId: string, scheduleDate?: string | null) => {
     if (!scheduleDate) {
@@ -159,6 +173,26 @@ export default function AttendancePage() {
     return attendanceToSet;
   }, []);
 
+  const getAuthToken = useCallback(async (): Promise<string | null> => {
+    if (typeof window === 'undefined') return null;
+    const storedToken =
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('token');
+
+    if (storedToken && storedToken.trim() !== '') {
+      return storedToken.trim();
+    }
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      return data.session?.access_token || null;
+    } catch (err) {
+      console.warn('AttendancePage: unable to get Supabase session token', err);
+      return null;
+    }
+  }, []);
+
   // Debug: Log when attendanceForStudentList changes
   useEffect(() => {
     console.log('🔄 attendanceForStudentList state changed:', attendanceForStudentList);
@@ -184,14 +218,19 @@ export default function AttendancePage() {
       try {
         // Try to get teacher_id from teachers table using user_id
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token') || localStorage.getItem('token');
+        const token = await getAuthToken();
         
-        // Query all teachers and find the one matching user_id
-        const teachersResponse = await fetch(`${API_BASE_URL}/api/teachers?limit=1000`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
+        const headers: Record<string, string> = {
             'Content-Type': 'application/json',
-          },
+        };
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        } else {
+          console.warn('AttendancePage: no auth token found when fetching teachers');
+        }
+        
+        const teachersResponse = await fetch(`${API_BASE_URL}/api/teachers?limit=1000`, {
+          headers,
         });
         
         if (teachersResponse.ok) {
@@ -214,7 +253,11 @@ export default function AttendancePage() {
             teacherId = user.id;
           }
         } else {
-          // Fallback to user.id if API call fails
+          const errorText = await teachersResponse.text();
+          console.warn('AttendancePage: teachers API failed', {
+            status: teachersResponse.status,
+            errorText,
+          });
           teacherId = user.id;
         }
       } catch (err) {
@@ -230,7 +273,21 @@ export default function AttendancePage() {
       }
       
       // Fetch classrooms for this teacher
-      const classroomsData = await classroomsHybridApi.list({ teacher_id: teacherId });
+      let classroomsData: any[] = [];
+      try {
+        classroomsData = await classroomsHybridApi.list({ teacher_id: teacherId });
+      } catch (apiError: any) {
+        console.error('Không thể tải danh sách lớp học:', apiError);
+        if (apiError?.message?.includes('Forbidden')) {
+          setError('Bạn không có quyền truy cập danh sách lớp học. Vui lòng đăng nhập lại hoặc liên hệ quản trị viên.');
+        } else if (apiError?.message?.includes('HTTP 401')) {
+          setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tiếp tục.');
+        } else {
+          setError(apiError?.message || 'Không thể tải danh sách lớp học.');
+        }
+        setLoadingClasses(false);
+        return;
+      }
       
       // Transform to Class format
       const transformedClasses: Class[] = await Promise.all(
@@ -383,7 +440,7 @@ export default function AttendancePage() {
     } finally {
       setLoadingClasses(false);
     }
-  }, [user]);
+  }, [getAuthToken, user]);
 
   // Load students for selected class
   const loadStudentsForClass = useCallback(async (classId: string) => {
@@ -487,62 +544,29 @@ export default function AttendancePage() {
         await loadStudentsForClass(classItem.id);
         setLoadingAttendanceForStudentList(true);
         const attendance = await fetchAttendanceForSchedule(classItem.id, schedule.date);
-        setLoadingAttendanceForStudentList(false);
+        setSelectedSchedule({ schedule, classItem });
 
-        if (!attendance) {
-          alert('Không tìm thấy dữ liệu điểm danh cho lịch học này.');
-          return;
+        if (attendance) {
+          setAttendanceForStudentList(attendance);
+        } else {
+          setAttendanceForStudentList({
+            classroom_id: classItem.id,
+            date: schedule.date,
+            records: {}
+          });
+          alert('Không tìm thấy dữ liệu điểm danh cho lịch học này. Vui lòng điểm danh để bắt đầu.');
         }
 
-        setSelectedSchedule({ schedule, classItem });
-        setAttendanceForStudentList(attendance);
         setShowStudentList(true);
       } catch (error) {
         console.error('Error loading attendance for schedule:', error);
-        setLoadingAttendanceForStudentList(false);
         alert('Không thể tải dữ liệu điểm danh. Vui lòng thử lại.');
+      } finally {
+        setLoadingAttendanceForStudentList(false);
       }
     },
     [fetchAttendanceForSchedule, loadStudentsForClass]
   );
-
-  // Load schedules for a classroom
-  const loadSchedulesForClass = useCallback(async (classId: string) => {
-    if (classSchedules[classId]) {
-      // Already loaded
-      return;
-    }
-
-    try {
-      setLoadingSchedules(prev => ({ ...prev, [classId]: true }));
-      const schedules = await schedulesApi.list({ classroom_id: classId });
-      
-      // Sort schedules by date (if available) or by day_of_week
-      const sortedSchedules = (schedules || []).sort((a: Schedule, b: Schedule) => {
-        if (a.date && b.date) {
-          return a.date.localeCompare(b.date);
-        }
-        if (a.date) return -1;
-        if (b.date) return 1;
-        return a.day_of_week - b.day_of_week;
-      });
-
-      setClassSchedules(prev => ({ ...prev, [classId]: sortedSchedules }));
-
-      // Find today's schedule
-      const today = new Date().toISOString().split('T')[0];
-      const todaySchedule = sortedSchedules.find((s: Schedule) => s.date === today) || null;
-      setTodaySchedules(prev => ({ ...prev, [classId]: todaySchedule }));
-
-      // Load attendance status for each schedule (this will also update stats)
-      await loadAttendanceStatusForSchedules(classId, sortedSchedules);
-    } catch (err) {
-      console.error('Error loading schedules:', err);
-      setClassSchedules(prev => ({ ...prev, [classId]: [] }));
-    } finally {
-      setLoadingSchedules(prev => ({ ...prev, [classId]: false }));
-    }
-  }, [classSchedules]);
 
   // Load attendance status for schedules
   const loadAttendanceStatusForSchedules = useCallback(async (classId: string, schedules: Schedule[]) => {
@@ -557,11 +581,7 @@ export default function AttendancePage() {
       }
       
       // Load attendance for each schedule date
-      const attendanceStatusMap: Record<string, {
-        totalStudents: number;
-        attendedCount: number;
-        status: 'complete' | 'incomplete' | 'not_started';
-      }> = {};
+      const attendanceStatusMap: Record<string, ScheduleAttendanceInfo> = {};
 
       for (const schedule of schedules) {
         if (!schedule.date) continue; // Skip recurring schedules without specific date
@@ -579,9 +599,8 @@ export default function AttendancePage() {
             
             // Parse records using utility function
             const records = parseAttendanceRecords(attendance.records);
-            
-            if (records && Object.keys(records).length > 0) {
-              const attendedCount = Object.keys(records).length;
+            const stats = countAttendanceStats(records);
+            const attendedCount = stats.total;
               
               console.log(`Schedule ${schedule.id} attendance:`, {
                 scheduleKey,
@@ -590,37 +609,33 @@ export default function AttendancePage() {
                 recordsKeys: Object.keys(records)
               });
               
+            let status: ScheduleAttendanceInfo['status'] = 'not_started';
               if (attendedCount === 0) {
-                attendanceStatusMap[scheduleKey] = {
-                  totalStudents,
-                  attendedCount: 0,
-                  status: 'not_started'
-                };
+              status = 'not_started';
               } else if (attendedCount < totalStudents) {
-                attendanceStatusMap[scheduleKey] = {
-                  totalStudents,
-                  attendedCount,
-                  status: 'incomplete'
-                };
+              status = 'incomplete';
               } else {
+              status = 'complete';
+            }
+
                 attendanceStatusMap[scheduleKey] = {
                   totalStudents,
                   attendedCount,
-                  status: 'complete'
-                };
-              }
+              status,
+              presentCount: stats.present,
+              absentCount: stats.absent,
+              lateCount: stats.late,
+              excusedCount: stats.excused
+            };
             } else {
               attendanceStatusMap[scheduleKey] = {
                 totalStudents,
                 attendedCount: 0,
-                status: 'not_started'
-              };
-            }
-          } else {
-            attendanceStatusMap[scheduleKey] = {
-              totalStudents,
-              attendedCount: 0,
-              status: 'not_started'
+              status: 'not_started',
+              presentCount: 0,
+              absentCount: 0,
+              lateCount: 0,
+              excusedCount: 0
             };
           }
         } catch (err) {
@@ -628,7 +643,11 @@ export default function AttendancePage() {
           attendanceStatusMap[scheduleKey] = {
             totalStudents,
             attendedCount: 0,
-            status: 'not_started'
+            status: 'not_started',
+            presentCount: 0,
+            absentCount: 0,
+            lateCount: 0,
+            excusedCount: 0
           };
         }
       }
@@ -679,6 +698,145 @@ export default function AttendancePage() {
     }
   }, [students, loadStudentsForClass]);
 
+  const handleSelectAttendanceStatus = useCallback((scheduleContext: { schedule: Schedule; classItem: Class } | null, studentId: string, status: 'present' | 'absent' | 'late' | 'excused') => {
+    if (!scheduleContext?.schedule?.date || !studentId) return;
+    const today = new Date().toISOString().split('T')[0];
+    if (scheduleContext.schedule.date !== today) {
+      alert('Bạn chỉ có thể chọn trạng thái trong đúng ngày của lịch học.');
+      return;
+    }
+
+    const scheduleKey = getScheduleKey(scheduleContext.classItem.id, scheduleContext.schedule);
+    setPendingAttendanceChanges(prev => ({
+      ...prev,
+      [scheduleKey]: {
+        ...(prev[scheduleKey] || {}),
+        [studentId]: status
+      }
+    }));
+  }, []);
+
+  const handleSavePendingAttendance = useCallback(async (classItem: Class, schedule: Schedule) => {
+    if (!schedule?.date) {
+      alert('Lịch học này chưa có ngày cụ thể.');
+      return;
+    }
+    const scheduleKey = getScheduleKey(classItem.id, schedule);
+    const pendingChanges = pendingAttendanceChanges[scheduleKey];
+    if (!pendingChanges || Object.keys(pendingChanges).length === 0) {
+      alert('Không có thay đổi nào cần lưu.');
+      return;
+    }
+
+    setSavingAttendance(prev => ({ ...prev, [scheduleKey]: true }));
+    try {
+      let attendanceRecord = await fetchAttendanceForSchedule(classItem.id, schedule.date);
+      const existingRecords = parseAttendanceRecords(attendanceRecord?.records || {});
+      const updatedRecords = { ...existingRecords };
+
+      Object.entries(pendingChanges).forEach(([studentId, status]) => {
+        updatedRecords[studentId] = {
+          ...(existingRecords[studentId] || {}),
+          status,
+          notes: existingRecords[studentId]?.notes || '',
+          timestamp: new Date().toISOString(),
+          student_id: studentId
+        };
+      });
+
+      if (attendanceRecord?.id) {
+        await attendancesAPI.updateAttendance(attendanceRecord.id, {
+          records: updatedRecords,
+          confirmed_at: new Date().toISOString()
+        });
+      } else {
+        const created = await attendancesAPI.createAttendance({
+          classroom_id: classItem.id,
+          date: schedule.date,
+          records: updatedRecords,
+          confirmed_at: new Date().toISOString()
+        });
+        attendanceRecord = created?.data ? created.data : created;
+      }
+
+      setPendingAttendanceChanges(prev => {
+        const next = { ...prev };
+        delete next[scheduleKey];
+        return next;
+      });
+
+      if (detailSchedule && detailSchedule.classItem.id === classItem.id && detailSchedule.schedule.date === schedule.date) {
+        setDetailAttendance(attendanceRecord);
+      }
+
+      if (selectedSchedule && selectedSchedule.classItem.id === classItem.id && selectedSchedule.schedule.date === schedule.date) {
+        setAttendanceForStudentList(attendanceRecord);
+      }
+
+      const schedulesForUpdate = classSchedules[classItem.id] && classSchedules[classItem.id]!.length > 0
+        ? classSchedules[classItem.id]!
+        : [schedule];
+      await loadAttendanceStatusForSchedules(classItem.id, schedulesForUpdate);
+      await loadClassrooms();
+      if (detailSchedule?.classItem.id === classItem.id) {
+        await handleDetailScheduleSelect(classItem, schedule);
+      }
+      alert('✅ Đã lưu điểm danh cho lịch học này.');
+    } catch (err) {
+      console.error('Error saving attendance:', err);
+      alert('Không thể lưu điểm danh. Vui lòng thử lại.');
+    } finally {
+      setSavingAttendance(prev => {
+        const next = { ...prev };
+        delete next[scheduleKey];
+        return next;
+      });
+    }
+  }, [classSchedules, detailSchedule, fetchAttendanceForSchedule, loadAttendanceStatusForSchedules, pendingAttendanceChanges, selectedSchedule]);
+
+  // Load schedules for a classroom
+  const loadSchedulesForClass = useCallback(async (classId: string): Promise<Schedule[]> => {
+    if (classSchedules[classId]) {
+      // Already loaded
+      return classSchedules[classId];
+    }
+
+    try {
+      setLoadingSchedules(prev => ({ ...prev, [classId]: true }));
+      const schedules = await schedulesApi.list({ classroom_id: classId });
+      
+      const classroomSchedules = filterSchedulesForClass(classId, schedules || []);
+      
+      // Sort schedules by date (if available) or by day_of_week
+      const sortedSchedules = classroomSchedules.sort((a: Schedule, b: Schedule) => {
+        if (a.date && b.date) {
+          return a.date.localeCompare(b.date);
+        }
+        if (a.date) return -1;
+        if (b.date) return 1;
+        return a.day_of_week - b.day_of_week;
+      });
+
+      setClassSchedules(prev => ({ ...prev, [classId]: sortedSchedules }));
+
+      // Find today's schedule
+      const today = new Date().toISOString().split('T')[0];
+      const todaySchedule = sortedSchedules.find((s: Schedule) => s.date === today) || null;
+      setTodaySchedules(prev => ({ ...prev, [classId]: todaySchedule }));
+
+      // Load attendance status for each schedule (this will also update stats)
+      await loadAttendanceStatusForSchedules(classId, sortedSchedules);
+
+      return sortedSchedules;
+    } catch (err) {
+      console.error('Error loading schedules:', err);
+      setClassSchedules(prev => ({ ...prev, [classId]: [] }));
+      return [];
+    } finally {
+      setLoadingSchedules(prev => ({ ...prev, [classId]: false }));
+    }
+  }, [classSchedules, loadAttendanceStatusForSchedules]);
+
   // Handle class click to expand/collapse schedules
   const handleClassClick = async (classId: string) => {
     if (expandedClassId === classId) {
@@ -688,6 +846,64 @@ export default function AttendancePage() {
       await loadSchedulesForClass(classId);
     }
   };
+
+  const handleDetailScheduleSelect = useCallback(async (classItem: Class, schedule: Schedule) => {
+    if (!schedule?.date) {
+      alert('Lịch học này chưa có ngày cụ thể, không thể hiển thị chi tiết.');
+      return;
+    }
+
+    setActiveClassForDetail(classItem);
+    setDetailSchedule({ schedule, classItem });
+    setLoadingDetailAttendance(true);
+
+    try {
+      await loadStudentsForClass(classItem.id);
+      const attendance = await fetchAttendanceForSchedule(classItem.id, schedule.date);
+      if (attendance) {
+        setDetailAttendance(attendance);
+      } else {
+        setDetailAttendance({
+          classroom_id: classItem.id,
+          date: schedule.date,
+          records: {}
+        });
+      }
+    } catch (err) {
+      console.error('Error loading attendance for detail view:', err);
+      setDetailAttendance({
+        classroom_id: classItem.id,
+        date: schedule.date,
+        records: {}
+      });
+    } finally {
+      setLoadingDetailAttendance(false);
+    }
+  }, [fetchAttendanceForSchedule, loadStudentsForClass]);
+
+  const handleFocusClass = useCallback(async (classItem: Class) => {
+    setActiveClassForDetail(classItem);
+    await loadStudentsForClass(classItem.id);
+    const schedules = await loadSchedulesForClass(classItem.id);
+    const existingSchedules = classSchedules[classItem.id] || schedules || [];
+
+    if (existingSchedules.length === 0) {
+      setDetailSchedule(null);
+      setDetailAttendance(null);
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    let defaultSchedule = existingSchedules.find((s) => s.date === today);
+
+    if (!defaultSchedule) {
+      defaultSchedule = existingSchedules.find((s) => s.date && s.date > today) || existingSchedules[0];
+    }
+
+    if (defaultSchedule) {
+      await handleDetailScheduleSelect(classItem, defaultSchedule);
+    }
+  }, [classSchedules, handleDetailScheduleSelect, loadSchedulesForClass, loadStudentsForClass]);
 
   // Check if schedule date is today
   const isScheduleToday = (schedule: Schedule): boolean => {
@@ -724,6 +940,330 @@ export default function AttendancePage() {
     // For recurring schedules, show day of week
     const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
     return days[schedule.day_of_week] || 'Không xác định';
+  };
+
+  const getScheduleKey = (classId: string, schedule: Schedule) => {
+    return `${classId}_${schedule.id}_${schedule.date || ''}`;
+  };
+
+  const getScheduleVisualState = (info?: ScheduleAttendanceInfo) => {
+    if (!info) {
+      return {
+        border: 'border-blue-200',
+        background: 'bg-blue-50',
+        hover: 'hover:bg-blue-100',
+        badge: 'bg-blue-100 text-blue-800',
+        label: 'Chưa điểm danh'
+      };
+    }
+
+    const presentEquivalent = info.presentCount + info.lateCount;
+    const absentEquivalent = info.absentCount + info.excusedCount;
+
+    if (info.attendedCount === 0) {
+      return {
+        border: 'border-blue-200',
+        background: 'bg-blue-50',
+        hover: 'hover:bg-blue-100',
+        badge: 'bg-blue-100 text-blue-800',
+        label: 'Chưa điểm danh'
+      };
+    }
+
+    if (info.attendedCount < info.totalStudents) {
+      return {
+        border: 'border-amber-300',
+        background: 'bg-amber-50',
+        hover: 'hover:bg-amber-100',
+        badge: 'bg-amber-100 text-amber-800',
+        label: `Đã điểm danh ${info.attendedCount}/${info.totalStudents}`
+      };
+    }
+
+    if (absentEquivalent === info.totalStudents) {
+      return {
+        border: 'border-red-400',
+        background: 'bg-red-50',
+        hover: 'hover:bg-red-100',
+        badge: 'bg-red-100 text-red-800',
+        label: 'Tất cả học sinh vắng'
+      };
+    }
+
+    if (presentEquivalent > absentEquivalent) {
+      return {
+        border: 'border-green-400',
+        background: 'bg-green-50',
+        hover: 'hover:bg-green-100',
+        badge: 'bg-green-100 text-green-800',
+        label: 'Học sinh đi học nhiều hơn vắng'
+      };
+    }
+
+    if (absentEquivalent > presentEquivalent) {
+      return {
+        border: 'border-yellow-400',
+        background: 'bg-yellow-50',
+        hover: 'hover:bg-yellow-100',
+        badge: 'bg-yellow-100 text-yellow-800',
+        label: 'Vắng nhiều hơn đi học'
+      };
+    }
+
+    return {
+      border: 'border-green-400',
+      background: 'bg-green-50',
+      hover: 'hover:bg-green-100',
+      badge: 'bg-green-100 text-green-800',
+      label: 'Học sinh đi học nhiều hơn vắng'
+    };
+  };
+
+  const canEditScheduleAttendance = (schedule: Schedule): boolean => {
+    if (!schedule.date) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return schedule.date === today;
+  };
+
+  const attendanceStatusLabels = {
+    present: 'Có mặt',
+    absent: 'Vắng mặt',
+    late: 'Đi muộn',
+    excused: 'Có phép',
+    not_attended: 'Chưa điểm danh'
+  };
+
+  const getStatusBadge = (status: string) => {
+    const variants = {
+      present: 'bg-green-100 text-green-800',
+      absent: 'bg-red-100 text-red-800',
+      late: 'bg-yellow-100 text-yellow-800',
+      excused: 'bg-blue-100 text-blue-800',
+      not_attended: 'bg-gray-100 text-gray-800'
+    };
+    return (
+      <Badge className={cn("text-xs font-medium", variants[status as keyof typeof variants] || variants.not_attended)}>
+        {attendanceStatusLabels[status as keyof typeof attendanceStatusLabels] || attendanceStatusLabels.not_attended}
+      </Badge>
+    );
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'present':
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'absent':
+        return <AlertCircle className="w-5 h-5 text-red-600" />;
+      case 'late':
+        return <Clock className="w-5 h-5 text-yellow-600" />;
+      case 'excused':
+        return <AlertCircle className="w-5 h-5 text-blue-600" />;
+      default:
+        return <Clock className="w-5 h-5 text-gray-400" />;
+    }
+  };
+
+  const getStatusBorderColor = (status: string) => {
+    switch (status) {
+      case 'present':
+        return 'border-l-4 border-green-500';
+      case 'absent':
+        return 'border-l-4 border-red-500';
+      case 'late':
+        return 'border-l-4 border-yellow-500';
+      case 'excused':
+        return 'border-l-4 border-blue-500';
+      default:
+        return 'border-l-4 border-gray-300';
+    }
+  };
+
+  const attendanceActionOrder: Array<'present' | 'late' | 'excused' | 'absent'> = [
+    'present',
+    'late',
+    'excused',
+    'absent',
+  ];
+
+  const attendanceActionConfig: Record<typeof attendanceActionOrder[number], {
+    label: string;
+    className: string;
+  }> = {
+    present: {
+      label: 'Có mặt',
+      className: 'border-green-200 text-green-700 hover:bg-green-50',
+    },
+    late: {
+      label: 'Đi muộn',
+      className: 'border-yellow-200 text-yellow-700 hover:bg-yellow-50',
+    },
+    excused: {
+      label: 'Có phép',
+      className: 'border-blue-200 text-blue-700 hover:bg-blue-50',
+    },
+    absent: {
+      label: 'Vắng',
+      className: 'border-red-200 text-red-700 hover:bg-red-50',
+    },
+  };
+
+  const filterSchedulesForClass = (classId: string, schedules: Schedule[] = []) =>
+    schedules.filter(schedule => !schedule.classroom_id || schedule.classroom_id === classId);
+
+  const getPendingStatus = (scheduleKey: string | null, studentId: string | undefined) => {
+    if (!scheduleKey || !studentId) return undefined;
+    return pendingAttendanceChanges[scheduleKey]?.[studentId];
+  };
+
+  const hasPendingChangesForSchedule = (scheduleKey: string | null) => {
+    if (!scheduleKey) return false;
+    const pending = pendingAttendanceChanges[scheduleKey];
+    return !!pending && Object.keys(pending).length > 0;
+  };
+
+  const buildAttendanceViewData = useCallback((
+    scheduleContext: { schedule: Schedule; classItem: Class } | null,
+    attendancePayload: any | null
+  ) => {
+    if (!scheduleContext) return null;
+
+    const classId = scheduleContext.classItem.id;
+    const classStudents = students[classId] || [];
+    const studentsMap = new Map<string, Student>();
+    classStudents.forEach((student) => {
+      if (student.id) {
+        studentsMap.set(student.id, student);
+      }
+    });
+
+    const records = parseAttendanceRecords(attendancePayload?.records || {});
+    const recordStudentIds = Object.keys(records);
+
+    const studentsFromRecords = recordStudentIds.map((studentId) => {
+      const student = studentsMap.get(studentId) || {
+        id: studentId,
+        name: 'Học sinh chưa xác định',
+        studentCode: records[studentId]?.student_id || studentId,
+        className: scheduleContext.classItem.name
+      };
+      const attendanceInfo = getStudentAttendanceStatus(studentId, records);
+      return {
+        student,
+        status: attendanceInfo.status,
+        notes: attendanceInfo.notes,
+        timestamp: attendanceInfo.timestamp
+      };
+    });
+
+    const studentsWithoutRecords = classStudents
+      .filter((student) => !recordStudentIds.includes(student.id))
+      .map((student) => {
+        const attendanceInfo = getStudentAttendanceStatus(student.id, records);
+        return {
+          student,
+          status: attendanceInfo.status,
+          notes: attendanceInfo.notes,
+          timestamp: attendanceInfo.timestamp
+        };
+      });
+
+    const uniqueStudents: Array<{
+      student: Student;
+      status: 'present' | 'absent' | 'late' | 'excused' | 'not_attended';
+      notes: string;
+      timestamp: string;
+    }> = [];
+    const seen = new Set<string>();
+
+    [...studentsFromRecords, ...studentsWithoutRecords].forEach((item) => {
+      const key = item.student.id;
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      uniqueStudents.push(item);
+    });
+
+    const stats = uniqueStudents.reduce(
+      (acc, item) => {
+        switch (item.status) {
+          case 'present':
+            acc.present += 1;
+            break;
+          case 'absent':
+            acc.absent += 1;
+            break;
+          case 'late':
+            acc.late += 1;
+            break;
+          case 'excused':
+            acc.excused += 1;
+            break;
+          default:
+            acc.notAttended += 1;
+            break;
+        }
+        return acc;
+      },
+      { present: 0, absent: 0, late: 0, excused: 0, notAttended: 0 }
+    );
+
+    return {
+      classStudentsCount: classStudents.length,
+      studentsWithAttendance: uniqueStudents,
+      stats,
+      records
+    };
+  }, [students]);
+
+  const detailAttendanceView = useMemo(
+    () => buildAttendanceViewData(detailSchedule, detailAttendance),
+    [buildAttendanceViewData, detailSchedule, detailAttendance]
+  );
+
+  const modalAttendanceView = useMemo(
+    () => buildAttendanceViewData(selectedSchedule, attendanceForStudentList),
+    [attendanceForStudentList, buildAttendanceViewData, selectedSchedule]
+  );
+
+  const renderAttendanceActionButtons = (
+    item: {
+      student: Student;
+      status: 'present' | 'absent' | 'late' | 'excused' | 'not_attended';
+    },
+    scheduleContext: { schedule: Schedule; classItem: Class } | null
+  ) => {
+    if (!scheduleContext?.schedule?.date || !item.student.id) return null;
+    const editable = canEditScheduleAttendance(scheduleContext.schedule);
+    const scheduleKey = getScheduleKey(scheduleContext.classItem.id, scheduleContext.schedule);
+    const pendingStatus = getPendingStatus(scheduleKey, item.student.id);
+    const displayStatus = pendingStatus || item.status;
+
+    return (
+      <div className="flex flex-col gap-1 mt-3">
+        <div className="flex flex-wrap gap-2">
+          {attendanceActionOrder.map((actionKey) => (
+            <Button
+              key={actionKey}
+              size="sm"
+              variant={displayStatus === actionKey ? 'default' : 'outline'}
+              className={cn(
+                "h-7 px-3 text-xs font-medium",
+                attendanceActionConfig[actionKey].className,
+                displayStatus === actionKey && 'bg-slate-900 text-white hover:bg-slate-800'
+              )}
+              disabled={!editable}
+              onClick={() => handleSelectAttendanceStatus(scheduleContext, item.student.id, actionKey)}
+            >
+              {attendanceActionConfig[actionKey].label}
+            </Button>
+          ))}
+        </div>
+        {!editable && (
+          <span className="text-[11px] text-slate-500">
+            Chỉ có thể chọn trạng thái trong đúng ngày của lịch học.
+          </span>
+        )}
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -856,8 +1396,6 @@ export default function AttendancePage() {
 
       const schedules = classSchedules[classItem.id] || [];
       const today = new Date().toISOString().split('T')[0];
-      const now = new Date();
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
       // Find today's schedule
       const todaySchedule = schedules.find((s: Schedule) => s.date === today) || todaySchedules[classItem.id];
@@ -868,21 +1406,8 @@ export default function AttendancePage() {
         return;
       }
 
-      // Check if current time is within schedule time
-      const scheduleStart = todaySchedule.start_time;
-      const scheduleEnd = todaySchedule.end_time;
-      
-      // Convert time strings to comparable format (HH:MM)
-      const isWithinTime = currentTime >= scheduleStart && currentTime <= scheduleEnd;
-      
-      if (!isWithinTime) {
-        alert(`Thời gian hiện tại (${currentTime}) không nằm trong khung giờ học (${scheduleStart} - ${scheduleEnd}).\n\nVui lòng điểm danh trong thời gian học.`);
-        setQuickAttendanceLoading(prev => ({ ...prev, [classItem.id]: false }));
-        return;
-      }
-
       // Confirm before quick attendance
-      const confirmMessage = `Bạn có chắc muốn điểm danh nhanh cho lớp ${classItem.name}?\n\nThời gian: ${scheduleStart} - ${scheduleEnd}\nTất cả học sinh sẽ được đánh dấu là "Có mặt".`;
+      const confirmMessage = `Bạn có chắc muốn điểm danh nhanh cho lớp ${classItem.name}?\n\nNgày học: ${todaySchedule.date}\nTất cả học sinh sẽ được đánh dấu là "Có mặt" trong ngày này.`;
       
       if (!confirm(confirmMessage)) {
         setQuickAttendanceLoading(prev => ({ ...prev, [classItem.id]: false }));
@@ -1041,6 +1566,10 @@ export default function AttendancePage() {
       // Reload today's schedule attendance status
       if (todaySchedule) {
         await loadAttendanceStatusForSchedules(classItem.id, [todaySchedule]);
+      }
+
+      if (detailSchedule?.classItem.id === classItem.id && todaySchedule) {
+        await handleDetailScheduleSelect(classItem, todaySchedule);
       }
     } catch (err: any) {
       console.error('Error in quick attendance:', err);
@@ -1279,12 +1808,10 @@ export default function AttendancePage() {
                 {/* Today's Schedule for Quick Attendance */}
                 {todaySchedules[classItem.id] && (() => {
                   const todaySchedule = todaySchedules[classItem.id]!;
-                  const isToday = isScheduleToday(todaySchedule);
+                  const todayString = new Date().toISOString().split('T')[0];
+                  const isSameDay = todaySchedule.date === todayString;
                   const scheduleKey = `${classItem.id}_${todaySchedule.id}_${todaySchedule.date}`;
                   const attendanceStatus = scheduleAttendances[scheduleKey];
-                  const now = new Date();
-                  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                  const isWithinTime = currentTime >= todaySchedule.start_time && currentTime <= todaySchedule.end_time;
                   
                   return (
                     <div className="p-3 rounded-lg border-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 mb-3">
@@ -1307,9 +1834,9 @@ export default function AttendancePage() {
                             <span>
                               {todaySchedule.start_time} - {todaySchedule.end_time}
                             </span>
-                            {isWithinTime && (
+                            {isSameDay && (
                               <Badge className="bg-green-100 text-green-800 text-xs">
-                                Đang trong giờ học
+                                Đang trong ngày học
                               </Badge>
                             )}
                   </div>
@@ -1347,7 +1874,7 @@ export default function AttendancePage() {
                       )}
 
                       <div className="flex gap-2">
-                        {isWithinTime && attendanceStatus?.status !== 'complete' && (
+                        {isSameDay && attendanceStatus?.status !== 'complete' && (
                           <Button
                             size="sm"
                             onClick={() => handleQuickAttendance(classItem)}
@@ -1367,10 +1894,15 @@ export default function AttendancePage() {
                             )}
                           </Button>
                         )}
-                        {isWithinTime && attendanceStatus?.status === 'complete' && (
+                        {isSameDay && attendanceStatus?.status === 'complete' && (
                           <div className="flex-1 flex items-center justify-center p-2 bg-green-100 rounded-md">
                             <CheckCircle className="w-4 h-4 mr-1 text-green-600" />
                             <span className="text-sm font-semibold text-green-800">Đã điểm danh đầy đủ</span>
+                          </div>
+                        )}
+                        {!isSameDay && (
+                          <div className="flex-1 text-xs text-slate-500 flex items-center justify-center">
+                            Chỉ có thể điểm danh trong ngày học
                           </div>
                         )}
                          <Button
@@ -1528,67 +2060,35 @@ export default function AttendancePage() {
                       </div>
                     ) : classSchedules[classItem.id] && classSchedules[classItem.id].length > 0 ? (
                       <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {classSchedules[classItem.id].map((schedule) => {
+                        {filterSchedulesForClass(classItem.id, classSchedules[classItem.id]).map((schedule) => {
                           const isToday = isScheduleToday(schedule);
                           const isBefore = isScheduleBeforeToday(schedule);
                           const isAfter = isScheduleAfterToday(schedule);
                           const isLocked = isBefore || isAfter;
-
-                          // Get attendance status for this schedule
-                          const scheduleKey = `${classItem.id}_${schedule.id}_${schedule.date || ''}`;
-                          const attendanceStatus = scheduleAttendances[scheduleKey];
-
-                          // Determine border and background color based on attendance status
-                          let borderColor = '';
-                          let bgColor = '';
-                          let hoverColor = '';
-                          
-                          if (isLocked) {
-                            borderColor = 'border-gray-200';
-                            bgColor = 'bg-gray-50';
-                            hoverColor = 'hover:bg-gray-50';
-                          } else if (attendanceStatus?.status === 'complete') {
-                            // Đã điểm danh đầy đủ - màu xanh với dấu tích
-                            borderColor = 'border-green-400';
-                            bgColor = 'bg-green-50';
-                            hoverColor = 'hover:bg-green-100';
-                          } else if (attendanceStatus?.status === 'incomplete') {
-                            // Điểm danh thiếu - màu đỏ
-                            borderColor = 'border-red-400';
-                            bgColor = 'bg-red-50';
-                            hoverColor = 'hover:bg-red-100';
-                          } else if (isToday) {
-                            // Hôm nay chưa điểm danh - màu vàng
-                            borderColor = 'border-yellow-300';
-                            bgColor = 'bg-yellow-50';
-                            hoverColor = 'hover:bg-yellow-100';
-                          } else {
-                            // Chưa đến hoặc chưa điểm danh - màu xanh nhạt
-                            borderColor = 'border-blue-200';
-                            bgColor = 'bg-blue-50';
-                            hoverColor = 'hover:bg-blue-100';
-                          }
+                          const scheduleKey = getScheduleKey(classItem.id, schedule);
+                          const attendanceInfo = scheduleAttendances[scheduleKey];
+                          const visualState = getScheduleVisualState(attendanceInfo);
 
                           return (
                             <div
                               key={schedule.id}
                               className={cn(
                                 "p-3 rounded-lg border-2 transition-all relative",
-                                borderColor,
-                                bgColor,
-                                hoverColor,
-                                isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                                visualState.border,
+                                visualState.background,
+                                visualState.hover,
+                                isLocked && 'opacity-60 cursor-not-allowed'
                               )}
                             >
                               {/* Attendance status badge */}
-                              {attendanceStatus && attendanceStatus.status === 'complete' && (
+                              {attendanceInfo && attendanceInfo.attendedCount === attendanceInfo.totalStudents && (
                                 <div className="absolute top-2 right-2">
                                   <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
                                     <CheckCircle className="w-4 h-4 text-white" />
                                   </div>
                                 </div>
                               )}
-                              {attendanceStatus && attendanceStatus.status === 'incomplete' && (
+                              {attendanceInfo && attendanceInfo.attendedCount > 0 && attendanceInfo.attendedCount < attendanceInfo.totalStudents && (
                                 <div className="absolute top-2 right-2">
                                   <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
                                     <AlertCircle className="w-4 h-4 text-white" />
@@ -1603,22 +2103,9 @@ export default function AttendancePage() {
                                     <span className="text-sm font-semibold text-slate-900">
                                       {formatScheduleDate(schedule)}
                                     </span>
-                                    {attendanceStatus && (
-                                      <Badge 
-                                        className={cn(
-                                          "text-xs",
-                                          attendanceStatus.status === 'complete' 
-                                            ? "bg-green-100 text-green-800"
-                                            : attendanceStatus.status === 'incomplete'
-                                            ? "bg-red-100 text-red-800"
-                                            : "bg-gray-100 text-gray-800"
-                                        )}
-                                      >
-                                        {attendanceStatus.status === 'complete' 
-                                          ? 'Đã điểm danh đầy đủ'
-                                          : attendanceStatus.status === 'incomplete'
-                                          ? `Thiếu ${attendanceStatus.totalStudents - attendanceStatus.attendedCount} học sinh`
-                                          : 'Chưa điểm danh'}
+                                    {attendanceInfo && (
+                                      <Badge className={cn("text-xs", visualState.badge)}>
+                                        {visualState.label}
                                       </Badge>
                                     )}
                   </div>
@@ -1693,6 +2180,14 @@ export default function AttendancePage() {
                     )}
                   </div>
                 )}
+
+                <Button
+                  variant="default"
+                  onClick={() => handleFocusClass(classItem)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                >
+                  Hiển thị màn hình chi tiết
+                </Button>
 
                 {/* Attendance Statistics */}
                 {classItem.attendanceStatus === 'completed' && (
@@ -1779,6 +2274,318 @@ export default function AttendancePage() {
           ))}
         </div>
 
+        {activeClassForDetail && (() => {
+          const detailClass = filteredClasses.find(cls => cls.id === activeClassForDetail.id) || activeClassForDetail;
+          if (!detailClass) return null;
+          const detailClassSchedules = filterSchedulesForClass(detailClass.id, classSchedules[detailClass.id] || []);
+          const detailScheduleKey =
+            detailSchedule && detailSchedule.classItem.id === detailClass.id
+              ? getScheduleKey(detailSchedule.classItem.id, detailSchedule.schedule)
+              : null;
+          return (
+          <Card className="mt-6 border-blue-200 shadow-xl">
+            <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle className="text-2xl font-bold text-slate-900">
+                  Màn hình điểm danh chi tiết
+                </CardTitle>
+                <CardDescription className="text-slate-600 font-medium">
+                  {detailClass.name} · {detailClass.subject}
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => loadSchedulesForClass(detailClass.id)}
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <RefreshCcw className="w-4 h-4 mr-2" />
+                  Làm mới lịch
+                </Button>
+                {(() => {
+                  const todaySchedule = todaySchedules[detailClass.id];
+                  const canQuickAttend =
+                    todaySchedule &&
+                    canEditScheduleAttendance(todaySchedule) &&
+                    !(scheduleAttendances[getScheduleKey(detailClass.id, todaySchedule)]?.status === 'complete');
+                  
+                  if (!todaySchedule) {
+                    return null;
+                  }
+
+                  return (
+                    <Button
+                      onClick={() => handleQuickAttendance(detailClass)}
+                      disabled={!canQuickAttend || quickAttendanceLoading[detailClass.id]}
+                      className="bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {quickAttendanceLoading[detailClass.id] ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Đang điểm danh nhanh
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Điểm danh nhanh
+                        </>
+                      )}
+                    </Button>
+                  );
+                })()}
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setActiveClassForDetail(null);
+                    setDetailSchedule(null);
+                    setDetailAttendance(null);
+                  }}
+                  className="text-slate-500 hover:text-slate-700"
+                >
+                  Đóng màn hình chi tiết
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-slate-900">Danh sách lịch học</h3>
+                    <Badge variant="outline" className="text-xs font-semibold">
+                      {detailClassSchedules.length} lịch
+                    </Badge>
+                  </div>
+                  {loadingSchedules[detailClass.id] ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                      <span className="ml-2 text-sm text-slate-600">Đang tải lịch học...</span>
+                    </div>
+                  ) : classSchedules[detailClass.id] && classSchedules[detailClass.id].length > 0 ? (
+                    <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+                      {detailClassSchedules.map((schedule) => {
+                        const scheduleKey = getScheduleKey(detailClass.id, schedule);
+                        const attendanceInfo = scheduleAttendances[scheduleKey];
+                        const visualState = getScheduleVisualState(attendanceInfo);
+                        const isSelected = detailSchedule?.schedule.id === schedule.id;
+
+                        return (
+                          <button
+                            key={schedule.id}
+                            onClick={() => handleDetailScheduleSelect(detailClass, schedule)}
+                            className={cn(
+                              "w-full text-left p-4 rounded-xl border-2 transition-all",
+                              visualState.border,
+                              visualState.background,
+                              visualState.hover,
+                              !schedule.date && "opacity-50 cursor-not-allowed",
+                              schedule.date && "cursor-pointer",
+                              isSelected && "ring-2 ring-blue-400"
+                            )}
+                            disabled={!schedule.date}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-semibold text-slate-900">
+                                  {formatScheduleDate(schedule)}
+                                </div>
+                                <div className="text-xs text-slate-600 mt-1">
+                                  {schedule.start_time} - {schedule.end_time}
+                                </div>
+                                {schedule.room_detail && (
+                                  <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                    <MapPin className="w-3 h-3" />
+                                    {schedule.room_detail.name || schedule.room || 'Chưa có phòng'}
+                                  </div>
+                                )}
+                              </div>
+                              {attendanceInfo && (
+                                <Badge className={cn("text-xs", visualState.badge)}>
+                                  {visualState.label}
+                                </Badge>
+                              )}
+                            </div>
+                            {attendanceInfo ? (
+                              <div className="text-xs text-slate-600 mt-3 flex flex-wrap gap-3">
+                                <span>
+                                  Có mặt: <span className="font-semibold text-green-700">
+                                    {attendanceInfo.presentCount + attendanceInfo.lateCount}
+                                  </span>/{attendanceInfo.totalStudents}
+                                </span>
+                                <span>
+                                  Vắng: <span className="font-semibold text-red-600">
+                                    {attendanceInfo.absentCount + attendanceInfo.excusedCount}
+                                  </span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-slate-500 mt-3">
+                                Chưa có dữ liệu điểm danh
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-6 border-2 border-dashed rounded-xl text-center text-sm text-slate-500">
+                      Chưa có lịch học nào cho lớp này.
+                    </div>
+                  )}
+                </div>
+                <div className="xl:col-span-2">
+                  {detailSchedule ? (
+                    <div className="space-y-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 text-slate-600 text-sm">
+                            <Calendar className="w-4 h-4" />
+                            <span>{formatScheduleDate(detailSchedule.schedule)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-slate-600 text-sm mt-1">
+                            <Clock className="w-4 h-4" />
+                            <span>{detailSchedule.schedule.start_time} - {detailSchedule.schedule.end_time}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => handleStartAttendance(detailSchedule.classItem, detailSchedule.schedule.date)}
+                            disabled={!canEditScheduleAttendance(detailSchedule.schedule)}
+                            className="border-blue-200 text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Users className="w-4 h-4 mr-2" />
+                            {canEditScheduleAttendance(detailSchedule.schedule) ? 'Chỉnh sửa điểm danh' : 'Không trong ngày học'}
+                          </Button>
+                          {hasPendingChangesForSchedule(detailScheduleKey) && detailSchedule && (
+                            <Button
+                              onClick={() => handleSavePendingAttendance(detailSchedule.classItem, detailSchedule.schedule)}
+                              disabled={!!detailScheduleKey && savingAttendance[detailScheduleKey]}
+                              className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {detailScheduleKey && savingAttendance[detailScheduleKey] ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Đang lưu...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-4 h-4 mr-2" />
+                                  Lưu điểm danh
+                                </>
+                              )}
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            onClick={() => handleViewAttendance(detailSchedule.classItem, detailSchedule.schedule)}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            Mở toàn màn hình
+                          </Button>
+                        </div>
+                      </div>
+
+                      {loadingDetailAttendance ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                          <span className="ml-2 text-sm text-slate-600">Đang tải danh sách học sinh...</span>
+                        </div>
+                      ) : detailAttendanceView ? (
+                        <>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div className="p-4 rounded-lg border bg-green-50">
+                              <div className="text-xs text-green-600 font-semibold">Có mặt</div>
+                              <div className="text-2xl font-bold text-green-700">{detailAttendanceView.stats.present}</div>
+                            </div>
+                            <div className="p-4 rounded-lg border bg-red-50">
+                              <div className="text-xs text-red-600 font-semibold">Vắng mặt</div>
+                              <div className="text-2xl font-bold text-red-700">{detailAttendanceView.stats.absent}</div>
+                            </div>
+                            <div className="p-4 rounded-lg border bg-yellow-50">
+                              <div className="text-xs text-yellow-600 font-semibold">Đi muộn</div>
+                              <div className="text-2xl font-bold text-yellow-700">{detailAttendanceView.stats.late}</div>
+                            </div>
+                            <div className="p-4 rounded-lg border bg-blue-50">
+                              <div className="text-xs text-blue-600 font-semibold">Có phép</div>
+                              <div className="text-2xl font-bold text-blue-700">{detailAttendanceView.stats.excused}</div>
+                            </div>
+                            <div className="p-4 rounded-lg border bg-gray-50">
+                              <div className="text-xs text-gray-600 font-semibold">Chưa điểm danh</div>
+                              <div className="text-2xl font-bold text-gray-700">{detailAttendanceView.stats.notAttended}</div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4 className="text-lg font-semibold text-slate-900 mt-4 mb-3">
+                              Danh sách học sinh ({detailAttendanceView.studentsWithAttendance.length} học sinh)
+                            </h4>
+                            {detailAttendanceView.studentsWithAttendance.length > 0 ? (
+                              <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+                                {detailAttendanceView.studentsWithAttendance.map((item, index) => (
+                                  <div
+                                    key={item.student.id || `${item.student.name}-${index}`}
+                                    className={cn(
+                                      "flex items-center justify-between p-4 rounded-xl border bg-white shadow-sm",
+                                      getStatusBorderColor(item.status),
+                                      item.status === 'present' && 'bg-green-50/40',
+                                      item.status === 'absent' && 'bg-red-50/40',
+                                      item.status === 'late' && 'bg-yellow-50/40',
+                                      item.status === 'excused' && 'bg-blue-50/40'
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-4 flex-1">
+                                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-white font-semibold flex items-center justify-center text-lg">
+                                        {item.student.name?.charAt(0)?.toUpperCase() || 'H'}
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-semibold text-slate-900">{item.student.name}</span>
+                                          {getStatusIcon(item.status)}
+                                          {getStatusBadge(item.status)}
+                                        </div>
+                                        <div className="text-xs text-slate-500 mt-0.5">
+                                          Mã học sinh: {item.student.studentCode || '—'}
+                                        </div>
+                                        {item.notes && (
+                                          <div className="text-xs text-slate-500 mt-1 italic">
+                                            Ghi chú: {item.notes}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                            <div className="flex flex-col items-end gap-2">
+                              <span className="text-xs font-semibold text-slate-500">#{index + 1}</span>
+                              {renderAttendanceActionButtons(item, detailSchedule)}
+                            </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="p-6 border-2 border-dashed rounded-xl text-center text-sm text-slate-500">
+                                Chưa có học sinh nào trong lớp hoặc dữ liệu chưa được tải.
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="p-6 border-2 border-dashed rounded-xl text-center text-sm text-slate-500">
+                          Chưa có dữ liệu điểm danh cho lịch học này.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 border-2 border-dashed rounded-xl text-center text-sm text-slate-500">
+                      Chọn một lịch học ở cột bên trái để xem chi tiết điểm danh.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          );
+        })()}
+
         {/* Empty State */}
         {filteredClasses.length === 0 && (
           <Card>
@@ -1814,357 +2621,18 @@ export default function AttendancePage() {
 
 
       {/* Student List Modal */}
-      {showStudentList && selectedSchedule && attendanceForStudentList && (() => {
-        // Debug logging - CRITICAL: Check if records are preserved from state
-        console.log('=== Student List Modal Debug ===');
-        console.log('🔍 attendanceForStudentList:', attendanceForStudentList);
-        console.log('🔍 attendanceForStudentList?.records:', attendanceForStudentList?.records);
-        console.log('🔍 records type:', typeof attendanceForStudentList?.records);
-        console.log('🔍 records is null?', attendanceForStudentList?.records === null);
-        console.log('🔍 records is undefined?', attendanceForStudentList?.records === undefined);
-        console.log('🔍 records is empty object?', attendanceForStudentList?.records && Object.keys(attendanceForStudentList.records).length === 0);
-        
-        // CRITICAL: Parse attendance records - handle both string and object
-        // IMPORTANT: Use the records directly from state, don't lose them!
-        let rawRecords = attendanceForStudentList?.records;
-        
-        // CRITICAL CHECK: If no records at all, show error
-        if (!rawRecords) {
-          console.error('❌ CRITICAL: No records in attendanceForStudentList!');
-          console.error('❌ attendanceForStudentList:', attendanceForStudentList);
+      {showStudentList && selectedSchedule && (
+        (() => {
+          const selectedScheduleKey = getScheduleKey(selectedSchedule.classItem.id, selectedSchedule.schedule);
+          const modalHasPending = hasPendingChangesForSchedule(selectedScheduleKey);
+          const modalSaving = savingAttendance[selectedScheduleKey];
           return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6">
-                <h2 className="text-xl font-bold text-red-600 mb-4">Lỗi</h2>
-                <p className="text-gray-700 mb-4">Không tìm thấy dữ liệu điểm danh cho lịch học này.</p>
-                <Button onClick={() => {
-                  setShowStudentList(false);
-                  setSelectedSchedule(null);
-                  setAttendanceForStudentList(null);
-                }}>
-                  Đóng
-                </Button>
-              </div>
-            </div>
-          );
-        }
-        console.log('\n=== Records Parsing (CRITICAL) ===');
-        console.log('📥 Raw records from state:', rawRecords);
-        console.log('📥 Raw records type:', typeof rawRecords);
-        console.log('📥 Raw records is string?', typeof rawRecords === 'string');
-        console.log('📥 Raw records is object?', typeof rawRecords === 'object' && !Array.isArray(rawRecords));
-        
-        // If records is a string, parse it first
-        if (rawRecords && typeof rawRecords === 'string') {
-          try {
-            rawRecords = JSON.parse(rawRecords);
-            console.log('✅ Parsed from string:', rawRecords);
-            console.log('✅ Parsed type:', typeof rawRecords);
-            console.log('✅ Parsed keys:', Object.keys(rawRecords));
-          } catch (err) {
-            console.error('❌ Error parsing records string:', err);
-            rawRecords = {};
-          }
-        }
-        
-        // Now parse using utility function (but it should already be an object)
-        let records = parseAttendanceRecords(rawRecords);
-        
-        // CRITICAL VALIDATION: Ensure records are not lost
-        console.log('\n=== CRITICAL VALIDATION ===');
-        console.log('📊 Final records after parsing:', records);
-        console.log('📊 Final records type:', typeof records);
-        console.log('📊 Final records is object?', typeof records === 'object' && !Array.isArray(records));
-        console.log('📊 Final records keys:', Object.keys(records));
-        console.log('📊 Final records keys count:', Object.keys(records).length);
-        console.log('📊 Raw records keys count (before parse):', rawRecords && typeof rawRecords === 'object' ? Object.keys(rawRecords).length : 0);
-        
-        // CRITICAL FIX: If parsing lost the records, use rawRecords directly
-        if (Object.keys(records).length === 0 && rawRecords && typeof rawRecords === 'object' && !Array.isArray(rawRecords) && Object.keys(rawRecords).length > 0) {
-          console.error('❌ CRITICAL ERROR: Records were lost during parsing!');
-          console.error('❌ Raw records had keys:', Object.keys(rawRecords));
-          console.error('❌ Raw records:', rawRecords);
-          console.error('❌ But parsed records has no keys!');
-          // Use rawRecords directly if parsing failed
-          records = rawRecords as ParsedAttendanceRecords;
-          console.log('✅ Recovered records directly from rawRecords:', records);
-          console.log('✅ Recovered records keys:', Object.keys(records));
-        }
-        
-        // Final check
-        if (Object.keys(records).length === 0) {
-          console.error('❌ FINAL ERROR: Records is still empty after all attempts!');
-          console.error('❌ attendanceForStudentList:', attendanceForStudentList);
-          console.error('❌ rawRecords:', rawRecords);
-        } else {
-          console.log('✅ SUCCESS: Records are valid with', Object.keys(records).length, 'keys');
-        }
-        console.log('Final parsed records:', records);
-        console.log('Final records type:', typeof records);
-        console.log('Final records is object?', typeof records === 'object' && !Array.isArray(records));
-        console.log('Records keys:', Object.keys(records));
-        console.log('Records keys count:', Object.keys(records).length);
-        console.log('Records entries:', Object.entries(records));
-        console.log('Records values:', Object.values(records));
-        
-        // Debug: Check if records has the expected structure
-        if (Object.keys(records).length > 0) {
-          const firstKey = Object.keys(records)[0];
-          const firstValue = records[firstKey];
-          console.log('First record key:', firstKey);
-          console.log('First record key type:', typeof firstKey);
-          console.log('First record value:', firstValue);
-          console.log('First record value type:', typeof firstValue);
-          console.log('First record has student_id?', firstValue && typeof firstValue === 'object' && 'student_id' in firstValue);
-          if (firstValue && typeof firstValue === 'object') {
-            console.log('First record student_id:', firstValue.student_id);
-            console.log('First record status:', firstValue.status);
-          }
-        } else {
-          console.warn('⚠️ Records is empty!');
-          console.log('Raw records was:', rawRecords);
-          console.log('Raw records type was:', typeof rawRecords);
-        }
-        
-        // IMPORTANT: Use ONLY student.id (UUID) to match records
-        // Records keys are student.id (UUID from students table)
-        // DO NOT use studentCode or name to match
-        
-        const recordStudentIds = Object.keys(records);
-        console.log('\n=== Records Student IDs (from records keys) ===');
-        console.log('Record student IDs:', recordStudentIds);
-        console.log('Record student IDs count:', recordStudentIds.length);
-        
-        // Get students for this class
-        const classStudents = students[selectedSchedule.classItem.id] || [];
-        console.log('\n=== Students Info (using ID only) ===');
-        console.log('Class students count:', classStudents.length);
-        console.log('Class students IDs (UUIDs):', classStudents.map(s => ({ 
-          id: s.id, 
-          name: s.name,
-          studentCode: s.studentCode 
-        })));
-        
-        // Create a map of student.id (UUID) -> student for quick lookup
-        // KEY POINT: Use student.id (UUID) as the key, NOT studentCode or name
-        const studentsMap = new Map<string, Student>();
-        classStudents.forEach((student: Student) => {
-          if (student.id) {
-            studentsMap.set(student.id, student);
-            console.log(`✅ Mapped student: ${student.id} -> ${student.name} (${student.studentCode})`);
-          } else {
-            console.warn(`⚠️ Student missing ID:`, student);
-          }
-        });
-        
-        console.log(`\n✅ Students map size: ${studentsMap.size}`);
-        console.log('Students map keys:', Array.from(studentsMap.keys()));
-        
-        // Map records to students with attendance status
-        // IMPORTANT: Use student.id (UUID) from records keys to find students
-        const studentsWithAttendanceFromRecords = recordStudentIds
-          .map((studentIdFromRecord) => {
-            // Find student in class by student.id (UUID) - EXACT MATCH
-            const student = studentsMap.get(studentIdFromRecord);
-            
-            // Get record for this student using student.id (UUID) as key
-            const record = records[studentIdFromRecord];
-            
-            console.log(`\n=== Processing Record for Student ID (UUID): ${studentIdFromRecord} ===`);
-            console.log('🔍 Looking up student by ID (UUID):', studentIdFromRecord);
-            console.log('✅ Student found in class:', !!student);
-            if (student) {
-              console.log('   Student details:', { 
-                id: student.id, 
-                name: student.name, 
-                studentCode: student.studentCode,
-                idMatch: student.id === studentIdFromRecord
-              });
-            }
-            console.log('✅ Record found in records:', !!record);
-            if (record) {
-              console.log('   Record details:', { 
-                status: record.status, 
-                notes: record.notes, 
-                student_id: record.student_id,
-                keyMatch: record.student_id === studentIdFromRecord
-              });
-            }
-            console.log('📋 All records keys (UUIDs):', Object.keys(records));
-            console.log('🔍 Student ID in records keys?', Object.keys(records).includes(studentIdFromRecord));
-            console.log('🔍 Direct lookup test:', records[studentIdFromRecord] ? 'FOUND' : 'NOT FOUND');
-          
-          // Get attendance status - use the record directly if found
-          let attendanceInfo;
-          if (record) {
-            // Use record directly
-            const recordStatus = record.status || 'not_attended';
-            let status: 'present' | 'absent' | 'late' | 'excused' | 'not_attended' = 'not_attended';
-            
-            if (recordStatus === 'absent') {
-              const recordNotes = (record.notes || '').toLowerCase();
-              if (recordNotes.includes('phép') || recordNotes.includes('excused') || recordNotes.includes('có phép')) {
-                status = 'excused';
-              } else {
-                status = 'absent';
-              }
-            } else if (['present', 'late', 'excused'].includes(recordStatus)) {
-              status = recordStatus as 'present' | 'absent' | 'late' | 'excused';
-            }
-            
-            attendanceInfo = {
-              status,
-              notes: record.notes || '',
-              timestamp: record.timestamp || ''
-            };
-            
-            console.log(`✅ Found record for ${studentIdFromRecord}:`, {
-              recordStatus,
-              finalStatus: status,
-              notes: attendanceInfo.notes,
-              timestamp: attendanceInfo.timestamp
-            });
-          } else {
-            // Fallback to utility function
-            attendanceInfo = getStudentAttendanceStatus(studentIdFromRecord, records);
-            console.log(`⚠️ No direct record found, using utility function:`, attendanceInfo);
-          }
-          
-          // If student not found in class, we still show the record
-          // but we'll need to fetch student info from API
-          if (!student && record) {
-            console.warn(`⚠️ Student ${studentIdFromRecord} not found in class students list`);
-            // Return a placeholder student object
-            return {
-              student: {
-                id: studentIdFromRecord,
-                name: 'Học sinh chưa xác định',
-                studentCode: record.student_id || studentIdFromRecord,
-                className: selectedSchedule.classItem.name,
-              } as Student,
-              status: attendanceInfo.status,
-              notes: attendanceInfo.notes,
-              timestamp: attendanceInfo.timestamp
-            };
-          }
-          
-          if (!student) {
-            console.error(`❌ Student ${studentIdFromRecord} not found in class and no record!`);
-            return null; // Filter out null values
-          }
-          
-          return {
-            student: student,
-            status: attendanceInfo.status,
-            notes: attendanceInfo.notes,
-            timestamp: attendanceInfo.timestamp
-          };
-          })
-          .filter((item): item is { student: Student; status: 'present' | 'absent' | 'late' | 'excused' | 'not_attended'; notes: string; timestamp: string } => item !== null);
-        
-        // Also include students from class who don't have records yet
-        // IMPORTANT: Use student.id (UUID) to check if they have records
-        const studentsWithoutRecords = classStudents
-          .filter((student: Student) => {
-            // Check if student.id (UUID) is NOT in records keys
-            const hasRecord = recordStudentIds.includes(student.id);
-            if (!hasRecord) {
-              console.log(`📝 Student ${student.id} (${student.name}) has no attendance record`);
-            }
-            return !hasRecord;
-          })
-          .map((student: Student) => {
-            // Use student.id (UUID) to get attendance status
-            const attendanceInfo = getStudentAttendanceStatus(student.id, records);
-            console.log(`📝 Student ${student.id} (${student.name}) status: ${attendanceInfo.status}`);
-            return {
-              student,
-              status: attendanceInfo.status,
-              notes: attendanceInfo.notes,
-              timestamp: attendanceInfo.timestamp
-            };
-          });
-        
-        // Combine both lists: students with records first, then students without records
-        const studentsWithAttendance = [...studentsWithAttendanceFromRecords, ...studentsWithoutRecords];
-        
-        console.log('\n=== Final Students with Attendance ===');
-        console.log('Total students with attendance:', studentsWithAttendance.length);
-        console.log('Students from records:', studentsWithAttendanceFromRecords.length);
-        console.log('Students without records:', studentsWithoutRecords.length);
-        console.log('Students with attendance:', studentsWithAttendance);
-
-        // Calculate statistics
-        const stats = {
-          present: studentsWithAttendance.filter(s => s && s.status === 'present').length,
-          absent: studentsWithAttendance.filter(s => s && s.status === 'absent').length,
-          late: studentsWithAttendance.filter(s => s && s.status === 'late').length,
-          excused: studentsWithAttendance.filter(s => s && s.status === 'excused').length,
-          notAttended: studentsWithAttendance.filter(s => s && s.status === 'not_attended').length
-        };
-
-        const getStatusBadge = (status: string) => {
-          const variants = {
-            present: 'bg-green-100 text-green-800',
-            absent: 'bg-red-100 text-red-800',
-            late: 'bg-yellow-100 text-yellow-800',
-            excused: 'bg-blue-100 text-blue-800',
-            not_attended: 'bg-gray-100 text-gray-800'
-          };
-          const labels = {
-            present: 'Có mặt',
-            absent: 'Vắng mặt',
-            late: 'Đi muộn',
-            excused: 'Có phép',
-            not_attended: 'Chưa điểm danh'
-          };
-          return (
-            <Badge className={cn("text-xs font-medium", variants[status as keyof typeof variants] || variants.not_attended)}>
-              {labels[status as keyof typeof labels] || labels.not_attended}
-            </Badge>
-          );
-        };
-
-        const getStatusIcon = (status: string) => {
-          switch (status) {
-            case 'present':
-              return <CheckCircle className="w-5 h-5 text-green-600" />;
-            case 'absent':
-              return <AlertCircle className="w-5 h-5 text-red-600" />;
-            case 'late':
-              return <Clock className="w-5 h-5 text-yellow-600" />;
-            case 'excused':
-              return <AlertCircle className="w-5 h-5 text-blue-600" />;
-            default:
-              return <Clock className="w-5 h-5 text-gray-400" />;
-          }
-        };
-
-        const getStatusBorderColor = (status: string) => {
-          switch (status) {
-            case 'present':
-              return 'border-l-4 border-green-500';
-            case 'absent':
-              return 'border-l-4 border-red-500';
-            case 'late':
-              return 'border-l-4 border-yellow-500';
-            case 'excused':
-              return 'border-l-4 border-blue-500';
-            default:
-              return 'border-l-4 border-gray-300';
-          }
-        };
-
-        return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
-                {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                      Danh sách học sinh
-                    </h2>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Danh sách học sinh</h2>
                     <div className="space-y-1 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
                         <BookOpen className="w-4 h-4" />
@@ -2203,117 +2671,115 @@ export default function AttendancePage() {
                   </Button>
                 </div>
 
-                {/* Statistics */}
                 {loadingAttendanceForStudentList ? (
-                  <div className="text-center py-4">
-                    <Loader2 className="w-5 h-5 animate-spin text-blue-600 mx-auto mb-2" />
+                <div className="text-center py-6">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto mb-2" />
                     <p className="text-sm text-gray-600">Đang tải thông tin điểm danh...</p>
                   </div>
-                ) : attendanceForStudentList && (
+              ) : modalAttendanceView ? (
+                <>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                     <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
                       <div className="text-xs text-green-600 font-medium mb-1">Có mặt</div>
-                      <div className="text-2xl font-bold text-green-700">{stats.present}</div>
+                      <div className="text-2xl font-bold text-green-700">{modalAttendanceView.stats.present}</div>
                     </div>
                     <div className="bg-red-50 rounded-lg p-4 border-2 border-red-200">
                       <div className="text-xs text-red-600 font-medium mb-1">Vắng mặt</div>
-                      <div className="text-2xl font-bold text-red-700">{stats.absent}</div>
+                      <div className="text-2xl font-bold text-red-700">{modalAttendanceView.stats.absent}</div>
                     </div>
                     <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
                       <div className="text-xs text-yellow-600 font-medium mb-1">Đi muộn</div>
-                      <div className="text-2xl font-bold text-yellow-700">{stats.late}</div>
+                      <div className="text-2xl font-bold text-yellow-700">{modalAttendanceView.stats.late}</div>
                     </div>
                     <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
                       <div className="text-xs text-blue-600 font-medium mb-1">Có phép</div>
-                      <div className="text-2xl font-bold text-blue-700">{stats.excused}</div>
+                      <div className="text-2xl font-bold text-blue-700">{modalAttendanceView.stats.excused}</div>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
                       <div className="text-xs text-gray-600 font-medium mb-1">Chưa điểm danh</div>
-                      <div className="text-2xl font-bold text-gray-700">{stats.notAttended}</div>
+                      <div className="text-2xl font-bold text-gray-700">{modalAttendanceView.stats.notAttended}</div>
           </div>
         </div>
-      )}
 
-                {/* Student List */}
                 <div className="space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Danh sách học sinh ({studentsWithAttendance.length} học sinh)
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Danh sách học sinh ({modalAttendanceView.studentsWithAttendance.length} học sinh)
                   </h3>
-                  {!students[selectedSchedule.classItem.id] ? (
-                    <div className="text-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto mb-2" />
-                      <p className="text-gray-600">Đang tải danh sách học sinh...</p>
-                    </div>
-                  ) : studentsWithAttendance.length > 0 ? (
+                    {modalAttendanceView.studentsWithAttendance.length > 0 ? (
                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {studentsWithAttendance.filter(item => item !== null).map((item, index) => (
+                        {modalAttendanceView.studentsWithAttendance.map((item, index) => (
                         <div
-                          key={item.student.id}
+                          key={item.student.id || `${item.student.name}-${index}`}
                           className={cn(
-                            "flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-all",
+                            "flex items-center justify-between p-4 border rounded-lg bg-white shadow-sm",
                             getStatusBorderColor(item.status),
-                            item.status === 'present' ? 'bg-green-50/30' :
-                            item.status === 'absent' ? 'bg-red-50/30' :
-                            item.status === 'late' ? 'bg-yellow-50/30' :
-                            item.status === 'excused' ? 'bg-blue-50/30' :
-                            'bg-gray-50/30'
+                            item.status === 'present' && 'bg-green-50/40',
+                            item.status === 'absent' && 'bg-red-50/40',
+                            item.status === 'late' && 'bg-yellow-50/40',
+                            item.status === 'excused' && 'bg-blue-50/40'
                           )}
                         >
                           <div className="flex items-center gap-4 flex-1">
-                            <div className={cn(
-                              "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg",
-                              item.status === 'present' ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
-                              item.status === 'absent' ? 'bg-gradient-to-r from-red-500 to-rose-500' :
-                              item.status === 'late' ? 'bg-gradient-to-r from-yellow-500 to-amber-500' :
-                              item.status === 'excused' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
-                              'bg-gradient-to-r from-gray-400 to-gray-500'
-                            )}>
-                              {item.student.name.charAt(0).toUpperCase()}
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 text-white font-semibold flex items-center justify-center">
+                              {item.student.name?.charAt(0)?.toUpperCase() || 'H'}
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                <div className="font-semibold text-slate-800 text-lg">{item.student.name}</div>
+                                <span className="font-semibold text-slate-900">{item.student.name}</span>
                                 {getStatusIcon(item.status)}
                                 {getStatusBadge(item.status)}
                               </div>
-                              <div className="text-sm text-slate-500">Mã học sinh: {item.student.studentCode}</div>
-                              {item.student.className && (
-                                <div className="text-xs text-slate-400 mt-1">Lớp: {item.student.className}</div>
-                              )}
+                              <div className="text-sm text-slate-500">Mã học sinh: {item.student.studentCode || '—'}</div>
                               {item.notes && (
                                 <div className="text-xs text-slate-500 mt-1 italic">
-                                  <span className="font-medium">Ghi chú:</span> {item.notes}
+                                  Ghi chú: {item.notes}
                                 </div>
                               )}
                               {item.timestamp && (
                                 <div className="text-xs text-slate-400 mt-1">
-                                  <span className="font-medium">Thời gian điểm danh:</span> {new Date(item.timestamp).toLocaleString('vi-VN')}
+                                  Thời gian điểm danh: {new Date(item.timestamp).toLocaleString('vi-VN')}
                                 </div>
                               )}
-                              {item.status === 'not_attended' && (
-                                <div className="text-xs text-red-500 mt-1 font-medium">
-                                  ⚠️ Chưa được điểm danh
+                              {renderAttendanceActionButtons(item, selectedSchedule)}
                                 </div>
-                              )}
                             </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-sm text-gray-500 font-medium">
-                              #{index + 1}
-                            </div>
-                          </div>
+                          <span className="text-sm text-slate-500 font-semibold">#{index + 1}</span>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-sm text-gray-500">
-                      Không có học sinh nào trong lớp này.
+                      <div className="text-center py-6 text-sm text-gray-500">
+                        Chưa có dữ liệu điểm danh cho lịch học này.
                     </div>
                   )}
                 </div>
+                </>
+              ) : (
+                <div className="text-center py-6 text-sm text-gray-500">
+                  Không tìm thấy dữ liệu điểm danh.
+                </div>
+              )}
 
-                {/* Footer */}
                 <div className="mt-6 flex justify-end gap-3 border-t pt-4">
+                  {modalHasPending && (
+                    <Button
+                      onClick={() => handleSavePendingAttendance(selectedSchedule.classItem, selectedSchedule.schedule)}
+                      disabled={modalSaving}
+                      className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {modalSaving ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Đang lưu...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Lưu điểm danh
+                        </>
+                      )}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -2330,6 +2796,7 @@ export default function AttendancePage() {
                         setShowStudentList(false);
                         handleStartAttendance(selectedSchedule.classItem, selectedSchedule.schedule.date);
                       }}
+                    disabled={!canEditScheduleAttendance(selectedSchedule.schedule)}
                     >
                       <Users className="w-4 h-4 mr-2" />
                       Điểm danh
@@ -2338,9 +2805,10 @@ export default function AttendancePage() {
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+        </div>
+          );
+        })()
+      )}
     </div>
   );
 }
