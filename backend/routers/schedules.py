@@ -383,6 +383,45 @@ async def create_schedule(
             print(f"Warning: Conflict check failed (may be due to missing date column or query issue): {str(conflict_error)}")
             # Continue without conflict check - schedule will be created anyway
 
+    # Kiểm tra duplicate trước khi insert
+    # Nếu có date: kiểm tra (classroom_id, date, start_time)
+    # Nếu không có date: kiểm tra (classroom_id, day_of_week, start_time)
+    try:
+        if schedule_date:
+            # Kiểm tra duplicate cho lịch có ngày cụ thể
+            duplicate_check = supabase.table("schedules").select("id, date, start_time").eq(
+                "classroom_id", schedule_data.classroom_id
+            ).eq("date", schedule_date.isoformat()).eq(
+                "start_time", schedule_data.start_time.isoformat() if hasattr(schedule_data.start_time, 'isoformat') else str(schedule_data.start_time)
+            ).execute()
+            
+            if duplicate_check.data and len(duplicate_check.data) > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Đã tồn tại lịch học cho lớp này vào ngày {schedule_date.strftime('%d/%m/%Y')} lúc {schedule_data.start_time.strftime('%H:%M')}. Vui lòng chọn ngày hoặc giờ khác."
+                )
+        else:
+            # Kiểm tra duplicate cho lịch định kỳ (không có date)
+            duplicate_check = supabase.table("schedules").select("id, day_of_week, start_time").eq(
+                "classroom_id", schedule_data.classroom_id
+            ).eq("day_of_week", schedule_data.day_of_week).eq(
+                "start_time", schedule_data.start_time.isoformat() if hasattr(schedule_data.start_time, 'isoformat') else str(schedule_data.start_time)
+            ).is_("date", "null").execute()
+            
+            if duplicate_check.data and len(duplicate_check.data) > 0:
+                days = ['Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy', 'Chủ nhật']
+                day_name = days[schedule_data.day_of_week] if 0 <= schedule_data.day_of_week < 7 else f"Thứ {schedule_data.day_of_week + 2}"
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Đã tồn tại lịch học cho lớp này vào {day_name} lúc {schedule_data.start_time.strftime('%H:%M')}. Vui lòng chọn ngày hoặc giờ khác."
+                )
+    except HTTPException:
+        raise
+    except Exception as dup_check_error:
+        # Nếu kiểm tra duplicate fail, log và tiếp tục (có thể do column date chưa tồn tại)
+        print(f"Warning: Duplicate check failed: {str(dup_check_error)}")
+        # Continue - sẽ bắt lỗi ở database level nếu có duplicate
+
     payload = {
         "classroom_id": schedule_data.classroom_id,
         "subject_id": schedule_data.subject_id,
@@ -417,13 +456,27 @@ async def create_schedule(
         raise
     except Exception as e:
         error_detail = str(e)
+        error_lower = error_detail.lower()
         print(f"Error creating schedule: {error_detail}")
         print(f"Payload: {payload}")
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         
+        # Xử lý lỗi duplicate key constraint
+        if "23505" in error_detail or "duplicate key" in error_lower or "ux_schedules" in error_lower:
+            if schedule_date:
+                error_message = f"Đã tồn tại lịch học cho lớp này vào ngày {schedule_date.strftime('%d/%m/%Y')} lúc {schedule_data.start_time.strftime('%H:%M')}. Vui lòng chọn ngày hoặc giờ khác."
+            else:
+                days = ['Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy', 'Chủ nhật']
+                day_name = days[schedule_data.day_of_week] if 0 <= schedule_data.day_of_week < 7 else f"Thứ {schedule_data.day_of_week + 2}"
+                error_message = f"Đã tồn tại lịch học cho lớp này vào {day_name} lúc {schedule_data.start_time.strftime('%H:%M')}. Vui lòng chọn ngày hoặc giờ khác."
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_message
+            )
+        
         # Check if error is about missing column
-        if "column" in error_detail.lower() and ("date" in error_detail.lower() or "does not exist" in error_detail.lower()):
+        if "column" in error_lower and ("date" in error_lower or "does not exist" in error_lower):
             # Try again without date field
             if "date" in payload:
                 print("Retrying without date field...")

@@ -235,3 +235,4 @@ newStart < existingEnd && newEnd > existingStart
 - Lịch 2: 09:00 - 10:00
 - → `09:00 < 09:00` ❌ → **KHÔNG XUNG ĐỘT**
 
+

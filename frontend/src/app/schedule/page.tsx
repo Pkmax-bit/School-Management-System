@@ -391,51 +391,114 @@ export default function SchedulePage() {
       const selectedClassroom = classrooms.find(c => c.id === formData.classroom_id);
       const campusForSchedule = selectedCampus || selectedClassroom?.campus_id || formData.campus_id;
 
-      // Tạo từng lịch học
-      for (const scheduleItem of scheduleList) {
-        const scheduleData: ScheduleCreate = {
-          ...formData,
-          day_of_week: scheduleItem.day_of_week,
-          start_time: scheduleItem.start_time,
-          end_time: scheduleItem.end_time,
-          room: scheduleItem.room,
-          room_id: scheduleItem.room_id || undefined,
-          campus_id: campusForSchedule || undefined,
-        };
+      let successCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
 
-        // Kiểm tra xung đột phòng học (ưu tiên kiểm tra ngày cụ thể trước)
-        if (scheduleItem.room && campusForSchedule) {
-          const conflictCheck = await checkRoomConflict(
-            scheduleItem.room,
-            scheduleItem.day_of_week,
-            scheduleItem.start_time,
-            scheduleItem.end_time,
-            campusForSchedule,
-            undefined,
-            scheduleItem.date  // Truyền ngày cụ thể nếu có
-          );
+      // Tạo từng lịch học
+      for (let i = 0; i < scheduleList.length; i++) {
+        const scheduleItem = scheduleList[i];
+        
+        try {
+          const scheduleData: ScheduleCreate = {
+            ...formData,
+            day_of_week: scheduleItem.day_of_week,
+            start_time: scheduleItem.start_time,
+            end_time: scheduleItem.end_time,
+            room: scheduleItem.room,
+            room_id: scheduleItem.room_id || undefined,
+            campus_id: campusForSchedule || undefined,
+          };
+
+          // Kiểm tra xung đột phòng học (ưu tiên kiểm tra ngày cụ thể trước)
+          if (scheduleItem.room && campusForSchedule) {
+            const conflictCheck = await checkRoomConflict(
+              scheduleItem.room,
+              scheduleItem.day_of_week,
+              scheduleItem.start_time,
+              scheduleItem.end_time,
+              campusForSchedule,
+              undefined,
+              scheduleItem.date  // Truyền ngày cụ thể nếu có
+            );
+            
+            if (conflictCheck.hasConflict) {
+              errors.push(`Lịch ${i + 1}: ${conflictCheck.message}`);
+              failedCount++;
+              continue; // Skip this schedule and continue with next
+            }
+          }
+
+          // Thêm date vào scheduleData nếu có
+          if (scheduleItem.date) {
+            scheduleData.date = scheduleItem.date;
+          }
+
+          await schedulesApi.create(scheduleData);
+          successCount++;
           
-          if (conflictCheck.hasConflict) {
-            alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${conflictCheck.message}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác`);
+          // Small delay between requests to avoid overwhelming the server
+          if (i < scheduleList.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (error: any) {
+          console.error(`Error creating schedule ${i + 1}:`, error);
+          const errorMessage = error?.message || 'Có lỗi khi tạo lịch học';
+          
+          // Check if it's an authentication error
+          if (errorMessage.includes('401') || errorMessage.includes('hết hạn') || errorMessage.includes('Unauthorized')) {
+            alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại và thử lại.');
+            // Redirect to login or refresh page
+            if (typeof window !== 'undefined') {
+              window.location.href = '/admin/login';
+            }
             return;
           }
+          
+          errors.push(`Lịch ${i + 1}: ${errorMessage}`);
+          failedCount++;
         }
-
-        // Thêm date vào scheduleData nếu có
-        if (scheduleItem.date) {
-          scheduleData.date = scheduleItem.date;
-        }
-
-        await schedulesApi.create(scheduleData);
       }
       
-      await loadSchedules();
-      setIsDialogOpen(false);
-      resetForm();
-      alert(`Tạo thành công ${scheduleList.length} lịch học!`);
+      // Reload schedules if at least one was created
+      if (successCount > 0) {
+        await loadSchedules();
+      }
+      
+      // Show results
+      if (successCount === scheduleList.length) {
+        setIsDialogOpen(false);
+        resetForm();
+        alert(`✅ Tạo thành công ${successCount} lịch học!`);
+      } else if (successCount > 0) {
+        setIsDialogOpen(false);
+        resetForm();
+        alert(`⚠️ Tạo thành công ${successCount}/${scheduleList.length} lịch học.\n\nLỗi:\n${errors.join('\n')}`);
+      } else {
+        // All failed
+        const errorMessage = errors.length > 0 
+          ? errors.join('\n')
+          : 'Không thể tạo lịch học. Vui lòng thử lại.';
+        
+        // Kiểm tra nếu là lỗi xung đột phòng học
+        if (errorMessage.includes('Phòng') && errorMessage.includes('đã được sử dụng')) {
+          alert(`❌ XUNG ĐỘT PHÒNG HỌC\n\n${errorMessage}\n\n💡 Gợi ý:\n• Chọn phòng học khác\n• Thay đổi khung giờ\n• Chọn ngày khác trong tuần`);
+        } else {
+          alert(`❌ Lỗi tạo lịch học:\n\n${errorMessage}`);
+        }
+      }
     } catch (error: any) {
       console.error('Error creating schedules:', error);
       const errorMessage = error?.message || 'Có lỗi khi tạo lịch học';
+      
+      // Check if it's an authentication error
+      if (errorMessage.includes('401') || errorMessage.includes('hết hạn') || errorMessage.includes('Unauthorized')) {
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại và thử lại.');
+        if (typeof window !== 'undefined') {
+          window.location.href = '/admin/login';
+        }
+        return;
+      }
       
       // Kiểm tra nếu là lỗi xung đột phòng học
       if (errorMessage.includes('Phòng') && errorMessage.includes('đã được sử dụng')) {
