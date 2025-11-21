@@ -68,10 +68,10 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
     },
     {
       id: 'assignments',
-      label: 'Bài tập',
+      label: 'Quản lý Bài tập',
       icon: ClipboardCheck,
-      path: '/teacher/assignments',
-      description: 'Tạo và chấm bài'
+      path: 'http://localhost:3000/assignments',
+      description: 'Quản lý tất cả bài tập'
     },
     {
       id: 'schedule',

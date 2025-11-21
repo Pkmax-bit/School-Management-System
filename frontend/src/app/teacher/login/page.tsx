@@ -13,8 +13,8 @@ import Link from 'next/link';
 export default function TeacherLoginPage() {
   const { login, loading } = useTeacherAuth();
   const router = useRouter();
-  const [email, setEmail] = useState('teacher@school.com');
-  const [password, setPassword] = useState('teacher123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,8 +31,8 @@ export default function TeacherLoginPage() {
   };
 
   const quickLogin = () => {
-    setEmail('teacher@school.com');
-    setPassword('teacher123');
+    setEmail('maihuynhanhthi2001@gmail.com');
+    setPassword('123456');
   };
 
   return (
@@ -70,7 +70,7 @@ export default function TeacherLoginPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="teacher@school.com"
+                    placeholder="maihuynhanhthi2001@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10 text-black"
@@ -136,8 +136,8 @@ export default function TeacherLoginPage() {
             <div className="text-center text-sm text-gray-500">
               <p className="mb-2">Thông tin đăng nhập mẫu:</p>
               <div className="bg-gray-50 p-3 rounded-md text-xs">
-                <p><strong>Email:</strong> teacher@school.com</p>
-                <p><strong>Password:</strong> teacher123</p>
+                <p><strong>Email:</strong> maihuynhanhthi2001@gmail.com</p>
+                <p><strong>Password:</strong> 123456</p>
               </div>
             </div>
 

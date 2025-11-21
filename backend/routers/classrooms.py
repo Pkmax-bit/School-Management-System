@@ -185,6 +185,22 @@ async def get_classrooms(
     supabase: Client = Depends(get_db),
 ):
     """Lấy danh sách lớp học"""
+    # Nếu là giáo viên và có teacher_id trong query, validate quyền
+    if current_user.role == "teacher" and teacher_id:
+        # Lấy teacher_id của current_user
+        teacher_result = supabase.table("teachers").select("id").eq("user_id", current_user.id).execute()
+        if teacher_result.data:
+            current_teacher_id = teacher_result.data[0]["id"]
+            # Chỉ cho phép xem lớp của chính giáo viên đó
+            if teacher_id != current_teacher_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Bạn chỉ có thể xem các lớp mà bạn đang dạy"
+                )
+        else:
+            # Nếu không tìm thấy teacher profile, không cho phép filter theo teacher_id
+            teacher_id = None
+    
     query = supabase.table("classrooms").select("*")
     if teacher_id:
         query = query.eq("teacher_id", teacher_id)

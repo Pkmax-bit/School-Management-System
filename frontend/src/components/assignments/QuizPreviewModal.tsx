@@ -2,7 +2,7 @@ import { Quiz } from './QuizBuilder';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Clock, RotateCcw } from 'lucide-react';
+import { Users, Clock, RotateCcw, Calendar } from 'lucide-react';
 
 interface Class {
   id: string;
@@ -35,7 +35,7 @@ export function QuizPreviewModal({ quiz, onClose, availableClasses = [] }: QuizP
           </div>
 
           {/* Quiz Info */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
               <Clock className="w-5 h-5 text-blue-600" />
               <div>
@@ -55,6 +55,25 @@ export function QuizPreviewModal({ quiz, onClose, availableClasses = [] }: QuizP
               <div>
                 <p className="text-sm text-slate-600">Số câu hỏi</p>
                 <p className="font-semibold">{quiz.questions.length} câu</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg">
+              <Calendar className="w-5 h-5 text-orange-600" />
+              <div>
+                <p className="text-sm text-slate-600">Hạn nộp</p>
+                <p className="font-semibold">
+                  {quiz.dueDate ? (
+                    new Date(quiz.dueDate).toLocaleString('vi-VN', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  ) : (
+                    <span className="text-slate-400">Chưa đặt</span>
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -93,16 +112,34 @@ export function QuizPreviewModal({ quiz, onClose, availableClasses = [] }: QuizP
             {quiz.questions.map((q, idx) => (
               <Card key={q.id}>
                 <CardHeader>
-                  <CardTitle className="text-base">Câu {idx + 1}: {q.title || '(Chưa có nội dung)'}</CardTitle>
+                  <CardTitle className="text-base">
+                    Câu {idx + 1}: {q.title || '(Chưa có nội dung)'}
+                  </CardTitle>
                   <CardDescription>Điểm: {q.points}</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  {q.choices.map((c) => (
-                    <div key={c.id} className="flex items-center gap-2">
-                      <input type="radio" disabled />
-                      <span>{c.text || '(Trống)'}</span>
+                <CardContent className="space-y-4">
+                  {q.imageUrl && (
+                    <div>
+                      <img
+                        src={q.imageUrl}
+                        alt={`Hình minh họa câu ${idx + 1}`}
+                        className="w-full rounded-lg border border-slate-200 object-cover max-h-72"
+                      />
                     </div>
-                  ))}
+                  )}
+
+                  {q.choices.length > 0 ? (
+                    q.choices.map((c) => (
+                      <div key={c.id} className="flex items-center gap-2">
+                        <input type="radio" disabled />
+                        <span>{c.text || '(Trống)'}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">
+                      Câu hỏi tự luận
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ))}
