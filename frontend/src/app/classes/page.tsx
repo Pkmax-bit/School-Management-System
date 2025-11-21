@@ -503,6 +503,7 @@ export default function ClassesPage() {
     setFormData({ name: '', code: 'class', capacity: 30, teacher_id: '', subject_id: '', campus_id: '', description: '', open_date: '', close_date: '', tuition_per_session: 50000, sessions_per_week: 2 });
     setSessionsPerWeek(2);
     setErrors({});
+    setSelectedStudentIds([]);
   };
 
   const filteredClasses = classes.filter((cls) =>

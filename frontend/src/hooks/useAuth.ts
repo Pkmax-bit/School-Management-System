@@ -10,17 +10,20 @@ import { User, LoginForm, RegisterForm } from '@/types';
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
     checkUser();
-    
+
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
+          setToken(session.access_token);
           await loadUserData(session.user.id);
         } else {
           setUser(null);
+          setToken(null);
         }
         setLoading(false);
       }
@@ -37,10 +40,11 @@ export const useAuth = () => {
         return;
       }
 
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      
-      if (authUser) {
-        await loadUserData(authUser.id);
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        setToken(session.access_token);
+        await loadUserData(session.user.id);
       }
     } catch (error) {
       console.error('Error checking user:', error);
@@ -77,9 +81,12 @@ export const useAuth = () => {
       });
 
       if (error) throw error;
-      
-      if (data.user) {
-        await loadUserData(data.user.id);
+
+      if (data.session) {
+        setToken(data.session.access_token);
+        if (data.user) {
+          await loadUserData(data.user.id);
+        }
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -120,6 +127,7 @@ export const useAuth = () => {
     try {
       await supabase.auth.signOut();
       setUser(null);
+      setToken(null);
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -131,5 +139,6 @@ export const useAuth = () => {
     login,
     register,
     logout,
+    token,
   };
 };

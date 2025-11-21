@@ -14,7 +14,7 @@ import traceback
 
 from database import get_db
 from config import settings
-from routers import auth, users, teachers, students, subjects, classrooms, schedules, assignments, attendances, finances, payments, campuses, expense_categories, rooms
+from routers import auth, users, teachers, students, subjects, classrooms, schedules, assignments, attendances, finances, payments, campuses, expense_categories, rooms, lessons
 
 app = FastAPI(
     title="School Management System API",
@@ -45,18 +45,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def health_check():
     return {"status": "ok", "message": "Server is running"}
 
-# CORS middleware
-cors_origins = settings.CORS_ORIGINS.split(",") if settings.CORS_ORIGINS else ["http://localhost:3000"]
-# Add common Next.js dev server origins
-cors_origins.extend(["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"])
-cors_origins = list(set(cors_origins))  # Remove duplicates
-
+# CORS middleware - Allow all origins in development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=["*"],  # Allow all origins in development
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Security
@@ -77,6 +73,7 @@ app.include_router(attendances.router, prefix="/api/attendances", tags=["Attenda
 app.include_router(finances.router, prefix="/api/finances", tags=["Finances"])
 app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
 app.include_router(expense_categories.router, prefix="/api/expense-categories", tags=["Expense Categories"])
+app.include_router(lessons.router, prefix="/api/lessons", tags=["Lessons"])
 
 @app.get("/")
 async def root():

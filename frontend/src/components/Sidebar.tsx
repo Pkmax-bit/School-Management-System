@@ -88,6 +88,12 @@ export default function Sidebar() {
       icon: '✅',
       roles: ['teacher']
     },
+    {
+      title: 'Quản lý bài học',
+      href: '/teacher/lessons',
+      icon: '📖',
+      roles: ['teacher']
+    },
     // Student specific menus
     {
       title: 'Student Dashboard',
@@ -121,7 +127,7 @@ export default function Sidebar() {
     }
   ];
 
-  const filteredMenuItems = menuItems.filter(item => 
+  const filteredMenuItems = menuItems.filter(item =>
     user && item.roles.includes(user.role)
   );
 
@@ -135,15 +141,14 @@ export default function Sidebar() {
           {user?.name} ({user?.role})
         </p>
       </div>
-      
+
       <nav className="mt-6">
         {filteredMenuItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-100 transition-colors ${
-              pathname === item.href ? 'bg-blue-50 border-r-4 border-blue-500 text-blue-700' : ''
-            }`}
+            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-100 transition-colors ${pathname === item.href ? 'bg-blue-50 border-r-4 border-blue-500 text-blue-700' : ''
+              }`}
           >
             <span className="text-xl mr-3">{item.icon}</span>
             <span className="font-medium">{item.title}</span>

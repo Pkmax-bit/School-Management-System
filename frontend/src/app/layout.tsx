@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-// import { DemoAuthProvider } from '@/contexts/DemoAuthContext'
+import { AuthProvider } from '@/contexts/AuthContext'
 import Layout from '@/components/Layout'
 import { BackgroundSettingsProvider } from '@/contexts/BackgroundSettingsContext'
 import { SidebarProvider } from '@/contexts/SidebarContext'
@@ -23,9 +23,11 @@ export default function RootLayout({
       <body className={inter.className}>
         <SidebarProvider>
           <BackgroundSettingsProvider>
-            <Layout>
-              {children}
-            </Layout>
+            <AuthProvider>
+              <Layout>
+                {children}
+              </Layout>
+            </AuthProvider>
           </BackgroundSettingsProvider>
         </SidebarProvider>
       </body>

@@ -1,18 +1,20 @@
 /**
  * Auth Context
- * Context để quản lý trạng thái xác thực với Supabase
+ * Context để quản lý trạng thái xác thực với Backend API
  */
 
 'use client';
 
 import { createContext, useContext, ReactNode } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useApiAuth } from '@/hooks/useApiAuth';
+
+import { User, LoginForm, RegisterForm } from '@/types';
 
 interface AuthContextType {
-  user: any | null;
+  user: User | null;
   loading: boolean;
-  login: (data: any) => Promise<void>;
-  register: (data: any) => Promise<void>;
+  login: (data: LoginForm) => Promise<void>;
+  register: (data: RegisterForm) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -23,11 +25,19 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const auth = useAuth();
+  const auth = useApiAuth();
 
   return (
     <AuthContext.Provider value={auth}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };

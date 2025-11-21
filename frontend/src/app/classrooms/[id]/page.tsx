@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, ArrowLeft } from 'lucide-react';
+import LessonUploadForm from '@/components/lessons/LessonUploadForm';
+import LessonList from '@/components/lessons/LessonList';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ClassroomDetailPage() {
   const params = useParams();
@@ -16,6 +19,8 @@ export default function ClassroomDetailPage() {
   const [classroom, setClassroom] = useState<any | null>(null);
   const [students, setStudents] = useState<any[]>([]);
   const [teacherName, setTeacherName] = useState<string>('');
+  const [refreshLessons, setRefreshLessons] = useState(0);
+  const { user } = useAuth();
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   const formatDob = (dob?: string | null) => {
@@ -104,9 +109,24 @@ export default function ClassroomDetailPage() {
           <div><span className="font-medium">Sĩ số:</span> {classroom.capacity ?? 30}</div>
           <div><span className="font-medium">Mô tả:</span> {classroom.description || '—'}</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><span className="font-medium">Ngày mở lớp:</span> {classroom.open_date ? classroom.open_date.slice(0,10) : '—'}</div>
-            <div><span className="font-medium">Ngày đóng lớp:</span> {classroom.close_date ? classroom.close_date.slice(0,10) : '—'}</div>
+            <div><span className="font-medium">Ngày mở lớp:</span> {classroom.open_date ? classroom.open_date.slice(0, 10) : '—'}</div>
+            <div><span className="font-medium">Ngày đóng lớp:</span> {classroom.close_date ? classroom.close_date.slice(0, 10) : '—'}</div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tài liệu bài học</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(user?.role === 'teacher' || user?.role === 'admin') && (
+            <LessonUploadForm
+              classroomId={id}
+              onUploadSuccess={() => setRefreshLessons(prev => prev + 1)}
+            />
+          )}
+          <LessonList classroomId={id} refreshTrigger={refreshLessons} />
         </CardContent>
       </Card>
 
