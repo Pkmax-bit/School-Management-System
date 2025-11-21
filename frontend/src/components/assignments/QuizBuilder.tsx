@@ -16,6 +16,7 @@ export type Quiz = {
   attemptsAllowed?: number;
   assignedClasses: string[]; // Array of class IDs
   questions: Question[];
+  dueDate?: string; // Deadline với datetime
 };
 
 interface Class {
@@ -50,7 +51,9 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
       title: '',
       points: 1,
       choices: [
-        { id: Math.random().toString(36).substr(2, 9), text: '', isCorrect: true },
+        { id: Math.random().toString(36).substr(2, 9), text: '', isCorrect: false },
+        { id: Math.random().toString(36).substr(2, 9), text: '', isCorrect: false },
+        { id: Math.random().toString(36).substr(2, 9), text: '', isCorrect: false },
         { id: Math.random().toString(36).substr(2, 9), text: '', isCorrect: false },
       ],
       required: true,
@@ -94,6 +97,10 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
     update({ assignedClasses: [] });
   };
 
+  const assignedClassNames = quiz.assignedClasses
+    .map((id) => availableClasses.find((c) => c.id === id)?.name)
+    .filter((name): name is string => Boolean(name));
+
   return (
     <div className="space-y-6">
       <Card>
@@ -112,6 +119,16 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
               <Label>Thời gian (phút)</Label>
               <Input type="number" min={0} value={quiz.timeLimitMinutes || 0} onChange={(e) => update({ timeLimitMinutes: parseInt(e.target.value) || 0 })} />
               <p className="text-xs text-slate-500">0 phút nghĩa là không giới hạn thời gian.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Hạn nộp (Ngày, giờ) *</Label>
+              <Input
+                type="datetime-local"
+                value={quiz.dueDate || ''}
+                onChange={(e) => update({ dueDate: e.target.value })}
+                required
+              />
+              <p className="text-xs text-slate-500">Chọn ngày, tháng, năm và giờ hạn nộp</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -178,7 +195,6 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
                             <div>
                               <div className="font-semibold text-slate-800">{classItem.name}</div>
                               <div className="text-sm text-slate-600">{classItem.subject}</div>
-                              <div className="text-xs text-slate-500">{classItem.studentCount} học sinh</div>
                             </div>
                           </div>
                           <Users className={`w-5 h-5 ${isAssigned ? 'text-blue-500' : 'text-slate-400'}`} />
@@ -216,7 +232,18 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
 
         <div className="space-y-4">
           {quiz.questions.map((q, idx) => (
-            <QuestionEditor key={q.id} value={q} index={idx} onChange={(v) => updateQuestion(q.id, v)} onRemove={() => removeQuestion(q.id)} />
+            <QuestionEditor
+              key={q.id}
+              value={q}
+              index={idx}
+              onChange={(v) => updateQuestion(q.id, v)}
+              onRemove={() => removeQuestion(q.id)}
+              uploadContext={{
+                classNames: assignedClassNames,
+                assignmentType: 'multiple_choice',
+                assignmentId: quiz.id.startsWith('new-') ? undefined : quiz.id,
+              }}
+            />
           ))}
         </div>
       </div>

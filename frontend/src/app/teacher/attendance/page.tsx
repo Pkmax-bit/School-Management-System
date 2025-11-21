@@ -152,7 +152,7 @@ export default function AttendancePage() {
     });
 
     const attendanceList = extractApiDataArray(attendanceResponse);
-    let attendance = attendanceList.find(
+    const attendance = attendanceList.find(
       (item: any) =>
         item &&
         item.classroom_id === classId &&
@@ -303,7 +303,7 @@ export default function AttendancePage() {
         (classroomsData || []).map(async (classroom: any) => {
           // Get students in this classroom
           let studentList: Student[] = [];
-          let attendanceStats = {
+          const attendanceStats = {
             presentCount: 0,
             absentWithExcuse: 0,
             absentWithoutExcuse: 0,

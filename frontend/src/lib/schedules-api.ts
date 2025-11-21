@@ -10,7 +10,7 @@ async function apiRequest(url: string, options: {
   const maxRetries = 1; // Retry once if 401
   
   // Try to get JWT token from localStorage (check multiple possible keys)
-  let jwtToken = typeof window !== 'undefined' 
+  const jwtToken = typeof window !== 'undefined' 
     ? localStorage.getItem('auth_token') || 
       localStorage.getItem('access_token') ||
       localStorage.getItem('token')

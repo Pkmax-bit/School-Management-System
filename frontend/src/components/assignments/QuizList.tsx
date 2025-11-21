@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Edit, Trash2, Copy, Search, Eye, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Copy, Search, Eye, Users, FileText } from 'lucide-react';
 import { Quiz } from './QuizBuilder';
 import { cn } from '@/components/ui/utils';
 
@@ -126,8 +126,24 @@ export function QuizList({ items, onCreate, onEdit, onDelete, onDuplicate, onPre
           ))}
         </div>
 
-        {filtered.length === 0 && (
-          <div className="text-center text-slate-500 py-8">Không có bài tập nào phù hợp</div>
+        {filtered.length === 0 && items.length === 0 && (
+          <div className="text-center text-slate-500 py-12">
+            <div className="mb-4">
+              <FileText className="w-16 h-16 mx-auto text-slate-300" />
+            </div>
+            <p className="text-lg font-medium mb-2">Chưa có bài tập nào</p>
+            <p className="text-sm mb-4">Bắt đầu bằng cách tạo bài tập trắc nghiệm mới</p>
+            <Button onClick={onCreate} variant="outline">
+              <Plus className="w-4 h-4 mr-2" /> Tạo bài tập đầu tiên
+            </Button>
+          </div>
+        )}
+
+        {filtered.length === 0 && items.length > 0 && (
+          <div className="text-center text-slate-500 py-8">
+            <p>Không có bài tập nào phù hợp với bộ lọc</p>
+            <p className="text-sm mt-2">Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc</p>
+          </div>
         )}
       </CardContent>
     </Card>
