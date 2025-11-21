@@ -115,6 +115,8 @@ class AssignmentQuestionResponse(BaseModel):
     options: Optional[List[Dict[str, Any]]] = None
     correct_answer: Optional[str] = None
     order_index: int
+    image_url: Optional[str] = None
+    attachment_link: Optional[str] = None
     created_at: str
 
 class AssignmentSubmissionCreate(BaseModel):

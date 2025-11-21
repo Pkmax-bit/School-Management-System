@@ -45,9 +45,11 @@ interface AssignmentQuestion {
   question_text: string;
   question_type: 'multiple_choice' | 'essay';
   points: number;
-  options?: Array<{ id: string; text: string }>;
+  options?: Array<{ id: string; text: string; value?: string }>;
   correct_answer?: string;
   order_index: number;
+  image_url?: string;
+  attachment_link?: string;
 }
 
 export default function TeacherAssignmentsPage() {
@@ -242,17 +244,24 @@ export default function TeacherAssignmentsPage() {
         },
       });
 
-      if (questionsRes.ok) {
-        const questionsData: AssignmentQuestion[] = await questionsRes.json();
-        questions = questionsData.map((q) => ({
-          id: q.id,
-          title: q.question_text,
-          points: q.points,
-          choices: q.options || [],
-          correctAnswer: q.correct_answer,
-          questionType: q.question_type,
-        }));
-      }
+        if (questionsRes.ok) {
+          const questionsData: AssignmentQuestion[] = await questionsRes.json();
+          questions = questionsData.map((q) => ({
+            id: q.id,
+            title: q.question_text,
+            points: q.points,
+            choices:
+              q.options?.map((opt) => ({
+                id: opt.id,
+                text: opt.text,
+                isCorrect: opt.id === q.correct_answer,
+              })) || [],
+            correctAnswer: q.correct_answer,
+            questionType: q.question_type,
+            imageUrl: q.image_url,
+            attachmentLink: q.attachment_link,
+          }));
+        }
     } catch (err) {
       console.error('Error loading questions:', err);
     }
@@ -548,16 +557,29 @@ export default function TeacherAssignmentsPage() {
 
         // Create questions
         for (const question of quiz.questions) {
+          const formattedChoices =
+            question.choices?.map((choice, idx) => {
+              const fallbackId = String.fromCharCode(65 + idx);
+              const optionId = choice.id?.trim() || fallbackId;
+              return {
+                id: optionId,
+                text: choice.text,
+                value: choice.id?.trim() || optionId,
+              };
+            }) || [];
+
+          const correctChoiceIndex = question.choices?.findIndex((c) => c.isCorrect) ?? -1;
+          const correctAnswerId =
+            correctChoiceIndex >= 0
+              ? formattedChoices[correctChoiceIndex]?.id
+              : formattedChoices[0]?.id || null;
+
           const questionData = {
             question_text: question.title,
             question_type: 'multiple_choice',
             points: question.points || 1,
-            options: question.choices?.map((choice, idx) => ({
-              id: String.fromCharCode(65 + idx), // A, B, C, D
-              text: choice.text,
-            })),
-            correct_answer: question.choices?.find(c => c.isCorrect)?.id || 
-                           String.fromCharCode(65 + question.choices?.findIndex(c => c.isCorrect) || 0),
+            options: formattedChoices,
+            correct_answer: correctAnswerId,
             order_index: quiz.questions.indexOf(question),
             image_url: question.imageUrl || null,
             attachment_link: question.attachmentLink || null,
@@ -638,17 +660,32 @@ export default function TeacherAssignmentsPage() {
 
         // Create new questions
         for (const question of quiz.questions) {
+          const formattedChoices =
+            question.choices?.map((choice, idx) => {
+              const fallbackId = String.fromCharCode(65 + idx);
+              const optionId = choice.id?.trim() || fallbackId;
+              return {
+                id: optionId,
+                text: choice.text,
+                value: choice.id?.trim() || optionId,
+              };
+            }) || [];
+
+          const correctChoiceIndex = question.choices?.findIndex((c) => c.isCorrect) ?? -1;
+          const correctAnswerId =
+            correctChoiceIndex >= 0
+              ? formattedChoices[correctChoiceIndex]?.id
+              : formattedChoices[0]?.id || null;
+
           const questionData = {
             question_text: question.title,
             question_type: 'multiple_choice',
             points: question.points || 1,
-            options: question.choices?.map((choice, idx) => ({
-              id: String.fromCharCode(65 + idx),
-              text: choice.text,
-            })),
-            correct_answer: question.choices?.find(c => c.isCorrect)?.id || 
-                           String.fromCharCode(65 + question.choices?.findIndex(c => c.isCorrect) || 0),
+            options: formattedChoices,
+            correct_answer: correctAnswerId,
             order_index: quiz.questions.indexOf(question),
+            image_url: question.imageUrl || null,
+            attachment_link: question.attachmentLink || null,
           };
 
           await fetch(`${API_BASE_URL}/api/assignments/${quiz.id}/questions`, {

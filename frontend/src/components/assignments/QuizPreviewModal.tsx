@@ -2,7 +2,7 @@ import { Quiz } from './QuizBuilder';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Clock, RotateCcw, Calendar } from 'lucide-react';
+import { Users, Clock, RotateCcw, Calendar, Download } from 'lucide-react';
 
 interface Class {
   id: string;
@@ -125,6 +125,20 @@ export function QuizPreviewModal({ quiz, onClose, availableClasses = [] }: QuizP
                         alt={`Hình minh họa câu ${idx + 1}`}
                         className="w-full rounded-lg border border-slate-200 object-cover max-h-72"
                       />
+                    </div>
+                  )}
+
+                  {q.attachmentLink && (
+                    <div>
+                      <a
+                        href={q.attachmentLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-3 py-2 border border-blue-200 rounded-lg text-sm text-blue-600 hover:bg-blue-50 transition"
+                      >
+                        <Download className="w-4 h-4" />
+                        Tải file đính kèm
+                      </a>
                     </div>
                   )}
 

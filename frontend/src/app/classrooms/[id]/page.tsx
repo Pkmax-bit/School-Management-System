@@ -20,6 +20,7 @@ export default function ClassroomDetailPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [teacherName, setTeacherName] = useState<string>('');
   const [refreshLessons, setRefreshLessons] = useState(0);
+  const [classrooms, setClassrooms] = useState<Array<{ id: string; name: string; code?: string }>>([]);
   const { user } = useAuth();
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -60,6 +61,15 @@ export default function ClassroomDetailPage() {
           if (tRes.ok) {
             const t = await tRes.json();
             setTeacherName(t?.users?.full_name || t?.name || '');
+          }
+        }
+
+        // Fetch all classrooms for the teacher (for lesson sharing)
+        if (user?.role === 'teacher' || user?.role === 'admin') {
+          const clsListRes = await fetch(`${API_BASE_URL}/api/classrooms`, { headers });
+          if (clsListRes.ok) {
+            const clsList = await clsListRes.json();
+            setClassrooms(Array.isArray(clsList) ? clsList : []);
           }
         }
       } catch (e) {
@@ -123,10 +133,11 @@ export default function ClassroomDetailPage() {
           {(user?.role === 'teacher' || user?.role === 'admin') && (
             <LessonUploadForm
               classroomId={id}
+              classrooms={classrooms}
               onUploadSuccess={() => setRefreshLessons(prev => prev + 1)}
             />
           )}
-          <LessonList classroomId={id} refreshTrigger={refreshLessons} />
+          <LessonList classroomId={id} refreshTrigger={refreshLessons} classrooms={classrooms} />
         </CardContent>
       </Card>
 

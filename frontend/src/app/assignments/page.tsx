@@ -385,6 +385,8 @@ export default function AssignmentsPage() {
             id: q.id,
             title: q.question_text,
             points: q.points,
+            imageUrl: q.image_url,
+            attachmentLink: q.attachment_link,
             choices: q.options?.map((opt: any, idx: number) => ({
               id: opt.id || String.fromCharCode(65 + idx),
               text: opt.text || '',
@@ -398,6 +400,8 @@ export default function AssignmentsPage() {
             id: q.id,
             title: q.question_text,
             points: q.points,
+            imageUrl: q.image_url,
+            attachmentLink: q.attachment_link,
             choices: [],
             required: true,
             shuffleChoices: false,
@@ -492,6 +496,12 @@ export default function AssignmentsPage() {
 
       // Create questions
       for (const question of quiz.questions) {
+        // Find the index of the correct answer
+        const correctChoiceIndex = question.choices?.findIndex(c => c.isCorrect);
+        const correctAnswerLetter = correctChoiceIndex !== undefined && correctChoiceIndex >= 0
+          ? String.fromCharCode(65 + correctChoiceIndex)
+          : 'A'; // Default to 'A' if no correct answer is marked
+
         const questionData = {
           question_text: question.title,
           question_type: 'multiple_choice',
@@ -500,8 +510,7 @@ export default function AssignmentsPage() {
             id: String.fromCharCode(65 + idx),
             text: choice.text,
           })),
-          correct_answer: question.choices?.find(c => c.isCorrect)?.id ||
-            String.fromCharCode(65 + question.choices?.findIndex(c => c.isCorrect) || 0),
+          correct_answer: correctAnswerLetter,
           order_index: quiz.questions.indexOf(question),
           image_url: question.imageUrl || null,
           attachment_link: question.attachmentLink || null,
@@ -901,6 +910,16 @@ export default function AssignmentsPage() {
                                       <Eye className="w-4 h-4" />
                                     </Button>
                                   )}
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      router.push(`/assignments/${assignment.id}/practice`);
+                                    }}
+                                  >
+                                    Làm thử
+                                  </Button>
                                 </div>
                               </div>
                             </CardContent>

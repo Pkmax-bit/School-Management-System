@@ -138,12 +138,12 @@ export default function LessonUploadForm({ classroomId, classrooms, onUploadSucc
                         accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar"
                     />
                 </div>
-                {selectedFile && selectedFile.length > 0 && (
+                {selectedFile && (selectedFile as unknown as FileList).length > 0 && (
                     <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
                         <FileText className="w-4 h-4" />
-                        <span className="truncate">{selectedFile[0]?.name}</span>
+                        <span className="truncate">{(selectedFile as unknown as FileList)[0]?.name}</span>
                         <span className="text-xs text-gray-400">
-                            ({(selectedFile[0]?.size / 1024 / 1024).toFixed(2)} MB)
+                            ({((selectedFile as unknown as FileList)[0]?.size / 1024 / 1024).toFixed(2)} MB)
                         </span>
                     </div>
                 )}
