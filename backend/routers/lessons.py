@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Set
 from uuid import UUID
 from supabase import Client
 import os
@@ -25,11 +25,48 @@ def slugify_classroom_folder(name: Optional[str], code: Optional[str], fallback:
     return slug or fallback
 
 
+def get_teacher_classroom_ids(db: Client, user_id: str) -> Set[str]:
+    """
+    Return the set of classroom IDs managed by the teacher (linked via users table).
+    """
+    teacher_resp = (
+        db.table("teachers")
+        .select("id")
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
+    if not teacher_resp.data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Teacher profile not found. Please contact administrator."
+        )
+
+    teacher_id = teacher_resp.data["id"]
+    classrooms_resp = (
+        db.table("classrooms")
+        .select("id")
+        .eq("teacher_id", teacher_id)
+        .execute()
+    )
+    classrooms = {item["id"] for item in classrooms_resp.data or []}
+
+    if not classrooms:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn chưa được gán lớp nào để tải bài học."
+        )
+
+    return classrooms
+
+
 @router.post("/upload", response_model=Lesson)
 async def upload_lesson(
     classroom_id: UUID = Form(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
+    sort_order: Optional[int] = Form(None),
+    shared_classroom_ids: Optional[List[str]] = Form(None),
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_db)
@@ -70,6 +107,53 @@ async def upload_lesson(
 
     storage_path = None
     public_url = None
+    shared_classrooms: List[str] = []
+    raw_shared_ids = shared_classroom_ids or []
+    normalized_shared_ids: List[str] = []
+    seen_shared_ids: Set[str] = set()
+    for cls_id in raw_shared_ids:
+        if not cls_id:
+            continue
+        cls_id_str = str(cls_id)
+        if cls_id_str == str(classroom_id) or cls_id_str in seen_shared_ids:
+            continue
+        seen_shared_ids.add(cls_id_str)
+        normalized_shared_ids.append(cls_id_str)
+
+    # Validate accessible classrooms for teachers
+    if current_user["role"] == "teacher":
+        allowed_classrooms = get_teacher_classroom_ids(db, current_user["id"])
+        if str(classroom_id) not in allowed_classrooms:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không được phép tải bài học cho lớp này."
+            )
+        if normalized_shared_ids:
+            invalid = [cls_id for cls_id in normalized_shared_ids if cls_id not in allowed_classrooms]
+            if invalid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Bạn chỉ có thể gán bài học cho các lớp mình quản lý."
+                )
+            shared_classrooms = normalized_shared_ids
+    else:
+        shared_classrooms = normalized_shared_ids
+
+    # Ensure target classrooms exist
+    if shared_classrooms:
+        shared_resp = (
+            db.table("classrooms")
+            .select("id")
+            .in_("id", shared_classrooms)
+            .execute()
+        )
+        existing_shared = {item["id"] for item in shared_resp.data or []}
+        missing = set(shared_classrooms) - existing_shared
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Một hoặc nhiều lớp chia sẻ không tồn tại."
+            )
 
     try:
         if not file.filename:
@@ -135,7 +219,9 @@ async def upload_lesson(
         "description": description,
         "file_url": public_url,
         "file_name": file.filename,
-        "storage_path": storage_path
+        "storage_path": storage_path,
+        "sort_order": sort_order if sort_order is not None else 0,
+        "shared_classroom_ids": shared_classrooms
     }
 
     try:
@@ -188,10 +274,13 @@ async def get_lessons_by_classroom(
     Get all lessons for a specific classroom.
     """
     try:
+        classroom_id_str = str(classroom_id)
+        filter_expr = f"classroom_id.eq.{classroom_id_str},shared_classroom_ids.cs.{{{classroom_id_str}}}"
         response = (
             db.table("lessons")
             .select("*")
-            .eq("classroom_id", str(classroom_id))
+            .or_(filter_expr)
+            .order("sort_order")
             .order("created_at", desc=True)
             .execute()
         )

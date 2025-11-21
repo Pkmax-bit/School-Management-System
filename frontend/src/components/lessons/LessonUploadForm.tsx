@@ -3,20 +3,21 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { LessonCreate } from "@/types/lesson";
-import { useAuth } from "@/contexts/AuthContext";
 import { FileText, AlignLeft, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface LessonUploadFormProps {
     classroomId: string;
+    classrooms: Array<{ id: string; name: string; code?: string }>;
     onUploadSuccess: () => void;
 }
 
-export default function LessonUploadForm({ classroomId, onUploadSuccess }: LessonUploadFormProps) {
+export default function LessonUploadForm({ classroomId, classrooms, onUploadSuccess }: LessonUploadFormProps) {
     const { register, handleSubmit, reset, formState: { errors }, watch } = useForm<LessonCreate>();
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [uploadSuccess, setUploadSuccess] = useState(false);
+    const [sharedClassrooms, setSharedClassrooms] = useState<string[]>([]);
 
     const selectedFile = watch("file");
 
@@ -39,6 +40,10 @@ export default function LessonUploadForm({ classroomId, onUploadSuccess }: Lesso
         if (data.description) {
             formData.append("description", data.description);
         }
+        if (typeof data.sort_order === "number" && !Number.isNaN(data.sort_order)) {
+            formData.append("sort_order", data.sort_order.toString());
+        }
+        sharedClassrooms.forEach((id) => formData.append("shared_classroom_ids", id));
         const fileList = data.file as unknown as FileList;
         formData.append("file", fileList[0]);
 
@@ -58,6 +63,7 @@ export default function LessonUploadForm({ classroomId, onUploadSuccess }: Lesso
 
             setUploadSuccess(true);
             reset();
+            setSharedClassrooms([]);
             setTimeout(() => setUploadSuccess(false), 3000);
             onUploadSuccess();
         } catch (err: any) {
@@ -100,6 +106,24 @@ export default function LessonUploadForm({ classroomId, onUploadSuccess }: Lesso
                 />
             </div>
 
+            {/* Sort Order Field */}
+            <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-blue-50 text-blue-600 text-xs font-semibold">#</span>
+                    Thứ tự hiển thị
+                </label>
+                <input
+                    type="number"
+                    min={0}
+                    {...register("sort_order", { valueAsNumber: true })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="Ví dụ: 1, 2, 3... (để sắp xếp bài học)"
+                />
+                <p className="text-xs text-gray-500">
+                    Bài học sẽ được sắp xếp theo thứ tự tăng dần (mặc định = 0 nếu bỏ trống).
+                </p>
+            </div>
+
             {/* File Upload Field */}
             <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
@@ -130,6 +154,47 @@ export default function LessonUploadForm({ classroomId, onUploadSuccess }: Lesso
                     Hỗ trợ: PDF, Word, PowerPoint, Excel, Text, ZIP (Tối đa 50MB)
                 </p>
             </div>
+
+            {/* Shared Classrooms */}
+            {classrooms.length > 1 && (
+                <div className="space-y-3 border border-dashed border-gray-200 rounded-xl p-4 bg-gray-50/60">
+                    <div className="space-y-1">
+                        <p className="text-sm font-medium text-gray-700">Chia sẻ cho lớp khác</p>
+                        <p className="text-xs text-gray-500">
+                            Bạn chỉ có thể chọn các lớp do mình quản lý. Lớp hiện tại đã được chọn mặc định.
+                        </p>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                        {classrooms.filter(cls => cls.id !== classroomId).map((cls) => {
+                            const checked = sharedClassrooms.includes(cls.id);
+                            return (
+                                <label key={cls.id} className={`flex items-start gap-3 p-3 rounded-lg border transition ${checked ? "border-blue-500 bg-white shadow-sm" : "border-gray-200 bg-white/60 hover:border-blue-200"}`}>
+                                    <input
+                                        type="checkbox"
+                                        className="mt-1"
+                                        checked={checked}
+                                        onChange={(e) => {
+                                            setSharedClassrooms((prev) => {
+                                                if (e.target.checked) {
+                                                    return [...prev, cls.id];
+                                                }
+                                                return prev.filter(id => id !== cls.id);
+                                            });
+                                        }}
+                                    />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-gray-800">{cls.name}</p>
+                                        {cls.code && <p className="text-xs text-gray-500">{cls.code}</p>}
+                                    </div>
+                                </label>
+                            );
+                        })}
+                        {classrooms.filter(cls => cls.id !== classroomId).length === 0 && (
+                            <p className="text-sm text-gray-500">Không có lớp khác để chia sẻ.</p>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Error Message */}
             {uploadError && (

@@ -186,6 +186,7 @@ export default function TeacherLessonsPage() {
                                         <CardContent className="pt-6">
                                             <LessonUploadForm
                                                 classroomId={selectedClassroomId}
+                                                classrooms={classrooms}
                                                 onUploadSuccess={() => setRefreshLessons((prev) => prev + 1)}
                                             />
                                         </CardContent>
@@ -206,6 +207,7 @@ export default function TeacherLessonsPage() {
                                             <LessonList
                                                 classroomId={selectedClassroomId}
                                                 refreshTrigger={refreshLessons}
+                                                classrooms={classrooms}
                                             />
                                         </CardContent>
                                     </Card>

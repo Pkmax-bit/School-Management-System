@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS lessons (
     file_url TEXT NOT NULL,
     file_name VARCHAR(255),
     storage_path TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    shared_classroom_ids TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

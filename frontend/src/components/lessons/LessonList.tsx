@@ -1,24 +1,38 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Lesson } from "@/types/lesson";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
-import { FileText, Download, Trash2, Loader2, FileIcon, AlertCircle } from "lucide-react";
+import { FileText, Download, Trash2, Loader2, FileIcon, AlertCircle, Copy, CheckSquare, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CopyLessonModal } from "./CopyLessonModal";
 
 interface LessonListProps {
     classroomId: string;
     refreshTrigger: number;
+    classrooms: Array<{ id: string; name: string; code?: string }>;
 }
 
-export default function LessonList({ classroomId, refreshTrigger }: LessonListProps) {
+export default function LessonList({ classroomId, refreshTrigger, classrooms }: LessonListProps) {
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const { user } = useAuth();
+
+    // Selection states
+    const [selectedLessons, setSelectedLessons] = useState<Set<string>>(new Set());
+    const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+
+    const classroomLookup = useMemo(() => {
+        const map = new Map<string, { name: string; code?: string }>();
+        classrooms.forEach((cls) => {
+            map.set(cls.id, { name: cls.name, code: cls.code });
+        });
+        return map;
+    }, [classrooms]);
 
     const fetchLessons = async () => {
         // Get token from localStorage
@@ -44,6 +58,7 @@ export default function LessonList({ classroomId, refreshTrigger }: LessonListPr
 
             const data = await response.json();
             setLessons(data);
+            setSelectedLessons(new Set()); // Reset selection on refresh
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -78,10 +93,66 @@ export default function LessonList({ classroomId, refreshTrigger }: LessonListPr
 
             // Remove from list
             setLessons(lessons.filter(l => l.id !== lessonId));
+
+            // Remove from selection if selected
+            if (selectedLessons.has(lessonId)) {
+                const newSelected = new Set(selectedLessons);
+                newSelected.delete(lessonId);
+                setSelectedLessons(newSelected);
+            }
         } catch (err: any) {
             alert(`Lỗi: ${err.message}`);
         } finally {
             setDeletingId(null);
+        }
+    };
+
+    // Selection Handlers
+    const toggleSelection = (lessonId: string) => {
+        const newSelected = new Set(selectedLessons);
+        if (newSelected.has(lessonId)) {
+            newSelected.delete(lessonId);
+        } else {
+            newSelected.add(lessonId);
+        }
+        setSelectedLessons(newSelected);
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedLessons.size === lessons.length) {
+            setSelectedLessons(new Set());
+        } else {
+            setSelectedLessons(new Set(lessons.map(l => l.id)));
+        }
+    };
+
+    const handleCopyLessons = async (targetClassroomId: string) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons/copy`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    lesson_ids: Array.from(selectedLessons),
+                    target_classroom_id: targetClassroomId
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error("Không thể sao chép bài học");
+            }
+
+            const result = await response.json();
+            alert(`Đã sao chép thành công ${result.copied_count} bài học!`);
+            setSelectedLessons(new Set()); // Clear selection
+        } catch (err: any) {
+            alert(`Lỗi sao chép: ${err.message}`);
+            throw err; // Let modal handle error state
         }
     };
 
@@ -166,45 +237,96 @@ export default function LessonList({ classroomId, refreshTrigger }: LessonListPr
     // Lessons List
     return (
         <div className="space-y-4">
+            {/* Selection Toolbar */}
+            <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={toggleSelectAll}
+                        className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                    >
+                        {selectedLessons.size === lessons.length && lessons.length > 0 ? (
+                            <CheckSquare className="w-5 h-5 text-blue-600" />
+                        ) : (
+                            <Square className="w-5 h-5 text-gray-400" />
+                        )}
+                        {selectedLessons.size > 0 ? `Đã chọn ${selectedLessons.size}` : 'Chọn tất cả'}
+                    </button>
+                </div>
+
+                {selectedLessons.size > 0 && (
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5 duration-200">
+                        <Button
+                            onClick={() => setIsCopyModalOpen(true)}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                        >
+                            <Copy className="w-4 h-4" />
+                            Gán cho lớp khác
+                        </Button>
+                        <Button
+                            onClick={() => setSelectedLessons(new Set())}
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-500 hover:text-gray-700"
+                        >
+                            <X className="w-4 h-4" />
+                            Hủy
+                        </Button>
+                    </div>
+                )}
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {lessons.map((lesson) => (
                     <div
                         key={lesson.id}
-                        className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-all duration-200 group"
+                        className={`bg-white border rounded-lg p-5 shadow-sm hover:shadow-md transition-all duration-200 group relative ${selectedLessons.has(lesson.id) ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50/30' : 'border-gray-200'
+                            }`}
                     >
-                        {/* Header with icon and delete button */}
-                        <div className="flex justify-between items-start mb-3">
+                        {/* Checkbox Overlay */}
+                        <div className="absolute top-3 right-3 z-10">
+                            <button
+                                onClick={() => toggleSelection(lesson.id)}
+                                className="p-1 rounded-md hover:bg-gray-100 transition-colors"
+                            >
+                                {selectedLessons.has(lesson.id) ? (
+                                    <CheckSquare className="w-5 h-5 text-blue-600 bg-white rounded" />
+                                ) : (
+                                    <Square className="w-5 h-5 text-gray-300 hover:text-gray-400" />
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Header with icon, meta info and delete button */}
+                        <div className="flex justify-between items-start mb-3 pr-8">
                             <div className="flex items-start gap-3 flex-1 min-w-0">
                                 {getFileIcon(lesson.file_name || '')}
                                 <div className="flex-1 min-w-0">
                                     <h4 className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors" title={lesson.title}>
                                         {lesson.title}
                                     </h4>
-                                    <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
-                                        {getFileExtension(lesson.file_name || '')}
-                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                                        <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                                            {getFileExtension(lesson.file_name || '')}
+                                        </span>
+                                        {typeof lesson.sort_order === "number" && !Number.isNaN(lesson.sort_order) && (
+                                            <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded">
+                                                Thứ tự: {lesson.sort_order}
+                                            </span>
+                                        )}
+                                    </div>
                                     {lesson.file_name && (
                                         <p className="text-xs text-gray-500 truncate mt-1" title={lesson.file_name}>
                                             {lesson.file_name}
                                         </p>
                                     )}
+                                    {lesson.classroom_id !== classroomId && (
+                                        <p className="text-xs text-amber-600 mt-1">
+                                            Nguồn: {classroomLookup.get(lesson.classroom_id)?.name || "Lớp khác"}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
-
-                            {(user?.role === 'teacher' || user?.role === 'admin') && (
-                                <button
-                                    onClick={() => handleDelete(lesson.id)}
-                                    disabled={deletingId === lesson.id}
-                                    className="flex items-center gap-1 text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded transition-colors disabled:opacity-50"
-                                    title="Xóa bài học"
-                                >
-                                    {deletingId === lesson.id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Trash2 className="w-4 h-4" />
-                                    )}
-                                </button>
-                            )}
                         </div>
 
                         {/* Description */}
@@ -212,6 +334,23 @@ export default function LessonList({ classroomId, refreshTrigger }: LessonListPr
                             <p className="text-gray-600 text-sm mb-4 line-clamp-2" title={lesson.description}>
                                 {lesson.description}
                             </p>
+                        )}
+
+                        {/* Shared classrooms */}
+                        {lesson.shared_classroom_ids && lesson.shared_classroom_ids.length > 0 && (
+                            <div className="mb-4">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Chia sẻ với</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {lesson.shared_classroom_ids.map((clsId) => (
+                                        <span
+                                            key={clsId}
+                                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                        >
+                                            {classroomLookup.get(clsId)?.name || "Lớp đã xoá"}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         )}
 
                         {/* Image Preview */}
@@ -239,19 +378,43 @@ export default function LessonList({ classroomId, refreshTrigger }: LessonListPr
                                 {format(new Date(lesson.created_at), "dd/MM/yyyy", { locale: vi })}
                             </span>
 
-                            <a
-                                href={lesson.file_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded-lg transition-colors"
-                            >
-                                <Download className="w-4 h-4" />
-                                Tải xuống
-                            </a>
+                            <div className="flex items-center gap-2">
+                                {(user?.role === 'teacher' || user?.role === 'admin') && (
+                                    <button
+                                        onClick={() => handleDelete(lesson.id)}
+                                        disabled={deletingId === lesson.id}
+                                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                        title="Xóa bài học"
+                                    >
+                                        {deletingId === lesson.id ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="w-4 h-4" />
+                                        )}
+                                    </button>
+                                )}
+                                <a
+                                    href={lesson.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded-lg transition-colors"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Tải xuống
+                                </a>
+                            </div>
                         </div>
                     </div>
                 ))}
             </div>
+
+            <CopyLessonModal
+                isOpen={isCopyModalOpen}
+                onClose={() => setIsCopyModalOpen(false)}
+                onCopy={handleCopyLessons}
+                currentClassroomId={classroomId}
+                selectedCount={selectedLessons.size}
+            />
         </div>
     );
 }
