@@ -5,7 +5,7 @@ import { Lesson } from "@/types/lesson";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
-import { FileText, Download, Trash2, Loader2, FileIcon, AlertCircle, Copy, CheckSquare, Square, X, Clock, Lock, Eye } from "lucide-react";
+import { FileText, Download, Trash2, Loader2, FileIcon, AlertCircle, Copy, CheckSquare, Square, X, Clock, Lock, Eye, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CopyLessonModal } from "./CopyLessonModal";
 import LessonPreviewModal from "./LessonPreviewModal";
@@ -14,9 +14,10 @@ interface LessonListProps {
     classroomId: string;
     refreshTrigger: number;
     classrooms: Array<{ id: string; name: string; code?: string }>;
+    onEditLesson?: (lesson: Lesson | null) => void;
 }
 
-export default function LessonList({ classroomId, refreshTrigger, classrooms }: LessonListProps) {
+export default function LessonList({ classroomId, refreshTrigger, classrooms, onEditLesson }: LessonListProps) {
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -427,18 +428,32 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms }: 
 
                             <div className="flex items-center gap-2">
                                 {(user?.role === 'teacher' || user?.role === 'admin') && (
-                                    <button
-                                        onClick={() => handleDelete(lesson.id)}
-                                        disabled={deletingId === lesson.id}
-                                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                                        title="Xóa bài học"
-                                    >
-                                        {deletingId === lesson.id ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <Trash2 className="w-4 h-4" />
-                                        )}
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (onEditLesson) {
+                                                    onEditLesson(lesson);
+                                                }
+                                            }}
+                                            className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                                            title="Sửa bài học"
+                                        >
+                                            <Edit className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(lesson.id)}
+                                            disabled={deletingId === lesson.id}
+                                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                            title="Xóa bài học"
+                                        >
+                                            {deletingId === lesson.id ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Trash2 className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    </>
                                 )}
                                 {(user?.role === 'teacher' || user?.role === 'admin' || isLessonAvailable(lesson)) ? (
                                     <a
@@ -482,6 +497,7 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms }: 
                 classroomName={classroomLookup.get(classroomId)?.name || "Lớp học"}
                 classroomId={classroomId}
             />
+
         </div>
     );
 }
