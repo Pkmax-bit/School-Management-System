@@ -19,6 +19,7 @@ export default function TeacherLessonsPage() {
     const [selectedClassroomId, setSelectedClassroomId] = useState<string | null>(null);
     const [loadingClassrooms, setLoadingClassrooms] = useState(true);
     const [refreshLessons, setRefreshLessons] = useState(0);
+    const [editingLesson, setEditingLesson] = useState<any | null>(null);
 
     useEffect(() => {
         const fetchClassrooms = async () => {
@@ -173,11 +174,11 @@ export default function TeacherLessonsPage() {
                             {selectedClassroomId ? (
                                 <div className="space-y-6">
                                     {/* Upload Form Card */}
-                                    <Card className="shadow-md border-0">
+                                    <Card className="shadow-md border-0" data-lesson-form>
                                         <CardHeader className="pb-3 bg-gradient-to-r from-green-50 to-emerald-50">
                                             <CardTitle className="flex items-center gap-2 text-lg">
                                                 <Upload className="w-5 h-5 text-green-600" />
-                                                Tải lên bài học mới
+                                                {editingLesson ? 'Sửa bài học' : 'Tải lên bài học mới'}
                                             </CardTitle>
                                             <p className="text-sm text-gray-600 mt-1">
                                                 Tải lên tài liệu, bài giảng cho lớp <span className="font-medium text-gray-900">{selectedClassroom?.name}</span>
@@ -187,7 +188,12 @@ export default function TeacherLessonsPage() {
                                             <LessonUploadForm
                                                 classroomId={selectedClassroomId}
                                                 classrooms={classrooms}
-                                                onUploadSuccess={() => setRefreshLessons((prev) => prev + 1)}
+                                                onUploadSuccess={() => {
+                                                    setRefreshLessons((prev) => prev + 1);
+                                                    setEditingLesson(null);
+                                                }}
+                                                editingLesson={editingLesson}
+                                                onCancelEdit={() => setEditingLesson(null)}
                                             />
                                         </CardContent>
                                     </Card>
@@ -208,6 +214,16 @@ export default function TeacherLessonsPage() {
                                                 classroomId={selectedClassroomId}
                                                 refreshTrigger={refreshLessons}
                                                 classrooms={classrooms}
+                                                onEditLesson={(lesson) => {
+                                                    setEditingLesson(lesson);
+                                                    // Scroll to form
+                                                    setTimeout(() => {
+                                                        const formCard = document.querySelector('[data-lesson-form]');
+                                                        if (formCard) {
+                                                            formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                        }
+                                                    }, 100);
+                                                }}
                                             />
                                         </CardContent>
                                     </Card>
