@@ -12,3 +12,4 @@ WHERE (storage_path IS NULL OR storage_path = '')
 ALTER TABLE lessons
 ALTER COLUMN storage_path SET NOT NULL;
 
+

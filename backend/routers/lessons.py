@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from pydantic import BaseModel
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Union
 from uuid import UUID
 from supabase import Client
 import os
@@ -10,7 +10,7 @@ import re
 
 from database import get_db
 from models.lesson import Lesson
-from routers.auth import get_current_user
+from routers.auth import get_current_user, User
 
 router = APIRouter()
 
@@ -66,9 +66,9 @@ async def upload_lesson(
     title: str = Form(...),
     description: Optional[str] = Form(None),
     sort_order: Optional[int] = Form(None),
-    shared_classroom_ids: Optional[List[str]] = Form(None),
+    shared_classroom_ids: Optional[Union[str, List[str]]] = Form(None),
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Client = Depends(get_db)
 ):
     """
@@ -108,7 +108,13 @@ async def upload_lesson(
     storage_path = None
     public_url = None
     shared_classrooms: List[str] = []
-    raw_shared_ids = shared_classroom_ids or []
+    # Normalize shared_classroom_ids: handle both string and list cases
+    if shared_classroom_ids is None:
+        raw_shared_ids = []
+    elif isinstance(shared_classroom_ids, str):
+        raw_shared_ids = [shared_classroom_ids]
+    else:
+        raw_shared_ids = shared_classroom_ids
     normalized_shared_ids: List[str] = []
     seen_shared_ids: Set[str] = set()
     for cls_id in raw_shared_ids:
@@ -121,8 +127,8 @@ async def upload_lesson(
         normalized_shared_ids.append(cls_id_str)
 
     # Validate accessible classrooms for teachers
-    if current_user["role"] == "teacher":
-        allowed_classrooms = get_teacher_classroom_ids(db, current_user["id"])
+    if current_user.role == "teacher":
+        allowed_classrooms = get_teacher_classroom_ids(db, current_user.id)
         if str(classroom_id) not in allowed_classrooms:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -267,7 +273,7 @@ async def upload_lesson(
 @router.get("/classroom/{classroom_id}", response_model=List[Lesson])
 async def get_lessons_by_classroom(
     classroom_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Client = Depends(get_db)
 ):
     """
@@ -295,7 +301,7 @@ async def get_lessons_by_classroom(
 @router.delete("/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lesson(
     lesson_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Client = Depends(get_db)
 ):
     """
@@ -346,7 +352,7 @@ class CopyLessonsRequest(BaseModel):
 @router.post("/copy", status_code=status.HTTP_201_CREATED)
 async def copy_lessons(
     copy_req: CopyLessonsRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Client = Depends(get_db)
 ):
     """
