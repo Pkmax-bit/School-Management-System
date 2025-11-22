@@ -794,69 +794,69 @@ export default function AssignmentsPage() {
         }
       } else {
         // Create new assignment
-        const assignmentData = {
-          title: quiz.title,
-          description: quiz.description,
-          subject_id: subjectId,
-          teacher_id: teacherId,
-          assignment_type: 'multiple_choice',
-          total_points: quiz.questions.reduce((sum, q) => sum + (q.points || 0), 0) || 100,
+      const assignmentData = {
+        title: quiz.title,
+        description: quiz.description,
+        subject_id: subjectId,
+        teacher_id: teacherId,
+        assignment_type: 'multiple_choice',
+        total_points: quiz.questions.reduce((sum, q) => sum + (q.points || 0), 0) || 100,
           start_date: quiz.startDate ? formatDateTimeLocalToISO(quiz.startDate) : null,
           due_date: quiz.dueDate ? formatDateTimeLocalToISO(quiz.dueDate) : null,
-          time_limit_minutes: quiz.timeLimitMinutes || 0,
-          attempts_allowed: quiz.attemptsAllowed || 1,
-          shuffle_questions: quiz.shuffleQuestions || false,
-          classroom_ids: quiz.assignedClasses,
-        };
+        time_limit_minutes: quiz.timeLimitMinutes || 0,
+        attempts_allowed: quiz.attemptsAllowed || 1,
+        shuffle_questions: quiz.shuffleQuestions || false,
+        classroom_ids: quiz.assignedClasses,
+      };
 
-        const createRes = await fetch(`${API_BASE_URL}/api/assignments`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(assignmentData),
-        });
+      const createRes = await fetch(`${API_BASE_URL}/api/assignments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(assignmentData),
+      });
 
-        if (!createRes.ok) {
-          const errorData = await createRes.json();
-          throw new Error(errorData.detail || 'Không thể tạo bài tập');
-        }
+      if (!createRes.ok) {
+        const errorData = await createRes.json();
+        throw new Error(errorData.detail || 'Không thể tạo bài tập');
+      }
 
-        const newAssignment = await createRes.json();
+      const newAssignment = await createRes.json();
         assignmentId = newAssignment.id;
 
         // Create questions for new assignment
         for (let idx = 0; idx < quiz.questions.length; idx++) {
           const question = quiz.questions[idx];
-          // Find the index of the correct answer
-          const correctChoiceIndex = question.choices?.findIndex(c => c.isCorrect);
-          const correctAnswerLetter = correctChoiceIndex !== undefined && correctChoiceIndex >= 0
-            ? String.fromCharCode(65 + correctChoiceIndex)
-            : 'A'; // Default to 'A' if no correct answer is marked
+        // Find the index of the correct answer
+        const correctChoiceIndex = question.choices?.findIndex(c => c.isCorrect);
+        const correctAnswerLetter = correctChoiceIndex !== undefined && correctChoiceIndex >= 0
+          ? String.fromCharCode(65 + correctChoiceIndex)
+          : 'A'; // Default to 'A' if no correct answer is marked
 
-          const questionData = {
-            question_text: question.title,
-            question_type: 'multiple_choice',
-            points: question.points || 1,
-            options: question.choices?.map((choice, idx) => ({
-              id: String.fromCharCode(65 + idx),
-              text: choice.text,
-            })),
-            correct_answer: correctAnswerLetter,
+        const questionData = {
+          question_text: question.title,
+          question_type: 'multiple_choice',
+          points: question.points || 1,
+          options: question.choices?.map((choice, idx) => ({
+            id: String.fromCharCode(65 + idx),
+            text: choice.text,
+          })),
+          correct_answer: correctAnswerLetter,
             order_index: idx,
-            image_url: question.imageUrl || null,
-            attachment_link: question.attachmentLink || null,
-          };
+          image_url: question.imageUrl || null,
+          attachment_link: question.attachmentLink || null,
+        };
 
-          await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(questionData),
-          });
+        await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(questionData),
+        });
         }
       }
 
@@ -892,7 +892,7 @@ export default function AssignmentsPage() {
         errors.start_date = 'Ngày giờ mở bài tập phải trước hạn nộp';
       }
     }
-    
+
     if (essayForm.selectedClassrooms.length === 0) {
       errors.selectedClassrooms = 'Vui lòng chọn ít nhất một lớp học';
     }
@@ -907,7 +907,7 @@ export default function AssignmentsPage() {
       setError('Vui lòng điền đầy đủ thông tin bắt buộc');
       return;
     }
-    
+
     if (!teacherId || !selectedClassroom) {
       setError('Thiếu thông tin cần thiết');
       return;
@@ -1043,57 +1043,57 @@ export default function AssignmentsPage() {
         }
       } else {
         // Create new assignment
-        const assignmentData = {
-          title: essayForm.title,
-          description: essayForm.description,
-          subject_id: subjectId,
-          teacher_id: teacherId,
-          assignment_type: 'essay',
-          total_points: essayForm.total_points,
+      const assignmentData = {
+        title: essayForm.title,
+        description: essayForm.description,
+        subject_id: subjectId,
+        teacher_id: teacherId,
+        assignment_type: 'essay',
+        total_points: essayForm.total_points,
           start_date: essayForm.start_date ? formatDateTimeLocalToISO(essayForm.start_date) : null,
           due_date: essayForm.due_date ? formatDateTimeLocalToISO(essayForm.due_date) : null,
-          time_limit_minutes: 0,
-          attempts_allowed: 1,
-          shuffle_questions: false,
-          classroom_ids: essayForm.selectedClassrooms,
-        };
+        time_limit_minutes: 0,
+        attempts_allowed: 1,
+        shuffle_questions: false,
+        classroom_ids: essayForm.selectedClassrooms,
+      };
 
-        const createRes = await fetch(`${API_BASE_URL}/api/assignments`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(assignmentData),
-        });
+      const createRes = await fetch(`${API_BASE_URL}/api/assignments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(assignmentData),
+      });
 
-        if (!createRes.ok) {
-          const errorData = await createRes.json();
-          throw new Error(errorData.detail || 'Không thể tạo bài tập');
-        }
+      if (!createRes.ok) {
+        const errorData = await createRes.json();
+        throw new Error(errorData.detail || 'Không thể tạo bài tập');
+      }
 
-        const newAssignment = await createRes.json();
+      const newAssignment = await createRes.json();
         assignmentId = newAssignment.id;
 
         // Create questions for new assignment
         for (let idx = 0; idx < essayForm.questions.length; idx++) {
           const question = essayForm.questions[idx];
-          const questionData = {
-            question_text: question.text,
-            question_type: 'essay',
-            points: question.points,
+        const questionData = {
+          question_text: question.text,
+          question_type: 'essay',
+          points: question.points,
             order_index: idx,
             image_url: question.imageUrl || null,
-          };
+        };
 
-          await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(questionData),
-          });
+        await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(questionData),
+        });
         }
       }
 
@@ -1390,16 +1390,16 @@ export default function AssignmentsPage() {
                                   <Badge className="bg-blue-100 text-blue-700">Trắc nghiệm</Badge>
                                   {isTeacher && (
                                     <>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handlePreviewAssignment(assignment);
-                                        }}
-                                      >
-                                        <Eye className="w-4 h-4" />
-                                      </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handlePreviewAssignment(assignment);
+                                      }}
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
                                       <Button
                                         size="sm"
                                         variant="outline"
@@ -1817,16 +1817,16 @@ export default function AssignmentsPage() {
                                   <Badge className="bg-green-100 text-green-700">Tự luận</Badge>
                                   {isTeacher && (
                                     <>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handlePreviewAssignment(assignment);
-                                        }}
-                                      >
-                                        <Eye className="w-4 h-4" />
-                                      </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handlePreviewAssignment(assignment);
+                                      }}
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
                                       <Button
                                         size="sm"
                                         variant="outline"

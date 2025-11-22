@@ -49,7 +49,7 @@ export function StudentDashboard({ onNavigate }: StudentDashboardProps) {
       <div>
         <h2 className="text-xl mb-4">Truy cập nhanh</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('assignments')}>
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('student/assignments')}>
             <CardContent className="p-6 text-center">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <Clipboard className="w-6 h-6 text-red-600" />
@@ -82,14 +82,14 @@ export function StudentDashboard({ onNavigate }: StudentDashboardProps) {
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('documents')}>
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('student/lessons')}>
             <CardContent className="p-6 text-center">
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <BookOpen className="w-6 h-6 text-blue-600" />
               </div>
-              <h3 className="mb-1">Tài liệu</h3>
+              <h3 className="mb-1">Bài học</h3>
               <p className="text-2xl text-blue-600">24</p>
-              <p className="text-xs text-gray-500 mt-1">Tài liệu mới</p>
+              <p className="text-xs text-gray-500 mt-1">Bài học mới</p>
             </CardContent>
           </Card>
         </div>
@@ -144,14 +144,13 @@ export function StudentDashboard({ onNavigate }: StudentDashboardProps) {
                       <h4 className="mb-1">{assignment.title}</h4>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs">{assignment.subject}</Badge>
-                        <Badge 
-                          className={`text-xs ${
-                            assignment.priority === 'high' 
-                              ? 'bg-red-100 text-red-600 hover:bg-red-100' 
-                              : assignment.priority === 'medium'
+                        <Badge
+                          className={`text-xs ${assignment.priority === 'high'
+                            ? 'bg-red-100 text-red-600 hover:bg-red-100'
+                            : assignment.priority === 'medium'
                               ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-100'
                               : 'bg-green-100 text-green-600 hover:bg-green-100'
-                          }`}
+                            }`}
                         >
                           {assignment.priority === 'high' ? 'Khẩn cấp' : assignment.priority === 'medium' ? 'Trung bình' : 'Bình thường'}
                         </Badge>
@@ -192,9 +191,9 @@ export function StudentDashboard({ onNavigate }: StudentDashboardProps) {
                     <span>{subject.grade}/{subject.maxGrade}</span>
                   </div>
                   <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${subject.color}`} 
-                      style={{ width: `${(subject.grade / subject.maxGrade) * 100}%` }} 
+                    <div
+                      className={`h-full ${subject.color}`}
+                      style={{ width: `${(subject.grade / subject.maxGrade) * 100}%` }}
                     />
                   </div>
                 </div>

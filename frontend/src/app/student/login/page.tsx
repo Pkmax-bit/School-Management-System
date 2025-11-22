@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, EyeOff, Mail, Lock, AlertCircle, GraduationCap, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, GraduationCap, ArrowLeft, Zap } from 'lucide-react';
 import { getApiEndpoint } from '@/lib/apiUrl';
 
 export default function StudentLoginPage() {
@@ -127,6 +127,108 @@ export default function StudentLoginPage() {
       ...formData,
       [e.target.name]: e.target.value
     })
+  }
+
+  const handleQuickLogin = async () => {
+    // Set quick login credentials
+    const quickLoginData = {
+      email: 'hs@gmail.com',
+      password: '123456'
+    }
+    
+    setFormData(quickLoginData)
+    setError('')
+    
+    // Auto submit after a brief delay to ensure form is updated
+    setTimeout(async () => {
+      setLoading(true)
+      try {
+        const response = await fetch(getApiEndpoint('/api/auth/login'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: quickLoginData.email.trim(),
+            password: quickLoginData.password,
+          }),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          console.log('Quick login success:', result)
+          
+          // Store token
+          if (result.access_token) {
+            localStorage.setItem('access_token', result.access_token)
+            localStorage.setItem('auth_token', result.access_token)
+            
+            // Use user data from response
+            if (result.user) {
+              const userData = {
+                id: result.user.id || '',
+                email: result.user.email || quickLoginData.email.trim(),
+                full_name: result.user.full_name || '',
+                role: result.user.role || 'student',
+                is_active: result.user.is_active !== false
+              }
+              
+              console.log('Quick login user data to save:', userData)
+              localStorage.setItem('user', JSON.stringify(userData))
+              
+              // Verify role is student before redirecting
+              const role = (userData.role || '').toLowerCase()
+              if (role === 'student') {
+                router.push('/student/dashboard')
+              } else {
+                setError(`Tài khoản này không phải Student. Role: ${role}`)
+                setLoading(false)
+                return
+              }
+            } else {
+              // Fallback: decode JWT token if user data not in response
+              try {
+                const tokenParts = result.access_token.split('.')
+                if (tokenParts.length === 3) {
+                  const payload = JSON.parse(atob(tokenParts[1]))
+                  const userData = {
+                    id: payload.sub || '',
+                    email: payload.email || quickLoginData.email.trim(),
+                    full_name: '',
+                    role: 'student',
+                    is_active: true
+                  }
+                  localStorage.setItem('user', JSON.stringify(userData))
+                  router.push('/student/dashboard')
+                } else {
+                  setError('Token không hợp lệ')
+                  setLoading(false)
+                  return
+                }
+              } catch (tokenError) {
+                console.error('Error processing token:', tokenError)
+                setError('Lỗi xử lý token đăng nhập')
+                setLoading(false)
+                return
+              }
+            }
+          }
+        } else {
+          let errorData
+          try {
+            errorData = await response.json()
+          } catch {
+            errorData = { detail: 'Đăng nhập thất bại' }
+          }
+          setError(errorData.detail || `Đăng nhập thất bại: ${response.status}`)
+          setLoading(false)
+        }
+      } catch (err: any) {
+        console.log('Quick login error:', err)
+        setError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email và mật khẩu.')
+        setLoading(false)
+      }
+    }, 100)
   }
 
   return (
@@ -264,11 +366,25 @@ export default function StudentLoginPage() {
                 'Đăng nhập Student'
               )}
             </button>
+
+            {/* Quick Login Button */}
+            <button
+              type="button"
+              onClick={handleQuickLogin}
+              disabled={loading}
+              className="group relative w-full flex justify-center items-center py-2.5 px-4 border-2 border-purple-300 text-sm font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              <span>Đăng nhập nhanh (hs@gmail.com / 123456)</span>
+            </button>
           </div>
 
-          <div className="text-center">
+          <div className="text-center space-y-2">
             <p className="text-sm text-gray-600">
               Tài khoản test: <span className="font-mono">student@school.com</span> / <span className="font-mono">student123</span>
+            </p>
+            <p className="text-xs text-purple-600 font-medium">
+              💡 Hoặc sử dụng nút "Đăng nhập nhanh" phía trên
             </p>
           </div>
         </form>

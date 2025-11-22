@@ -503,28 +503,35 @@ async def get_lessons_by_classroom(
         
         all_lessons.sort(key=sort_key)
         
-        # Fetch files for all lessons
+        # Fetch files for all lessons (if lesson_files table exists)
         if all_lessons:
-            lesson_ids = [str(lesson["id"]) for lesson in all_lessons]
-            files_response = (
-                db.table("lesson_files")
-                .select("*")
-                .in_("lesson_id", lesson_ids)
-                .order("sort_order")
-                .execute()
-            )
-            
-            # Group files by lesson_id
-            files_by_lesson = {}
-            for file_data in (files_response.data or []):
-                lesson_id = file_data["lesson_id"]
-                if lesson_id not in files_by_lesson:
-                    files_by_lesson[lesson_id] = []
-                files_by_lesson[lesson_id].append(file_data)
-            
-            # Add files to each lesson
-            for lesson in all_lessons:
-                lesson["files"] = files_by_lesson.get(str(lesson["id"]), [])
+            try:
+                lesson_ids = [str(lesson["id"]) for lesson in all_lessons]
+                files_response = (
+                    db.table("lesson_files")
+                    .select("*")
+                    .in_("lesson_id", lesson_ids)
+                    .order("sort_order")
+                    .execute()
+                )
+                
+                # Group files by lesson_id
+                files_by_lesson = {}
+                for file_data in (files_response.data or []):
+                    lesson_id = file_data["lesson_id"]
+                    if lesson_id not in files_by_lesson:
+                        files_by_lesson[lesson_id] = []
+                    files_by_lesson[lesson_id].append(file_data)
+                
+                # Add files to each lesson
+                for lesson in all_lessons:
+                    lesson["files"] = files_by_lesson.get(str(lesson["id"]), [])
+            except Exception as files_err:
+                # If lesson_files table doesn't exist, just set empty files array
+                # This allows the API to work even if the table hasn't been created yet
+                print(f"Warning: Could not fetch lesson files (table may not exist): {str(files_err)}")
+                for lesson in all_lessons:
+                    lesson["files"] = []
         
         return all_lessons
     except Exception as e:
