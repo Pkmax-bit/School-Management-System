@@ -8,7 +8,6 @@ import os
 import time
 import traceback
 import re
-from datetime import datetime
 
 from database import get_db
 from models.lesson import Lesson, LessonProgressCreate, LessonProgressResponse, LessonFile, LessonFileCreate
@@ -436,12 +435,8 @@ async def get_lessons_by_classroom(
     db: Client = Depends(get_db)
 ):
     """
-<<<<<<< HEAD
-    Get all lessons for a specific classroom.
-    Returns lessons where classroom_id matches OR where shared_classroom_ids contains the classroom_id.
-=======
     Get all lessons for a specific classroom with their files.
->>>>>>> origin/master
+    Returns lessons where classroom_id matches OR where shared_classroom_ids contains the classroom_id.
     """
     try:
         classroom_id_str = str(classroom_id)
@@ -453,7 +448,6 @@ async def get_lessons_by_classroom(
             .eq("classroom_id", classroom_id_str)
             .execute()
         )
-<<<<<<< HEAD
         direct_lessons = direct_lessons_resp.data or []
         
         # Fetch lessons where shared_classroom_ids contains the classroom_id
@@ -509,14 +503,9 @@ async def get_lessons_by_classroom(
         
         all_lessons.sort(key=sort_key)
         
-        return all_lessons
-=======
-        
-        lessons = response.data or []
-        
         # Fetch files for all lessons
-        if lessons:
-            lesson_ids = [str(lesson["id"]) for lesson in lessons]
+        if all_lessons:
+            lesson_ids = [str(lesson["id"]) for lesson in all_lessons]
             files_response = (
                 db.table("lesson_files")
                 .select("*")
@@ -534,11 +523,10 @@ async def get_lessons_by_classroom(
                 files_by_lesson[lesson_id].append(file_data)
             
             # Add files to each lesson
-            for lesson in lessons:
+            for lesson in all_lessons:
                 lesson["files"] = files_by_lesson.get(str(lesson["id"]), [])
         
-        return lessons
->>>>>>> origin/master
+        return all_lessons
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"Error fetching lessons: {str(e)}")
