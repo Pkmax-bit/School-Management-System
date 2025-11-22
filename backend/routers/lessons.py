@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from pydantic import BaseModel
 from typing import List, Optional, Set, Union
 from uuid import UUID
+from datetime import datetime
 from supabase import Client
 import os
 import time
@@ -9,7 +10,7 @@ import traceback
 import re
 
 from database import get_db
-from models.lesson import Lesson
+from models.lesson import Lesson, LessonProgressCreate, LessonProgressResponse
 from routers.auth import get_current_user, User
 
 router = APIRouter()
@@ -67,6 +68,8 @@ async def upload_lesson(
     description: Optional[str] = Form(None),
     sort_order: Optional[int] = Form(None),
     shared_classroom_ids: Optional[Union[str, List[str]]] = Form(None),
+    available_at: Optional[str] = Form(None),
+    assignment_id: Optional[str] = Form(None),
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Client = Depends(get_db)
@@ -219,6 +222,58 @@ async def upload_lesson(
             detail=f"Failed to upload file: {error_msg}"
         )
 
+    # Parse available_at if provided
+    available_at_datetime = None
+    if available_at:
+        try:
+            # Parse ISO format datetime string with timezone
+            # Frontend sends: "YYYY-MM-DDTHH:MM:SS+HH:MM" (with timezone offset)
+            if 'Z' in available_at:
+                # UTC timezone
+                available_at_datetime = datetime.fromisoformat(available_at.replace('Z', '+00:00'))
+            elif '+' in available_at or (available_at.count('-') >= 3 and 'T' in available_at):
+                # Has timezone offset (e.g., +07:00) or ISO format with timezone
+                available_at_datetime = datetime.fromisoformat(available_at)
+            else:
+                # Fallback: try parsing without timezone (shouldn't happen with new frontend code)
+                available_at_datetime = datetime.strptime(available_at, "%Y-%m-%dT%H:%M")
+        except (ValueError, AttributeError) as e:
+            try:
+                # Try parsing other common formats
+                if ':' in available_at and 'T' in available_at:
+                    available_at_datetime = datetime.strptime(available_at, "%Y-%m-%dT%H:%M")
+                else:
+                    raise ValueError(f"Unsupported format: {available_at}")
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid available_at format: {str(e)}. Expected ISO format (YYYY-MM-DDTHH:MM:SS+HH:MM)"
+                )
+
+    # Validate assignment_id if provided
+    assignment_id_uuid = None
+    if assignment_id:
+        try:
+            assignment_id_uuid = UUID(assignment_id)
+            # Verify assignment exists and belongs to this classroom
+            assignment_check = (
+                db.table("assignment_classrooms")
+                .select("assignment_id")
+                .eq("assignment_id", str(assignment_id_uuid))
+                .eq("classroom_id", str(classroom_id))
+                .execute()
+            )
+            if not assignment_check.data:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Bài tập không tồn tại hoặc không thuộc lớp này"
+                )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid assignment_id format"
+            )
+
     lesson_data = {
         "classroom_id": str(classroom_id),
         "title": title,
@@ -227,7 +282,9 @@ async def upload_lesson(
         "file_name": file.filename,
         "storage_path": storage_path,
         "sort_order": sort_order if sort_order is not None else 0,
-        "shared_classroom_ids": shared_classrooms
+        "shared_classroom_ids": shared_classrooms,
+        "available_at": available_at_datetime.isoformat() if available_at_datetime else None,
+        "assignment_id": str(assignment_id_uuid) if assignment_id_uuid else None
     }
 
     try:
@@ -267,6 +324,40 @@ async def upload_lesson(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create lesson record: {error_msg}"
+        )
+
+
+@router.get("/{lesson_id}", response_model=Lesson)
+async def get_lesson(
+    lesson_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Client = Depends(get_db)
+):
+    """
+    Get a specific lesson by ID.
+    """
+    try:
+        response = (
+            db.table("lessons")
+            .select("*")
+            .eq("id", str(lesson_id))
+            .single()
+            .execute()
+        )
+        
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lesson not found"
+            )
+        
+        return response.data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch lesson: {str(e)}"
         )
 
 
@@ -451,3 +542,117 @@ async def copy_lessons(
         "results": results,
         "errors": errors
     }
+
+
+@router.post("/{lesson_id}/start", response_model=LessonProgressResponse)
+async def start_lesson(
+    lesson_id: UUID,
+    progress_data: LessonProgressCreate,
+    current_user: User = Depends(get_current_user),
+    db: Client = Depends(get_db)
+):
+    """
+    Lưu tiến trình khi học sinh bắt đầu học bài học.
+    """
+    try:
+        # Verify lesson exists
+        lesson_check = (
+            db.table("lessons")
+            .select("id, classroom_id")
+            .eq("id", str(lesson_id))
+            .single()
+            .execute()
+        )
+        if not lesson_check.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lesson not found"
+            )
+
+        lesson = lesson_check.data
+        # Verify classroom_id matches
+        if str(progress_data.classroom_id) != str(lesson["classroom_id"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Classroom ID does not match lesson"
+            )
+
+        # Check if progress already exists
+        existing_progress = (
+            db.table("lesson_progress")
+            .select("*")
+            .eq("lesson_id", str(lesson_id))
+            .eq("user_id", current_user.id)
+            .execute()
+        )
+
+        if existing_progress.data:
+            # Update last_accessed_at
+            updated = (
+                db.table("lesson_progress")
+                .update({
+                    "last_accessed_at": datetime.now().isoformat()
+                })
+                .eq("id", existing_progress.data[0]["id"])
+                .execute()
+            )
+            return updated.data[0]
+        else:
+            # Create new progress record
+            progress_data_dict = {
+                "lesson_id": str(lesson_id),
+                "user_id": current_user.id,
+                "classroom_id": str(progress_data.classroom_id),
+                "started_at": datetime.now().isoformat(),
+                "last_accessed_at": datetime.now().isoformat(),
+                "is_completed": False
+            }
+            result = db.table("lesson_progress").insert(progress_data_dict).execute()
+            return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save progress: {str(e)}"
+        )
+
+
+@router.get("/classroom/{classroom_id}/assignments")
+async def get_classroom_assignments(
+    classroom_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_db)
+):
+    """
+    Lấy danh sách bài tập (tự luận/trắc nghiệm) của lớp học để gắn vào bài học.
+    """
+    try:
+        # Get assignments for this classroom
+        class_result = (
+            db.table("assignment_classrooms")
+            .select("assignment_id")
+            .eq("classroom_id", str(classroom_id))
+            .execute()
+        )
+        
+        if not class_result.data:
+            return []
+
+        assignment_ids = [item["assignment_id"] for item in class_result.data]
+        
+        # Get assignment details
+        assignments_result = (
+            db.table("assignments")
+            .select("id, title, description, assignment_type, total_points, due_date")
+            .in_("id", assignment_ids)
+            .order("created_at", desc=True)
+            .execute()
+        )
+
+        return assignments_result.data or []
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch assignments: {str(e)}"
+        )

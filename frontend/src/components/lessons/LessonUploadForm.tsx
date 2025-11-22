@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { LessonCreate } from "@/types/lesson";
-import { FileText, AlignLeft, Upload, Loader2 } from "lucide-react";
+import { LessonCreate, Assignment } from "@/types/lesson";
+import { FileText, AlignLeft, Upload, Loader2, Clock, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface LessonUploadFormProps {
@@ -13,13 +13,75 @@ interface LessonUploadFormProps {
 }
 
 export default function LessonUploadForm({ classroomId, classrooms, onUploadSuccess }: LessonUploadFormProps) {
-    const { register, handleSubmit, reset, formState: { errors }, watch } = useForm<LessonCreate>();
+    const { register, handleSubmit, reset, formState: { errors }, watch, setValue } = useForm<LessonCreate>();
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [uploadSuccess, setUploadSuccess] = useState(false);
     const [sharedClassrooms, setSharedClassrooms] = useState<string[]>([]);
+    const [assignments, setAssignments] = useState<Assignment[]>([]);
+    const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("");
+    const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
+    const [nextSortOrder, setNextSortOrder] = useState<number>(1);
 
     const selectedFile = watch("file");
+
+    // Fetch assignments and get next sort_order
+    useEffect(() => {
+        const fetchData = async () => {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+            if (!token) return;
+
+            setIsLoadingAssignments(true);
+            try {
+                // Fetch assignments
+                const assignmentsResponse = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons/classroom/${classroomId}/assignments`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }
+                );
+
+                if (assignmentsResponse.ok) {
+                    const assignmentsData = await assignmentsResponse.json();
+                    setAssignments(assignmentsData);
+                }
+
+                // Fetch lessons to get max sort_order
+                const lessonsResponse = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons/classroom/${classroomId}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }
+                );
+
+                if (lessonsResponse.ok) {
+                    const lessonsData = await lessonsResponse.json();
+                    if (lessonsData && lessonsData.length > 0) {
+                        // Find max sort_order
+                        const maxSortOrder = Math.max(
+                            ...lessonsData.map((l: any) => l.sort_order ?? 0)
+                        );
+                        const nextOrder = maxSortOrder + 1;
+                        setNextSortOrder(nextOrder);
+                        setValue("sort_order", nextOrder);
+                    } else {
+                        setNextSortOrder(1);
+                        setValue("sort_order", 1);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch data:", err);
+            } finally {
+                setIsLoadingAssignments(false);
+            }
+        };
+
+        fetchData();
+    }, [classroomId]);
 
     const onSubmit = async (data: LessonCreate) => {
         // Get token from localStorage
@@ -43,6 +105,24 @@ export default function LessonUploadForm({ classroomId, classrooms, onUploadSucc
         if (typeof data.sort_order === "number" && !Number.isNaN(data.sort_order)) {
             formData.append("sort_order", data.sort_order.toString());
         }
+        if (data.available_at) {
+            // datetime-local returns "YYYY-MM-DDTHH:MM" (no timezone, local time)
+            // Convert to ISO format with local timezone offset to preserve exact time
+            const localDateTime = new Date(data.available_at);
+            // Get timezone offset (e.g., +07:00 for Vietnam)
+            const offsetMs = localDateTime.getTimezoneOffset() * 60000; // offset in milliseconds
+            const offsetHours = Math.floor(Math.abs(offsetMs) / 3600000);
+            const offsetMinutes = Math.floor((Math.abs(offsetMs) % 3600000) / 60000);
+            const offsetSign = offsetMs <= 0 ? '+' : '-'; // getTimezoneOffset returns negative for positive offsets
+            const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMinutes).padStart(2, '0')}`;
+            
+            // Format: YYYY-MM-DDTHH:MM:SS+HH:MM
+            const isoString = `${data.available_at}:00${offsetString}`;
+            formData.append("available_at", isoString);
+        }
+        if (selectedAssignmentId) {
+            formData.append("assignment_id", selectedAssignmentId);
+        }
         sharedClassrooms.forEach((id) => formData.append("shared_classroom_ids", id));
         const fileList = data.file as unknown as FileList;
         formData.append("file", fileList[0]);
@@ -64,6 +144,10 @@ export default function LessonUploadForm({ classroomId, classrooms, onUploadSucc
             setUploadSuccess(true);
             reset();
             setSharedClassrooms([]);
+            setSelectedAssignmentId("");
+            // Reset sort_order to next value after successful upload
+            setValue("sort_order", nextSortOrder + 1);
+            setNextSortOrder(nextSortOrder + 1);
             setTimeout(() => setUploadSuccess(false), 3000);
             onUploadSuccess();
         } catch (err: any) {
@@ -114,15 +198,61 @@ export default function LessonUploadForm({ classroomId, classrooms, onUploadSucc
                 </label>
                 <input
                     type="number"
-                    min={0}
-                    {...register("sort_order", { valueAsNumber: true })}
+                    min={1}
+                    {...register("sort_order", { 
+                        valueAsNumber: true,
+                        value: nextSortOrder,
+                        setValueAs: (v) => v === '' ? nextSortOrder : parseInt(v, 10)
+                    })}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Ví dụ: 1, 2, 3... (để sắp xếp bài học)"
+                    placeholder={`Tự động: ${nextSortOrder}`}
                 />
                 <p className="text-xs text-gray-500">
-                    Bài học sẽ được sắp xếp theo thứ tự tăng dần (mặc định = 0 nếu bỏ trống).
+                    Số thứ tự tự động điền dựa trên bài học trước đó. Bắt đầu từ 1.
                 </p>
             </div>
+
+            {/* Available At Field */}
+            <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    Ngày giờ mở bài học
+                </label>
+                <input
+                    type="datetime-local"
+                    {...register("available_at")}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+                <p className="text-xs text-gray-500">
+                    Chọn ngày giờ để mở bài học cho học sinh. Nếu để trống, bài học sẽ mở ngay lập tức.
+                </p>
+            </div>
+
+            {/* Assignment Link Field */}
+            {assignments.length > 0 && (
+                <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <BookOpen className="w-4 h-4 text-blue-600" />
+                        Liên kết bài tập (tùy chọn)
+                    </label>
+                    <select
+                        value={selectedAssignmentId}
+                        onChange={(e) => setSelectedAssignmentId(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
+                    >
+                        <option value="">-- Không liên kết bài tập --</option>
+                        {assignments.map((assignment) => (
+                            <option key={assignment.id} value={assignment.id}>
+                                {assignment.title} ({assignment.assignment_type === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'})
+                                {assignment.total_points && ` - ${assignment.total_points} điểm`}
+                            </option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-gray-500">
+                        Chọn bài tập để gắn liên kết vào bài học. Học sinh có thể truy cập bài tập từ bài học này.
+                    </p>
+                </div>
+            )}
 
             {/* File Upload Field */}
             <div className="space-y-2">

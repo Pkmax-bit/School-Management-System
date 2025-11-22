@@ -5,9 +5,10 @@ import { Lesson } from "@/types/lesson";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
-import { FileText, Download, Trash2, Loader2, FileIcon, AlertCircle, Copy, CheckSquare, Square, X } from "lucide-react";
+import { FileText, Download, Trash2, Loader2, FileIcon, AlertCircle, Copy, CheckSquare, Square, X, Clock, Lock, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CopyLessonModal } from "./CopyLessonModal";
+import LessonPreviewModal from "./LessonPreviewModal";
 
 interface LessonListProps {
     classroomId: string;
@@ -25,6 +26,7 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms }: 
     // Selection states
     const [selectedLessons, setSelectedLessons] = useState<Set<string>>(new Set());
     const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
     const classroomLookup = useMemo(() => {
         const map = new Map<string, { name: string; code?: string }>();
@@ -57,7 +59,16 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms }: 
             }
 
             const data = await response.json();
-            setLessons(data);
+            // Sort lessons by sort_order (ascending), then by created_at (descending)
+            const sortedData = [...data].sort((a, b) => {
+                const orderA = a.sort_order ?? 0;
+                const orderB = b.sort_order ?? 0;
+                if (orderA !== orderB) {
+                    return orderA - orderB;
+                }
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            });
+            setLessons(sortedData);
             setSelectedLessons(new Set()); // Reset selection on refresh
         } catch (err: any) {
             setError(err.message);
@@ -186,6 +197,14 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms }: 
         }
     };
 
+    // Check if lesson is available (available_at is null or has passed)
+    const isLessonAvailable = (lesson: Lesson): boolean => {
+        if (!lesson.available_at) return true; // No restriction, available immediately
+        const now = new Date();
+        const availableAt = new Date(lesson.available_at);
+        return now >= availableAt;
+    };
+
     // Loading State
     if (isLoading) {
         return (
@@ -253,27 +272,40 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms }: 
                     </button>
                 </div>
 
-                {selectedLessons.size > 0 && (
-                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5 duration-200">
+                <div className="flex items-center gap-2">
+                    {(user?.role === 'teacher' || user?.role === 'admin') && (
                         <Button
-                            onClick={() => setIsCopyModalOpen(true)}
+                            onClick={() => setIsPreviewModalOpen(true)}
                             size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                            variant="outline"
+                            className="gap-2"
                         >
-                            <Copy className="w-4 h-4" />
-                            Gán cho lớp khác
+                            <Eye className="w-4 h-4" />
+                            Xem trước (Học sinh)
                         </Button>
-                        <Button
-                            onClick={() => setSelectedLessons(new Set())}
-                            variant="ghost"
-                            size="sm"
-                            className="text-gray-500 hover:text-gray-700"
-                        >
-                            <X className="w-4 h-4" />
-                            Hủy
-                        </Button>
-                    </div>
-                )}
+                    )}
+                    {selectedLessons.size > 0 && (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5 duration-200">
+                            <Button
+                                onClick={() => setIsCopyModalOpen(true)}
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                            >
+                                <Copy className="w-4 h-4" />
+                                Gán cho lớp khác
+                            </Button>
+                            <Button
+                                onClick={() => setSelectedLessons(new Set())}
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                <X className="w-4 h-4" />
+                                Hủy
+                            </Button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -336,6 +368,21 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms }: 
                             </p>
                         )}
 
+                        {/* Available At Status */}
+                        {lesson.available_at && !isLessonAvailable(lesson) && (
+                            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <div className="flex items-start gap-2">
+                                    <Lock className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1">
+                                        <p className="text-xs font-semibold text-amber-800 mb-1">Bài học chưa mở</p>
+                                        <p className="text-xs text-amber-700">
+                                            Sẽ mở vào: {format(new Date(lesson.available_at), "dd/MM/yyyy HH:mm", { locale: vi })}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Shared classrooms */}
                         {lesson.shared_classroom_ids && lesson.shared_classroom_ids.length > 0 && (
                             <div className="mb-4">
@@ -393,15 +440,27 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms }: 
                                         )}
                                     </button>
                                 )}
-                                <a
-                                    href={lesson.file_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded-lg transition-colors"
-                                >
-                                    <Download className="w-4 h-4" />
-                                    Tải xuống
-                                </a>
+                                {(user?.role === 'teacher' || user?.role === 'admin' || isLessonAvailable(lesson)) ? (
+                                    <a
+                                        href={lesson.file_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded-lg transition-colors"
+                                        title="Tải xuống"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Tải xuống
+                                    </a>
+                                ) : (
+                                    <button
+                                        disabled
+                                        className="flex items-center gap-1.5 text-sm bg-gray-100 text-gray-400 font-medium py-1.5 px-3 rounded-lg cursor-not-allowed"
+                                        title={`Bài học sẽ mở vào ${format(new Date(lesson.available_at!), "dd/MM/yyyy HH:mm", { locale: vi })}`}
+                                    >
+                                        <Lock className="w-4 h-4" />
+                                        Chưa mở
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -414,6 +473,14 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms }: 
                 onCopy={handleCopyLessons}
                 currentClassroomId={classroomId}
                 selectedCount={selectedLessons.size}
+            />
+
+            <LessonPreviewModal
+                isOpen={isPreviewModalOpen}
+                onClose={() => setIsPreviewModalOpen(false)}
+                lessons={lessons}
+                classroomName={classroomLookup.get(classroomId)?.name || "Lớp học"}
+                classroomId={classroomId}
             />
         </div>
     );
