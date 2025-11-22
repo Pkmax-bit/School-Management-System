@@ -20,6 +20,36 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Helper function to convert datetime-local to ISO string with timezone offset
+// Prevents timezone conversion issues (e.g., +7 hours)
+// datetime-local format: "YYYY-MM-DDTHH:mm" (local time, no timezone)
+// Returns: "YYYY-MM-DDTHH:mm:ss+HH:MM" (with local timezone offset)
+function formatDateTimeLocalToISO(dateTimeLocal: string): string {
+  if (!dateTimeLocal) return '';
+  
+  // Parse the datetime-local string directly to avoid timezone conversion
+  // Format: "YYYY-MM-DDTHH:mm"
+  const [datePart, timePart] = dateTimeLocal.split('T');
+  if (!datePart || !timePart) return dateTimeLocal;
+  
+  // Get current timezone offset
+  // getTimezoneOffset() returns offset in minutes, negative for positive timezones
+  // Example: UTC+7 returns -420 (7 hours * 60 minutes)
+  const now = new Date();
+  const offsetMinutes = now.getTimezoneOffset();
+  const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+  const offsetMins = Math.abs(offsetMinutes) % 60;
+  // If offsetMinutes is negative (e.g., -420 for UTC+7), we need positive sign (+)
+  // If offsetMinutes is positive (e.g., 300 for UTC-5), we need negative sign (-)
+  const offsetSign = offsetMinutes <= 0 ? '+' : '-';
+  
+  // Ensure time part has seconds
+  const timeWithSeconds = timePart.split(':').length === 2 ? `${timePart}:00` : timePart;
+  
+  // Return ISO string with timezone offset: "YYYY-MM-DDTHH:mm:ss+HH:MM"
+  return `${datePart}T${timeWithSeconds}${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+}
+
 interface Classroom {
   id: string;
   name: string;
@@ -42,6 +72,7 @@ interface Assignment {
   description?: string;
   assignment_type: 'multiple_choice' | 'essay';
   total_points: number;
+  start_date?: string;
   due_date?: string;
   created_at: string;
   classroom_ids: string[];
@@ -63,8 +94,11 @@ export default function AssignmentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [createType, setCreateType] = useState<'multiple_choice' | 'essay' | null>(null);
+  const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quizErrors, setQuizErrors] = useState<Record<string, string>>({});
+  const [essayErrors, setEssayErrors] = useState<Record<string, string>>({});
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [availableClasses, setAvailableClasses] = useState<Array<{ id: string; name: string; subject: string; studentCount: number }>>([]);
   const [previewQuiz, setPreviewQuiz] = useState<Quiz | null>(null);
@@ -74,6 +108,7 @@ export default function AssignmentsPage() {
     title: string;
     description: string;
     total_points: number;
+    start_date: string;
     due_date: string;
     selectedClassrooms: string[];
     questions: { id: string; text: string; points: number; imageUrl?: string }[];
@@ -81,6 +116,7 @@ export default function AssignmentsPage() {
     title: '',
     description: '',
     total_points: 100,
+    start_date: '',
     due_date: '',
     selectedClassrooms: [] as string[],
     questions: [{ id: '1', text: '', points: 10, imageUrl: '' }],
@@ -359,10 +395,146 @@ export default function AssignmentsPage() {
       title: '',
       description: '',
       total_points: 100,
+      start_date: '',
       due_date: '',
       selectedClassrooms: selectedClassroom ? [selectedClassroom.id] : [],
-      questions: [{ id: '1', text: '', points: 10 }],
+      questions: [{ id: '1', text: '', points: 10, imageUrl: '' }],
     });
+  };
+
+  const handleEditAssignment = async (assignment: Assignment) => {
+    try {
+      setError(null);
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+
+      if (assignment.assignment_type === 'multiple_choice') {
+        // Load questions for multiple choice
+        const questionsRes = await fetch(`${API_BASE_URL}/api/assignments/${assignment.id}/questions`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+
+        let questions: any[] = [];
+        if (questionsRes.ok) {
+          const questionsData = await questionsRes.json();
+          questions = questionsData.map((q: any) => ({
+            id: q.id,
+            title: q.question_text,
+            points: q.points,
+            imageUrl: q.image_url,
+            attachmentLink: q.attachment_link,
+            choices: q.options?.map((opt: any, idx: number) => ({
+              id: opt.id || String.fromCharCode(65 + idx),
+              text: opt.text || '',
+              isCorrect: opt.id === q.correct_answer || String.fromCharCode(65 + idx) === q.correct_answer,
+            })) || [],
+            required: true,
+            shuffleChoices: false,
+          }));
+        }
+
+        // Format start_date
+        let startDateFormatted = '';
+        if (assignment.start_date) {
+          const date = new Date(assignment.start_date);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          startDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        // Format due_date
+        let dueDateFormatted = '';
+        if (assignment.due_date) {
+          const date = new Date(assignment.due_date);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          dueDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        setQuizForm({
+          id: assignment.id,
+          title: assignment.title,
+          description: assignment.description || '',
+          timeLimitMinutes: assignment.time_limit_minutes || 0,
+          attemptsAllowed: assignment.attempts_allowed || 1,
+          shuffleQuestions: assignment.shuffle_questions || false,
+          assignedClasses: assignment.classroom_ids || [],
+          questions: questions,
+          startDate: startDateFormatted,
+          dueDate: dueDateFormatted,
+        });
+
+        setEditingAssignmentId(assignment.id);
+        setCreateType('multiple_choice');
+      } else {
+        // Load questions for essay
+        const questionsRes = await fetch(`${API_BASE_URL}/api/assignments/${assignment.id}/questions`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+
+        let questions: any[] = [];
+        if (questionsRes.ok) {
+          const questionsData = await questionsRes.json();
+          questions = questionsData.map((q: any) => ({
+            id: q.id,
+            text: q.question_text,
+            points: q.points,
+            imageUrl: q.image_url || '',
+          }));
+        }
+
+        // Format start_date
+        let startDateFormatted = '';
+        if (assignment.start_date) {
+          const date = new Date(assignment.start_date);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          startDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        // Format due_date
+        let dueDateFormatted = '';
+        if (assignment.due_date) {
+          const date = new Date(assignment.due_date);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          dueDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        setEssayForm({
+          title: assignment.title,
+          description: assignment.description || '',
+          total_points: assignment.total_points || 100,
+          start_date: startDateFormatted,
+          due_date: dueDateFormatted,
+          selectedClassrooms: assignment.classroom_ids || [],
+          questions: questions.length > 0 ? questions : [{ id: '1', text: '', points: 10, imageUrl: '' }],
+        });
+
+        setEditingAssignmentId(assignment.id);
+        setCreateType('essay');
+      }
+    } catch (err) {
+      console.error('Error loading assignment for edit:', err);
+      setError('Không thể tải bài tập để chỉnh sửa');
+    }
   };
 
   const handlePreviewAssignment = async (assignment: Assignment) => {
@@ -430,10 +602,47 @@ export default function AssignmentsPage() {
 
   const handleCancelCreate = () => {
     setCreateType(null);
+    setEditingAssignmentId(null);
     setError(null);
+    setQuizErrors({});
+    setEssayErrors({});
   };
 
   const handleSaveMultipleChoice = async (quiz: Quiz) => {
+    // Validate form
+    const errors: Record<string, string> = {};
+    
+    if (!quiz.title || !quiz.title.trim()) {
+      errors.title = 'Tiêu đề là bắt buộc';
+    }
+    
+    if (!quiz.dueDate) {
+      errors.dueDate = 'Hạn nộp là bắt buộc';
+    }
+    
+    if (quiz.startDate && quiz.dueDate) {
+      const startDate = new Date(quiz.startDate);
+      const dueDate = new Date(quiz.dueDate);
+      if (startDate >= dueDate) {
+        errors.startDate = 'Ngày giờ mở bài tập phải trước hạn nộp';
+      }
+    }
+    
+    if (quiz.assignedClasses.length === 0) {
+      errors.assignedClasses = 'Vui lòng chọn ít nhất một lớp học';
+    }
+    
+    if (quiz.questions.length === 0) {
+      errors.questions = 'Vui lòng thêm ít nhất một câu hỏi';
+    }
+    
+    setQuizErrors(errors);
+    
+    if (Object.keys(errors).length > 0) {
+      setError('Vui lòng điền đầy đủ thông tin bắt buộc');
+      return;
+    }
+    
     if (!teacherId || !selectedClassroom) {
       setError('Thiếu thông tin cần thiết');
       return;
@@ -442,6 +651,7 @@ export default function AssignmentsPage() {
     try {
       setSaving(true);
       setError(null);
+      setQuizErrors({});
       const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
 
       const subjectId = selectedClassroom.subject?.id;
@@ -451,84 +661,210 @@ export default function AssignmentsPage() {
         return;
       }
 
-      if (quiz.assignedClasses.length === 0) {
-        setError('Vui lòng chọn ít nhất một lớp học');
-        setSaving(false);
-        return;
-      }
+      const isEditing = editingAssignmentId && !quiz.id.startsWith('new-');
+      let assignmentId: string;
 
-      if (!quiz.dueDate) {
-        setError('Vui lòng chọn hạn nộp');
-        setSaving(false);
-        return;
-      }
-
-      const assignmentData = {
-        title: quiz.title,
-        description: quiz.description,
-        subject_id: subjectId,
-        teacher_id: teacherId,
-        assignment_type: 'multiple_choice',
-        total_points: quiz.questions.reduce((sum, q) => sum + (q.points || 0), 0) || 100,
-        due_date: quiz.dueDate,
-        time_limit_minutes: quiz.timeLimitMinutes || 0,
-        attempts_allowed: quiz.attemptsAllowed || 1,
-        shuffle_questions: quiz.shuffleQuestions || false,
-        classroom_ids: quiz.assignedClasses,
-      };
-
-      const createRes = await fetch(`${API_BASE_URL}/api/assignments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(assignmentData),
-      });
-
-      if (!createRes.ok) {
-        const errorData = await createRes.json();
-        throw new Error(errorData.detail || 'Không thể tạo bài tập');
-      }
-
-      const newAssignment = await createRes.json();
-      const assignmentId = newAssignment.id;
-
-      // Create questions
-      for (const question of quiz.questions) {
-        // Find the index of the correct answer
-        const correctChoiceIndex = question.choices?.findIndex(c => c.isCorrect);
-        const correctAnswerLetter = correctChoiceIndex !== undefined && correctChoiceIndex >= 0
-          ? String.fromCharCode(65 + correctChoiceIndex)
-          : 'A'; // Default to 'A' if no correct answer is marked
-
-        const questionData = {
-          question_text: question.title,
-          question_type: 'multiple_choice',
-          points: question.points || 1,
-          options: question.choices?.map((choice, idx) => ({
-            id: String.fromCharCode(65 + idx),
-            text: choice.text,
-          })),
-          correct_answer: correctAnswerLetter,
-          order_index: quiz.questions.indexOf(question),
-          image_url: question.imageUrl || null,
-          attachment_link: question.attachmentLink || null,
+      if (isEditing && editingAssignmentId) {
+        // Update existing assignment
+        assignmentId = editingAssignmentId;
+        
+        const assignmentData = {
+          title: quiz.title,
+          description: quiz.description,
+          total_points: quiz.questions.reduce((sum, q) => sum + (q.points || 0), 0) || 100,
+          start_date: quiz.startDate ? formatDateTimeLocalToISO(quiz.startDate) : null,
+          due_date: quiz.dueDate ? formatDateTimeLocalToISO(quiz.dueDate) : null,
+          time_limit_minutes: quiz.timeLimitMinutes || 0,
+          attempts_allowed: quiz.attemptsAllowed || 1,
+          shuffle_questions: quiz.shuffleQuestions || false,
         };
 
-        await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+        const updateRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(assignmentData),
+        });
+
+        if (!updateRes.ok) {
+          const errorData = await updateRes.json();
+          throw new Error(errorData.detail || 'Không thể cập nhật bài tập');
+        }
+
+        // Update classrooms
+        await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/classrooms`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify(questionData),
+          body: JSON.stringify(quiz.assignedClasses),
         });
+
+        // Update questions intelligently: update existing, create new, delete removed
+        const questionsRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+
+        const existingQuestions: any[] = [];
+        if (questionsRes.ok) {
+          const data = await questionsRes.json();
+          existingQuestions.push(...data);
+        }
+
+        // Map existing questions by their ID
+        const existingQuestionsMap = new Map(existingQuestions.map(q => [q.id, q]));
+        const newQuestionIds = new Set(
+          quiz.questions
+            .map(q => q.id)
+            .filter(id => id && typeof id === 'string' && !id.startsWith('new-') && !id.startsWith('placeholder-'))
+        );
+
+        // Delete questions that are no longer in the new list
+        for (const existingQ of existingQuestions) {
+          if (!newQuestionIds.has(existingQ.id)) {
+            await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions/${existingQ.id}`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            });
+          }
+        }
+
+        // Update or create questions
+        for (let idx = 0; idx < quiz.questions.length; idx++) {
+          const question = quiz.questions[idx];
+          const questionId = question.id;
+          
+          // Check if this is an existing question (has ID and exists in database)
+          const isExistingQuestion = questionId && 
+                                    typeof questionId === 'string' &&
+                                    !questionId.startsWith('new-') && 
+                                    !questionId.startsWith('placeholder-') &&
+                                    existingQuestionsMap.has(questionId);
+
+          // Find the index of the correct answer
+          const correctChoiceIndex = question.choices?.findIndex(c => c.isCorrect);
+          const correctAnswerLetter = correctChoiceIndex !== undefined && correctChoiceIndex >= 0
+            ? String.fromCharCode(65 + correctChoiceIndex)
+            : 'A';
+
+          const questionData = {
+            question_text: question.title,
+            question_type: 'multiple_choice',
+            points: question.points || 1,
+            options: question.choices?.map((choice, idx) => ({
+              id: String.fromCharCode(65 + idx),
+              text: choice.text,
+            })),
+            correct_answer: correctAnswerLetter,
+            order_index: idx,
+            image_url: question.imageUrl || null,
+            attachment_link: question.attachmentLink || null,
+          };
+
+          if (isExistingQuestion && questionId) {
+            // Update existing question
+            await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions/${questionId}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify(questionData),
+            });
+          } else {
+            // Create new question
+            await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify(questionData),
+            });
+          }
+        }
+      } else {
+        // Create new assignment
+        const assignmentData = {
+          title: quiz.title,
+          description: quiz.description,
+          subject_id: subjectId,
+          teacher_id: teacherId,
+          assignment_type: 'multiple_choice',
+          total_points: quiz.questions.reduce((sum, q) => sum + (q.points || 0), 0) || 100,
+          start_date: quiz.startDate ? formatDateTimeLocalToISO(quiz.startDate) : null,
+          due_date: quiz.dueDate ? formatDateTimeLocalToISO(quiz.dueDate) : null,
+          time_limit_minutes: quiz.timeLimitMinutes || 0,
+          attempts_allowed: quiz.attemptsAllowed || 1,
+          shuffle_questions: quiz.shuffleQuestions || false,
+          classroom_ids: quiz.assignedClasses,
+        };
+
+        const createRes = await fetch(`${API_BASE_URL}/api/assignments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(assignmentData),
+        });
+
+        if (!createRes.ok) {
+          const errorData = await createRes.json();
+          throw new Error(errorData.detail || 'Không thể tạo bài tập');
+        }
+
+        const newAssignment = await createRes.json();
+        assignmentId = newAssignment.id;
+
+        // Create questions for new assignment
+        for (let idx = 0; idx < quiz.questions.length; idx++) {
+          const question = quiz.questions[idx];
+          // Find the index of the correct answer
+          const correctChoiceIndex = question.choices?.findIndex(c => c.isCorrect);
+          const correctAnswerLetter = correctChoiceIndex !== undefined && correctChoiceIndex >= 0
+            ? String.fromCharCode(65 + correctChoiceIndex)
+            : 'A'; // Default to 'A' if no correct answer is marked
+
+          const questionData = {
+            question_text: question.title,
+            question_type: 'multiple_choice',
+            points: question.points || 1,
+            options: question.choices?.map((choice, idx) => ({
+              id: String.fromCharCode(65 + idx),
+              text: choice.text,
+            })),
+            correct_answer: correctAnswerLetter,
+            order_index: idx,
+            image_url: question.imageUrl || null,
+            attachment_link: question.attachmentLink || null,
+          };
+
+          await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(questionData),
+          });
+        }
       }
 
       // Reload assignments
       await loadAssignments(selectedClassroom.id);
       setCreateType(null);
+      setEditingAssignmentId(null);
+      setQuizErrors({});
     } catch (err: any) {
       console.error('Error saving assignment:', err);
       setError(err.message || 'Không thể lưu bài tập');
@@ -538,28 +874,42 @@ export default function AssignmentsPage() {
   };
 
   const handleSaveEssay = async () => {
+    // Validate form
+    const errors: Record<string, string> = {};
+    
+    if (!essayForm.title || !essayForm.title.trim()) {
+      errors.title = 'Tiêu đề là bắt buộc';
+    }
+    
+    if (!essayForm.due_date) {
+      errors.due_date = 'Hạn nộp là bắt buộc';
+    }
+    
+    if (essayForm.start_date && essayForm.due_date) {
+      const startDate = new Date(essayForm.start_date);
+      const dueDate = new Date(essayForm.due_date);
+      if (startDate >= dueDate) {
+        errors.start_date = 'Ngày giờ mở bài tập phải trước hạn nộp';
+      }
+    }
+    
+    if (essayForm.selectedClassrooms.length === 0) {
+      errors.selectedClassrooms = 'Vui lòng chọn ít nhất một lớp học';
+    }
+    
+    if (essayForm.questions.length === 0 || !essayForm.questions[0].text.trim()) {
+      errors.questions = 'Vui lòng nhập ít nhất một câu hỏi';
+    }
+    
+    setEssayErrors(errors);
+    
+    if (Object.keys(errors).length > 0) {
+      setError('Vui lòng điền đầy đủ thông tin bắt buộc');
+      return;
+    }
+    
     if (!teacherId || !selectedClassroom) {
       setError('Thiếu thông tin cần thiết');
-      return;
-    }
-
-    if (!essayForm.title.trim()) {
-      setError('Vui lòng nhập tiêu đề bài tập');
-      return;
-    }
-
-    if (essayForm.questions.length === 0 || !essayForm.questions[0].text.trim()) {
-      setError('Vui lòng nhập ít nhất một câu hỏi');
-      return;
-    }
-
-    if (essayForm.selectedClassrooms.length === 0) {
-      setError('Vui lòng chọn ít nhất một lớp học');
-      return;
-    }
-
-    if (!essayForm.due_date) {
-      setError('Vui lòng chọn hạn nộp');
       return;
     }
 
@@ -575,63 +925,188 @@ export default function AssignmentsPage() {
         return;
       }
 
-      const assignmentData = {
-        title: essayForm.title,
-        description: essayForm.description,
-        subject_id: subjectId,
-        teacher_id: teacherId,
-        assignment_type: 'essay',
-        total_points: essayForm.total_points,
-        due_date: essayForm.due_date || null,
-        time_limit_minutes: 0,
-        attempts_allowed: 1,
-        shuffle_questions: false,
-        classroom_ids: essayForm.selectedClassrooms,
-      };
+      const isEditing = editingAssignmentId !== null;
+      let assignmentId: string;
 
-      const createRes = await fetch(`${API_BASE_URL}/api/assignments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(assignmentData),
-      });
-
-      if (!createRes.ok) {
-        const errorData = await createRes.json();
-        throw new Error(errorData.detail || 'Không thể tạo bài tập');
-      }
-
-      const newAssignment = await createRes.json();
-      const assignmentId = newAssignment.id;
-
-      // Create questions
-      for (const question of essayForm.questions) {
-        const questionData = {
-          question_text: question.text,
-          question_type: 'essay',
-          points: question.points,
-          order_index: essayForm.questions.indexOf(question),
+      if (isEditing && editingAssignmentId) {
+        // Update existing assignment
+        assignmentId = editingAssignmentId;
+        
+        const assignmentData = {
+          title: essayForm.title,
+          description: essayForm.description,
+          total_points: essayForm.total_points,
+          start_date: essayForm.start_date ? formatDateTimeLocalToISO(essayForm.start_date) : null,
+          due_date: essayForm.due_date ? formatDateTimeLocalToISO(essayForm.due_date) : null,
         };
 
-        await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+        const updateRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(assignmentData),
+        });
+
+        if (!updateRes.ok) {
+          const errorData = await updateRes.json();
+          throw new Error(errorData.detail || 'Không thể cập nhật bài tập');
+        }
+
+        // Update classrooms
+        await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/classrooms`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify(questionData),
+          body: JSON.stringify(essayForm.selectedClassrooms),
         });
+
+        // Update questions intelligently: update existing, create new, delete removed
+        const questionsRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+
+        const existingQuestions: any[] = [];
+        if (questionsRes.ok) {
+          const data = await questionsRes.json();
+          existingQuestions.push(...data);
+        }
+
+        // Map existing questions by their ID
+        const existingQuestionsMap = new Map(existingQuestions.map(q => [q.id, q]));
+        const newQuestionIds = new Set(
+          essayForm.questions
+            .map(q => q.id)
+            .filter(id => id && typeof id === 'string' && !id.startsWith('new-') && !id.startsWith('placeholder-'))
+        );
+
+        // Delete questions that are no longer in the new list
+        for (const existingQ of existingQuestions) {
+          if (!newQuestionIds.has(existingQ.id)) {
+            await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions/${existingQ.id}`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            });
+          }
+        }
+
+        // Update or create questions
+        for (let idx = 0; idx < essayForm.questions.length; idx++) {
+          const question = essayForm.questions[idx];
+          const questionId = question.id;
+          
+          // Check if this is an existing question (has ID and exists in database)
+          const isExistingQuestion = questionId && 
+                                    typeof questionId === 'string' &&
+                                    !questionId.startsWith('new-') && 
+                                    !questionId.startsWith('placeholder-') &&
+                                    existingQuestionsMap.has(questionId);
+
+          const questionData = {
+            question_text: question.text,
+            question_type: 'essay',
+            points: question.points,
+            order_index: idx,
+            image_url: question.imageUrl || null,
+          };
+
+          if (isExistingQuestion && questionId) {
+            // Update existing question
+            await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions/${questionId}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify(questionData),
+            });
+          } else {
+            // Create new question
+            await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify(questionData),
+            });
+          }
+        }
+      } else {
+        // Create new assignment
+        const assignmentData = {
+          title: essayForm.title,
+          description: essayForm.description,
+          subject_id: subjectId,
+          teacher_id: teacherId,
+          assignment_type: 'essay',
+          total_points: essayForm.total_points,
+          start_date: essayForm.start_date ? formatDateTimeLocalToISO(essayForm.start_date) : null,
+          due_date: essayForm.due_date ? formatDateTimeLocalToISO(essayForm.due_date) : null,
+          time_limit_minutes: 0,
+          attempts_allowed: 1,
+          shuffle_questions: false,
+          classroom_ids: essayForm.selectedClassrooms,
+        };
+
+        const createRes = await fetch(`${API_BASE_URL}/api/assignments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(assignmentData),
+        });
+
+        if (!createRes.ok) {
+          const errorData = await createRes.json();
+          throw new Error(errorData.detail || 'Không thể tạo bài tập');
+        }
+
+        const newAssignment = await createRes.json();
+        assignmentId = newAssignment.id;
+
+        // Create questions for new assignment
+        for (let idx = 0; idx < essayForm.questions.length; idx++) {
+          const question = essayForm.questions[idx];
+          const questionData = {
+            question_text: question.text,
+            question_type: 'essay',
+            points: question.points,
+            order_index: idx,
+            image_url: question.imageUrl || null,
+          };
+
+          await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(questionData),
+          });
+        }
       }
 
       // Reload assignments
       await loadAssignments(selectedClassroom.id);
       setCreateType(null);
+      setEditingAssignmentId(null);
+      setEssayErrors({});
       setEssayForm({
         title: '',
         description: '',
         total_points: 100,
+        start_date: '',
         due_date: '',
         selectedClassrooms: [],
         questions: [{ id: '1', text: '', points: 10, imageUrl: '' }],
@@ -847,10 +1322,25 @@ export default function AssignmentsPage() {
                         </div>
                         <QuizBuilder
                           value={quizForm}
-                          onChange={(updated) => setQuizForm(updated)}
+                          onChange={(updated) => {
+                            setQuizForm(updated);
+                            // Clear errors when user starts typing
+                            if (updated.title && quizErrors.title) {
+                              setQuizErrors({ ...quizErrors, title: '' });
+                            }
+                            if (updated.dueDate && quizErrors.dueDate) {
+                              setQuizErrors({ ...quizErrors, dueDate: '' });
+                            }
+                            if (updated.assignedClasses.length > 0 && quizErrors.assignedClasses) {
+                              setQuizErrors({ ...quizErrors, assignedClasses: '' });
+                            }
+                          }}
                           onPreview={(quiz) => setPreviewQuiz(quiz)}
                           onSave={handleSaveMultipleChoice}
                           availableClasses={availableClasses}
+                          errors={quizErrors}
+                          saving={saving}
+                          isEditing={editingAssignmentId !== null && !quizForm.id?.startsWith('new-')}
                         />
                       </div>
                     ) : multipleChoiceAssignments.length === 0 ? (
@@ -899,16 +1389,28 @@ export default function AssignmentsPage() {
                                 <div className="flex items-center gap-2">
                                   <Badge className="bg-blue-100 text-blue-700">Trắc nghiệm</Badge>
                                   {isTeacher && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handlePreviewAssignment(assignment);
-                                      }}
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                    </Button>
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handlePreviewAssignment(assignment);
+                                        }}
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEditAssignment(assignment);
+                                        }}
+                                      >
+                                        <Edit3 className="w-4 h-4" />
+                                      </Button>
+                                    </>
                                   )}
                                   <Button
                                     size="sm"
@@ -965,9 +1467,16 @@ export default function AssignmentsPage() {
                             <Label>Tiêu đề bài tập *</Label>
                             <Input
                               value={essayForm.title}
-                              onChange={(e) => setEssayForm({ ...essayForm, title: e.target.value })}
+                              onChange={(e) => {
+                                setEssayForm({ ...essayForm, title: e.target.value });
+                                if (e.target.value.trim() && essayErrors.title) {
+                                  setEssayErrors({ ...essayErrors, title: '' });
+                                }
+                              }}
                               placeholder="VD: Bài tập lớn - Dự án cuối kỳ"
+                              className={essayErrors.title ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
                             />
+                            {essayErrors.title && <p className="text-xs text-red-500">{essayErrors.title}</p>}
                           </div>
 
                           <div className="space-y-2">
@@ -991,21 +1500,45 @@ export default function AssignmentsPage() {
                               />
                             </div>
                             <div className="space-y-2">
+                              <Label>Ngày giờ mở bài tập</Label>
+                              <Input
+                                type="datetime-local"
+                                value={essayForm.start_date}
+                                onChange={(e) => {
+                                  setEssayForm({ ...essayForm, start_date: e.target.value });
+                                  if (essayErrors.start_date) {
+                                    setEssayErrors({ ...essayErrors, start_date: '' });
+                                  }
+                                }}
+                                className={essayErrors.start_date ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
+                              />
+                              {essayErrors.start_date && <p className="text-xs text-red-500">{essayErrors.start_date}</p>}
+                              {!essayErrors.start_date && <p className="text-xs text-slate-500">Chọn ngày, tháng, năm và giờ mở bài tập. Để trống nếu mở ngay.</p>}
+                            </div>
+                            <div className="space-y-2">
                               <Label>Hạn nộp (Ngày, giờ) *</Label>
                               <Input
                                 type="datetime-local"
                                 value={essayForm.due_date}
-                                onChange={(e) => setEssayForm({ ...essayForm, due_date: e.target.value })}
+                                onChange={(e) => {
+                                  setEssayForm({ ...essayForm, due_date: e.target.value });
+                                  if (e.target.value && essayErrors.due_date) {
+                                    setEssayErrors({ ...essayErrors, due_date: '' });
+                                  }
+                                }}
                                 required
+                                className={essayErrors.due_date ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
                               />
-                              <p className="text-xs text-slate-500">Chọn ngày, tháng, năm và giờ hạn nộp</p>
+                              {essayErrors.due_date && <p className="text-xs text-red-500">{essayErrors.due_date}</p>}
+                              {!essayErrors.due_date && <p className="text-xs text-slate-500">Chọn ngày, tháng, năm và giờ hạn nộp</p>}
                             </div>
                           </div>
 
                           {/* Chọn lớp học */}
                           <div className="space-y-3">
                             <Label>Gán cho lớp học *</Label>
-                            <div className="border rounded-lg p-4 max-h-48 overflow-y-auto">
+                            {essayErrors.selectedClassrooms && <p className="text-xs text-red-500">{essayErrors.selectedClassrooms}</p>}
+                            <div className={`border rounded-lg p-4 max-h-48 overflow-y-auto ${essayErrors.selectedClassrooms ? 'border-red-500' : ''}`}>
                               {availableClasses.length === 0 ? (
                                 <p className="text-sm text-slate-500">Không có lớp học nào</p>
                               ) : (
@@ -1021,6 +1554,9 @@ export default function AssignmentsPage() {
                                               ...essayForm,
                                               selectedClassrooms: [...essayForm.selectedClassrooms, classItem.id],
                                             });
+                                            if (essayErrors.selectedClassrooms) {
+                                              setEssayErrors({ ...essayErrors, selectedClassrooms: '' });
+                                            }
                                           } else {
                                             setEssayForm({
                                               ...essayForm,
@@ -1063,11 +1599,15 @@ export default function AssignmentsPage() {
                                     ...essayForm,
                                     questions: [...essayForm.questions, { id: Date.now().toString(), text: '', points: 10, imageUrl: '' }],
                                   });
+                                  if (essayErrors.questions) {
+                                    setEssayErrors({ ...essayErrors, questions: '' });
+                                  }
                                 }}
                               >
                                 <Plus className="w-4 h-4 mr-1" /> Thêm câu hỏi
                               </Button>
                             </div>
+                            {essayErrors.questions && <p className="text-xs text-red-500">{essayErrors.questions}</p>}
 
                             {essayForm.questions.map((q, idx) => (
                               <Card key={q.id} className="bg-slate-50">
@@ -1095,9 +1635,13 @@ export default function AssignmentsPage() {
                                       const newQuestions = [...essayForm.questions];
                                       newQuestions[idx].text = e.target.value;
                                       setEssayForm({ ...essayForm, questions: newQuestions });
+                                      if (e.target.value.trim() && essayErrors.questions) {
+                                        setEssayErrors({ ...essayErrors, questions: '' });
+                                      }
                                     }}
                                     placeholder="Nhập nội dung câu hỏi..."
                                     rows={3}
+                                    className={essayErrors.questions && !q.text.trim() ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
                                   />
 
                                   {/* Image Upload */}
@@ -1210,15 +1754,15 @@ export default function AssignmentsPage() {
                               <Button
                                 onClick={handleSaveEssay}
                                 disabled={saving || !essayForm.title || essayForm.questions.length === 0}
+                                className={saving ? 'opacity-75 cursor-not-allowed' : ''}
                               >
                                 {saving ? (
                                   <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                    Đang lưu...
+                                    <Loader2 className="w-4 h-4 mr-1 animate-spin" /> Đang lưu...
                                   </>
                                 ) : (
                                   <>
-                                    <Save className="w-4 h-4 mr-1" /> Lưu bài tập
+                                    <Save className="w-4 h-4 mr-1" /> {editingAssignmentId !== null ? 'Cập nhật bài tập' : 'Lưu bài tập'}
                                   </>
                                 )}
                               </Button>
@@ -1272,16 +1816,28 @@ export default function AssignmentsPage() {
                                 <div className="flex items-center gap-2">
                                   <Badge className="bg-green-100 text-green-700">Tự luận</Badge>
                                   {isTeacher && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handlePreviewAssignment(assignment);
-                                      }}
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                    </Button>
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handlePreviewAssignment(assignment);
+                                        }}
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEditAssignment(assignment);
+                                        }}
+                                      >
+                                        <Edit3 className="w-4 h-4" />
+                                      </Button>
+                                    </>
                                   )}
                                 </div>
                               </div>

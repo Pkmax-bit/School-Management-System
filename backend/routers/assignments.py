@@ -63,6 +63,7 @@ class AssignmentCreate(BaseModel):
     teacher_id: str
     assignment_type: str  # multiple_choice, essay
     total_points: float = 100.0
+    start_date: Optional[str] = None  # ISO format string - ngày giờ mở bài tập
     due_date: Optional[str] = None  # ISO format string
     time_limit_minutes: int = 0
     attempts_allowed: int = 1
@@ -83,6 +84,7 @@ class AssignmentUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     total_points: Optional[float] = None
+    start_date: Optional[str] = None  # ISO format string - ngày giờ mở bài tập
     due_date: Optional[str] = None
     time_limit_minutes: Optional[int] = None
     attempts_allowed: Optional[int] = None
@@ -97,6 +99,7 @@ class AssignmentResponse(BaseModel):
     teacher_id: str
     assignment_type: str
     total_points: float
+    start_date: Optional[str] = None  # ISO format string - ngày giờ mở bài tập
     due_date: Optional[str]
     time_limit_minutes: int
     attempts_allowed: int
@@ -177,6 +180,23 @@ async def create_assignment(
                     detail="Bạn chỉ có thể gán bài tập cho các lớp mà bạn đang dạy"
                 )
         
+        # Validate start_date < due_date nếu cả hai đều có giá trị
+        if assignment_data.start_date and assignment_data.due_date:
+            from datetime import datetime
+            try:
+                start_dt = datetime.fromisoformat(assignment_data.start_date.replace('Z', '+00:00'))
+                due_dt = datetime.fromisoformat(assignment_data.due_date.replace('Z', '+00:00'))
+                if start_dt >= due_dt:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Ngày giờ mở bài tập phải trước ngày giờ hạn nộp"
+                    )
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Định dạng ngày giờ không hợp lệ"
+                )
+        
         # Tạo assignment
         assignment_dict = {
             "title": assignment_data.title,
@@ -185,6 +205,7 @@ async def create_assignment(
             "teacher_id": teacher_id,
             "assignment_type": assignment_data.assignment_type,
             "total_points": assignment_data.total_points,
+            "start_date": assignment_data.start_date,
             "due_date": assignment_data.due_date,
             "time_limit_minutes": assignment_data.time_limit_minutes,
             "attempts_allowed": assignment_data.attempts_allowed,
@@ -343,6 +364,33 @@ async def update_assignment(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Bạn chỉ có thể chỉnh sửa bài tập của chính mình"
                 )
+        
+        # Validate start_date < due_date nếu cả hai đều có giá trị
+        if assignment_data.start_date is not None or assignment_data.due_date is not None:
+            # Lấy giá trị hiện tại từ database nếu không được cung cấp
+            current_assignment = supabase.table("assignments").select("start_date, due_date").eq("id", assignment_id).execute()
+            if current_assignment.data:
+                current_start = current_assignment.data[0].get("start_date")
+                current_due = current_assignment.data[0].get("due_date")
+                
+                start_date = assignment_data.start_date if assignment_data.start_date is not None else current_start
+                due_date = assignment_data.due_date if assignment_data.due_date is not None else current_due
+                
+                if start_date and due_date:
+                    from datetime import datetime
+                    try:
+                        start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                        due_dt = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+                        if start_dt >= due_dt:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Ngày giờ mở bài tập phải trước ngày giờ hạn nộp"
+                            )
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Định dạng ngày giờ không hợp lệ"
+                        )
         
         # Cập nhật
         update_dict = assignment_data.dict(exclude_unset=True)

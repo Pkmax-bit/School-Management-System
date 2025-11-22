@@ -7,6 +7,7 @@ import os
 import time
 import traceback
 import re
+from datetime import datetime
 
 from database import get_db
 from models.lesson import Lesson
@@ -278,20 +279,78 @@ async def get_lessons_by_classroom(
 ):
     """
     Get all lessons for a specific classroom.
+    Returns lessons where classroom_id matches OR where shared_classroom_ids contains the classroom_id.
     """
     try:
         classroom_id_str = str(classroom_id)
-        filter_expr = f"classroom_id.eq.{classroom_id_str},shared_classroom_ids.cs.{{{classroom_id_str}}}"
-        response = (
+        
+        # Fetch lessons where classroom_id matches
+        direct_lessons_resp = (
             db.table("lessons")
             .select("*")
-            .or_(filter_expr)
-            .order("sort_order")
-            .order("created_at", desc=True)
+            .eq("classroom_id", classroom_id_str)
             .execute()
         )
-        return response.data
+        direct_lessons = direct_lessons_resp.data or []
+        
+        # Fetch lessons where shared_classroom_ids contains the classroom_id
+        # For PostgreSQL TEXT[] arrays, Supabase Python client doesn't have direct array contains support
+        # So we fetch all lessons and filter in Python (could be optimized with raw SQL if needed)
+        # Note: This is less efficient but works reliably
+        try:
+            # Try to fetch all lessons (in production, consider adding pagination or using raw SQL)
+            all_lessons_resp = (
+                db.table("lessons")
+                .select("*")
+                .execute()
+            )
+            all_lessons_data = all_lessons_resp.data or []
+            
+            # Filter lessons where shared_classroom_ids array contains the classroom_id
+            shared_lessons = []
+            for lesson in all_lessons_data:
+                shared_ids = lesson.get("shared_classroom_ids", [])
+                if isinstance(shared_ids, list) and classroom_id_str in shared_ids:
+                    shared_lessons.append(lesson)
+        except Exception as shared_err:
+            # If fetching all lessons fails, just use direct lessons
+            print(f"Warning: Could not fetch shared lessons: {str(shared_err)}")
+            shared_lessons = []
+        
+        # Combine and deduplicate by lesson ID
+        seen_ids = set()
+        all_lessons = []
+        
+        for lesson in direct_lessons + shared_lessons:
+            lesson_id = lesson.get("id")
+            if lesson_id and lesson_id not in seen_ids:
+                seen_ids.add(lesson_id)
+                all_lessons.append(lesson)
+        
+        # Sort by sort_order first, then by created_at desc
+        # Parse created_at as ISO format timestamp
+        def sort_key(lesson):
+            sort_order = lesson.get("sort_order", 0)
+            created_at = lesson.get("created_at", "")
+            # Try to parse ISO format timestamp, fallback to 0
+            try:
+                if created_at:
+                    # Handle ISO format with or without microseconds
+                    dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    created_timestamp = dt.timestamp()
+                else:
+                    created_timestamp = 0
+            except:
+                created_timestamp = 0
+            return (sort_order, -created_timestamp)
+        
+        all_lessons.sort(key=sort_key)
+        
+        return all_lessons
     except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"Error fetching lessons: {str(e)}")
+        print(f"Traceback: {error_trace}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch lessons: {str(e)}"

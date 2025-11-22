@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Save, Eye, Trash2, Users, CheckCircle } from 'lucide-react';
+import { Plus, Save, Eye, Trash2, Users, CheckCircle, Loader2 } from 'lucide-react';
 
 export type Quiz = {
   id: string;
@@ -16,6 +16,7 @@ export type Quiz = {
   attemptsAllowed?: number;
   assignedClasses: string[]; // Array of class IDs
   questions: Question[];
+  startDate?: string; // Ngày giờ mở bài tập với datetime
   dueDate?: string; // Deadline với datetime
 };
 
@@ -33,9 +34,12 @@ interface QuizBuilderProps {
   onSave?: (quiz: Quiz) => Promise<void> | void;
   onDelete?: () => void;
   availableClasses?: Class[];
+  errors?: Record<string, string>; // Validation errors
+  saving?: boolean; // Loading state
+  isEditing?: boolean; // Whether this is editing an existing assignment
 }
 
-export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, availableClasses = [] }: QuizBuilderProps) {
+export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, availableClasses = [], errors = {}, saving = false, isEditing = false }: QuizBuilderProps) {
   const [quiz, setQuiz] = useState<Quiz>(value);
   const [classSearch, setClassSearch] = useState('');
 
@@ -111,14 +115,31 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Tiêu đề</Label>
-              <Input value={quiz.title} onChange={(e) => update({ title: e.target.value })} placeholder="VD: Kiểm tra 15 phút - Toán" />
-              <p className="text-xs text-slate-500">Tên bài sẽ hiển thị cho học sinh.</p>
+              <Label>Tiêu đề *</Label>
+              <Input 
+                value={quiz.title} 
+                onChange={(e) => update({ title: e.target.value })} 
+                placeholder="VD: Kiểm tra 15 phút - Toán"
+                className={errors.title ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
+              />
+              {errors.title && <p className="text-xs text-red-500">{errors.title}</p>}
+              {!errors.title && <p className="text-xs text-slate-500">Tên bài sẽ hiển thị cho học sinh.</p>}
             </div>
             <div className="space-y-2">
               <Label>Thời gian (phút)</Label>
               <Input type="number" min={0} value={quiz.timeLimitMinutes || 0} onChange={(e) => update({ timeLimitMinutes: parseInt(e.target.value) || 0 })} />
               <p className="text-xs text-slate-500">0 phút nghĩa là không giới hạn thời gian.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Ngày giờ mở bài tập</Label>
+              <Input
+                type="datetime-local"
+                value={quiz.startDate || ''}
+                onChange={(e) => update({ startDate: e.target.value })}
+                className={errors.startDate ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
+              />
+              {errors.startDate && <p className="text-xs text-red-500">{errors.startDate}</p>}
+              {!errors.startDate && <p className="text-xs text-slate-500">Chọn ngày, tháng, năm và giờ mở bài tập. Để trống nếu mở ngay.</p>}
             </div>
             <div className="space-y-2">
               <Label>Hạn nộp (Ngày, giờ) *</Label>
@@ -127,8 +148,10 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
                 value={quiz.dueDate || ''}
                 onChange={(e) => update({ dueDate: e.target.value })}
                 required
+                className={errors.dueDate ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
               />
-              <p className="text-xs text-slate-500">Chọn ngày, tháng, năm và giờ hạn nộp</p>
+              {errors.dueDate && <p className="text-xs text-red-500">{errors.dueDate}</p>}
+              {!errors.dueDate && <p className="text-xs text-slate-500">Chọn ngày, tháng, năm và giờ hạn nộp</p>}
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -156,7 +179,8 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
 
           {/* Class Assignment */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-slate-700">Gán cho lớp học</Label>
+            <Label className="text-sm font-medium text-slate-700">Gán cho lớp học *</Label>
+            {errors.assignedClasses && <p className="text-xs text-red-500">{errors.assignedClasses}</p>}
             <div className="flex flex-col md:flex-row md:items-center gap-3">
               <div className="flex-1">
                 <Input placeholder="Tìm lớp theo tên hoặc môn học..." value={classSearch} onChange={(e) => setClassSearch(e.target.value)} />
@@ -224,11 +248,12 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-800">Danh sách câu hỏi</h3>
+          <h3 className="font-semibold text-slate-800">Danh sách câu hỏi *</h3>
           <Button onClick={addQuestion}>
             <Plus className="w-4 h-4 mr-1" /> Thêm câu hỏi
           </Button>
         </div>
+        {errors.questions && <p className="text-xs text-red-500">{errors.questions}</p>}
 
         <div className="space-y-4">
           {quiz.questions.map((q, idx) => (
@@ -260,8 +285,20 @@ export function QuizBuilder({ value, onChange, onPreview, onSave, onDelete, avai
             <Eye className="w-4 h-4 mr-1" /> Xem trước
           </Button>
         )}
-        <Button disabled={disableSave} onClick={() => onSave && onSave(quiz)} className={disableSave ? 'opacity-60 cursor-not-allowed' : ''}>
-          <Save className="w-4 h-4 mr-1" /> Lưu bài tập
+        <Button 
+          disabled={disableSave || saving} 
+          onClick={() => onSave && onSave(quiz)} 
+          className={disableSave || saving ? 'opacity-60 cursor-not-allowed' : ''}
+        >
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" /> Đang lưu...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-1" /> {isEditing ? 'Cập nhật bài tập' : 'Lưu bài tập'}
+            </>
+          )}
         </Button>
       </div>
     </div>

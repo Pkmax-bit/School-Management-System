@@ -14,6 +14,36 @@ import { Plus, Loader2, AlertCircle } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Helper function to convert datetime-local to ISO string with timezone offset
+// Prevents timezone conversion issues (e.g., +7 hours)
+// datetime-local format: "YYYY-MM-DDTHH:mm" (local time, no timezone)
+// Returns: "YYYY-MM-DDTHH:mm:ss+HH:MM" (with local timezone offset)
+function formatDateTimeLocalToISO(dateTimeLocal: string): string {
+  if (!dateTimeLocal) return '';
+  
+  // Parse the datetime-local string directly to avoid timezone conversion
+  // Format: "YYYY-MM-DDTHH:mm"
+  const [datePart, timePart] = dateTimeLocal.split('T');
+  if (!datePart || !timePart) return dateTimeLocal;
+  
+  // Get current timezone offset
+  // getTimezoneOffset() returns offset in minutes, negative for positive timezones
+  // Example: UTC+7 returns -420 (7 hours * 60 minutes)
+  const now = new Date();
+  const offsetMinutes = now.getTimezoneOffset();
+  const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+  const offsetMins = Math.abs(offsetMinutes) % 60;
+  // If offsetMinutes is negative (e.g., -420 for UTC+7), we need positive sign (+)
+  // If offsetMinutes is positive (e.g., 300 for UTC-5), we need negative sign (-)
+  const offsetSign = offsetMinutes <= 0 ? '+' : '-';
+  
+  // Ensure time part has seconds
+  const timeWithSeconds = timePart.split(':').length === 2 ? `${timePart}:00` : timePart;
+  
+  // Return ISO string with timezone offset: "YYYY-MM-DDTHH:mm:ss+HH:MM"
+  return `${datePart}T${timeWithSeconds}${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+}
+
 interface Classroom {
   id: string;
   name: string;
@@ -31,6 +61,7 @@ interface Assignment {
   description?: string;
   assignment_type: 'multiple_choice' | 'essay';
   total_points: number;
+  start_date?: string;
   due_date?: string;
   time_limit_minutes: number;
   attempts_allowed: number;
@@ -221,6 +252,18 @@ export default function TeacherAssignmentsPage() {
 
   // Convert Assignment to Quiz format
   const assignmentToQuiz = async (assignment: Assignment): Promise<Quiz> => {
+    // Format start_date to datetime-local format if it exists
+    let startDateFormatted = '';
+    if (assignment.start_date) {
+      const date = new Date(assignment.start_date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      startDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+    
     // Format due_date to datetime-local format if it exists
     let dueDateFormatted = '';
     if (assignment.due_date) {
@@ -275,6 +318,7 @@ export default function TeacherAssignmentsPage() {
       shuffleQuestions: assignment.shuffle_questions,
       assignedClasses: assignment.classroom_ids || [],
       questions: questions,
+      startDate: startDateFormatted,
       dueDate: dueDateFormatted,
     };
   };
@@ -283,6 +327,30 @@ export default function TeacherAssignmentsPage() {
     if (!editingId) return null;
     const assignment = assignments.find((a) => a.id === editingId);
     if (!assignment) return null;
+    
+    // Format start_date
+    let startDateFormatted = '';
+    if (assignment.start_date) {
+      const date = new Date(assignment.start_date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      startDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+    
+    // Format due_date
+    let dueDateFormatted = '';
+    if (assignment.due_date) {
+      const date = new Date(assignment.due_date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      dueDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
     
     // Convert assignment to quiz format (synchronous for now, will load questions on edit)
     return {
@@ -294,6 +362,8 @@ export default function TeacherAssignmentsPage() {
       shuffleQuestions: assignment.shuffle_questions,
       assignedClasses: assignment.classroom_ids || [],
       questions: [], // Will be loaded separately
+      startDate: startDateFormatted,
+      dueDate: dueDateFormatted,
     } as Quiz;
   }, [assignments, editingId]);
 
@@ -531,7 +601,8 @@ export default function TeacherAssignmentsPage() {
           teacher_id: teacherId,
           assignment_type: 'multiple_choice',
           total_points: quiz.questions.reduce((sum, q) => sum + (q.points || 0), 0) || 100,
-          due_date: quiz.dueDate,
+          start_date: quiz.startDate ? formatDateTimeLocalToISO(quiz.startDate) : null,
+          due_date: formatDateTimeLocalToISO(quiz.dueDate),
           time_limit_minutes: quiz.timeLimitMinutes || 0,
           attempts_allowed: quiz.attemptsAllowed || 1,
           shuffle_questions: quiz.shuffleQuestions || false,
@@ -605,7 +676,8 @@ export default function TeacherAssignmentsPage() {
           title: quiz.title,
           description: quiz.description,
           total_points: quiz.questions.reduce((sum, q) => sum + (q.points || 0), 0) || 100,
-          due_date: quiz.dueDate,
+          start_date: quiz.startDate ? formatDateTimeLocalToISO(quiz.startDate) : null,
+          due_date: formatDateTimeLocalToISO(quiz.dueDate),
           time_limit_minutes: quiz.timeLimitMinutes || 0,
           attempts_allowed: quiz.attemptsAllowed || 1,
           shuffle_questions: quiz.shuffleQuestions || false,
@@ -635,8 +707,7 @@ export default function TeacherAssignmentsPage() {
           body: JSON.stringify(quiz.assignedClasses),
         });
 
-        // Update questions (delete old, create new)
-        // Get existing questions
+        // Update questions intelligently: update existing, create new, delete removed
         const questionsRes = await fetch(`${API_BASE_URL}/api/assignments/${quiz.id}/questions`, {
           headers: {
             'Content-Type': 'application/json',
@@ -644,11 +715,24 @@ export default function TeacherAssignmentsPage() {
           },
         });
 
+        const existingQuestions: any[] = [];
         if (questionsRes.ok) {
-          const existingQuestions = await questionsRes.json();
-          // Delete existing questions
-          for (const q of existingQuestions) {
-            await fetch(`${API_BASE_URL}/api/assignments/${quiz.id}/questions/${q.id}`, {
+          const data = await questionsRes.json();
+          existingQuestions.push(...data);
+        }
+
+        // Map existing questions by their ID
+        const existingQuestionsMap = new Map(existingQuestions.map(q => [q.id, q]));
+        const newQuestionIds = new Set(
+          quiz.questions
+            .map(q => q.id)
+            .filter(id => id && typeof id === 'string' && !id.startsWith('new-') && !id.startsWith('placeholder-'))
+        );
+
+        // Delete questions that are no longer in the new list
+        for (const existingQ of existingQuestions) {
+          if (!newQuestionIds.has(existingQ.id)) {
+            await fetch(`${API_BASE_URL}/api/assignments/${quiz.id}/questions/${existingQ.id}`, {
               method: 'DELETE',
               headers: {
                 'Content-Type': 'application/json',
@@ -658,8 +742,18 @@ export default function TeacherAssignmentsPage() {
           }
         }
 
-        // Create new questions
-        for (const question of quiz.questions) {
+        // Update or create questions
+        for (let idx = 0; idx < quiz.questions.length; idx++) {
+          const question = quiz.questions[idx];
+          const questionId = question.id;
+          
+          // Check if this is an existing question (has ID and exists in database)
+          const isExistingQuestion = questionId && 
+                                    typeof questionId === 'string' &&
+                                    !questionId.startsWith('new-') && 
+                                    !questionId.startsWith('placeholder-') &&
+                                    existingQuestionsMap.has(questionId);
+
           const formattedChoices =
             question.choices?.map((choice, idx) => {
               const fallbackId = String.fromCharCode(65 + idx);
@@ -683,19 +777,32 @@ export default function TeacherAssignmentsPage() {
             points: question.points || 1,
             options: formattedChoices,
             correct_answer: correctAnswerId,
-            order_index: quiz.questions.indexOf(question),
+            order_index: idx,
             image_url: question.imageUrl || null,
             attachment_link: question.attachmentLink || null,
           };
 
-          await fetch(`${API_BASE_URL}/api/assignments/${quiz.id}/questions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(questionData),
-          });
+          if (isExistingQuestion && questionId) {
+            // Update existing question
+            await fetch(`${API_BASE_URL}/api/assignments/${quiz.id}/questions/${questionId}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify(questionData),
+            });
+          } else {
+            // Create new question
+            await fetch(`${API_BASE_URL}/api/assignments/${quiz.id}/questions`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify(questionData),
+            });
+          }
         }
 
         if (teacherId) {
@@ -811,6 +918,8 @@ export default function TeacherAssignmentsPage() {
                   subject: c.subject?.name || 'Chưa có môn học',
                   studentCount: c.studentCount || 0,
                 }))}
+                saving={saving}
+                isEditing={editingId !== null && editingQuiz && !editingQuiz.id.startsWith('new-')}
               />
               <div className="mt-4 flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditingId(null)} disabled={saving}>
