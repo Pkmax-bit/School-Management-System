@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { uploadFileToAssignments, deleteFileFromAssignments, type UploadResult } from '@/lib/uploadToSupabase';
-import { Clock, AlertCircle, CheckCircle, ArrowLeft, Send, Paperclip, Link as LinkIcon, X } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle, ArrowLeft, Send, Paperclip, Link as LinkIcon, X, Loader2, FileText } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -301,7 +301,7 @@ export default function TakeAssignmentPage() {
 
     if (!assignment) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="flex items-center justify-center min-h-[50vh]">
                 <Card className="p-6">
                     <div className="text-center">
                         <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
@@ -313,63 +313,71 @@ export default function TakeAssignmentPage() {
         );
     }
 
+    const scrollToQuestion = (index: number) => {
+        const element = document.getElementById(`question-${index}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    };
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50 p-6">
-            <div className="max-w-4xl mx-auto space-y-6">
-                {/* Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
-                    <div className="flex items-center justify-between mb-4">
-                        <Button variant="ghost" onClick={() => router.push('/student/assignments')} className="text-white hover:bg-white/20">
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            Quay lại
-                        </Button>
-                        {timeRemaining !== null && timeRemaining > 0 && (
-                            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${timeRemaining < 300 ? 'bg-red-500' : 'bg-white/20'}`}>
-                                <Clock className="w-5 h-5" />
-                                <span className="font-bold text-lg">{formatTime(timeRemaining)}</span>
-                            </div>
-                        )}
-                    </div>
-                    <h1 className="text-3xl font-bold mb-2">{assignment.title}</h1>
-                    {assignment.description && (
-                        <p className="text-blue-100">{assignment.description}</p>
-                    )}
-                    <div className="flex gap-4 mt-4">
-                        <Badge className="bg-white/20 text-white">
-                            {assignment.assignment_type === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'}
-                        </Badge>
-                        <Badge className="bg-white/20 text-white">
-                            Tổng điểm: {assignment.total_points}
-                        </Badge>
-                        <Badge className="bg-white/20 text-white">
-                            {questions.length} câu hỏi
-                        </Badge>
+        <div className="max-w-7xl mx-auto space-y-6 pb-20">
+            {/* Header */}
+            <div className="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={() => router.push('/student/assignments')}>
+                        <ArrowLeft className="w-5 h-5 text-gray-600" />
+                    </Button>
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-900">{assignment.title}</h1>
+                        <div className="flex items-center gap-3 text-sm text-gray-500">
+                            <span className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                {assignment.time_limit_minutes} phút
+                            </span>
+                            <span>•</span>
+                            <span>{questions.length} câu hỏi</span>
+                            <span>•</span>
+                            <span>{assignment.total_points} điểm</span>
+                        </div>
                     </div>
                 </div>
-
-                {error && (
-                    <Card className="p-4 bg-red-50 border-red-200">
-                        <div className="flex items-center gap-2 text-red-700">
-                            <AlertCircle className="w-5 h-5" />
-                            <p>{error}</p>
-                        </div>
-                    </Card>
+                {timeRemaining !== null && timeRemaining > 0 && (
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-xl font-bold ${timeRemaining < 300 ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-blue-50 text-blue-600'
+                        }`}>
+                        <Clock className="w-5 h-5" />
+                        {formatTime(timeRemaining)}
+                    </div>
                 )}
+            </div>
 
-                {/* Questions */}
-                <div className="space-y-6">
+            {error && (
+                <Card className="p-4 bg-red-50 border-red-200">
+                    <div className="flex items-center gap-2 text-red-700">
+                        <AlertCircle className="w-5 h-5" />
+                        <p>{error}</p>
+                    </div>
+                </Card>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* Main Content - Questions */}
+                <div className="lg:col-span-3 space-y-6">
                     {questions.map((question, index) => (
-                        <Card key={question.id}>
-                            <CardHeader>
+                        <Card key={question.id} id={`question-${index}`} className="scroll-mt-24 border-0 shadow-md ring-1 ring-gray-100">
+                            <CardHeader className="bg-gray-50/50 border-b border-gray-100 pb-4">
                                 <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                        <CardTitle className="text-lg">
-                                            Câu {index + 1}: {question.question_text}
+                                    <div className="flex items-center gap-3">
+                                        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">
+                                            {index + 1}
+                                        </span>
+                                        <CardTitle className="text-lg font-medium text-gray-900">
+                                            {question.question_text}
                                         </CardTitle>
-                                        <CardDescription className="mt-2">
-                                            Điểm: {question.points}
-                                        </CardDescription>
                                     </div>
+                                    <Badge variant="secondary" className="bg-white border border-gray-200">
+                                        {question.points} điểm
+                                    </Badge>
                                 </div>
                                 {question.image_url && (
                                     <div className="mt-4">
@@ -378,20 +386,27 @@ export default function TakeAssignmentPage() {
                                 )}
                                 {question.attachment_link && (
                                     <div className="mt-2">
-                                        <a href={question.attachment_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
-                                            📎 Xem tài liệu đính kèm
+                                        <a href={question.attachment_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm flex items-center gap-1">
+                                            <Paperclip className="w-4 h-4" /> Xem tài liệu đính kèm
                                         </a>
                                     </div>
                                 )}
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="pt-6">
                                 {question.question_type === 'multiple_choice' && question.options ? (
                                     <RadioGroup value={answers[question.id] || ''} onValueChange={(value) => handleAnswerChange(question.id, value)}>
                                         <div className="space-y-3">
                                             {question.options.map((option) => (
-                                                <div key={option.id} className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-slate-50 cursor-pointer">
+                                                <div
+                                                    key={option.id}
+                                                    className={`flex items-center space-x-3 p-4 border rounded-xl cursor-pointer transition-all duration-200 ${answers[question.id] === option.id
+                                                        ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200'
+                                                        : 'hover:bg-gray-50 border-gray-200'
+                                                        }`}
+                                                    onClick={() => handleAnswerChange(question.id, option.id)}
+                                                >
                                                     <RadioGroupItem value={option.id} id={`${question.id}-${option.id}`} />
-                                                    <Label htmlFor={`${question.id}-${option.id}`} className="flex-1 cursor-pointer">
+                                                    <Label htmlFor={`${question.id}-${option.id}`} className="flex-1 cursor-pointer font-medium text-gray-700">
                                                         {option.text}
                                                     </Label>
                                                 </div>
@@ -404,151 +419,210 @@ export default function TakeAssignmentPage() {
                                         onChange={(e) => handleAnswerChange(question.id, e.target.value)}
                                         placeholder="Nhập câu trả lời của bạn..."
                                         rows={6}
-                                        className="w-full"
+                                        className="w-full resize-none focus:ring-blue-500"
                                     />
                                 )}
                             </CardContent>
                         </Card>
                     ))}
+
+                    {assignment.assignment_type === 'essay' && (
+                        <Card className="border-0 shadow-md ring-1 ring-gray-100">
+                            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <Paperclip className="w-5 h-5 text-blue-600" />
+                                    Đính kèm bài làm
+                                </CardTitle>
+                                <CardDescription>
+                                    Upload file Word/ZIP hoặc đính kèm link để giáo viên chấm bài.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6 pt-6">
+                                <div className="space-y-3">
+                                    <Label className="text-base font-medium">Tệp đính kèm</Label>
+                                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer relative">
+                                        <Input
+                                            type="file"
+                                            multiple
+                                            accept=".doc,.docx,.zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip"
+                                            onChange={handleFileUpload}
+                                            disabled={uploadingFiles}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        />
+                                        <div className="space-y-2 pointer-events-none">
+                                            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                                                <Paperclip className="w-5 h-5" />
+                                            </div>
+                                            <p className="text-sm font-medium text-gray-900">Kéo thả hoặc click để upload</p>
+                                            <p className="text-xs text-gray-500">Word, Excel, PDF, ZIP (Max 10MB)</p>
+                                        </div>
+                                    </div>
+
+                                    {uploadingFiles && (
+                                        <div className="flex items-center gap-2 text-sm text-blue-600">
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Đang upload tệp...
+                                        </div>
+                                    )}
+
+                                    {submissionFiles.length > 0 && (
+                                        <div className="grid gap-2">
+                                            {submissionFiles.map((file) => (
+                                                <div
+                                                    key={file.path}
+                                                    className="flex items-center justify-between border rounded-lg p-3 bg-white shadow-sm"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                                                            <FileText className="w-4 h-4 text-gray-600" />
+                                                        </div>
+                                                        <div>
+                                                            <a
+                                                                href={file.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline block"
+                                                            >
+                                                                {file.name || file.path}
+                                                            </a>
+                                                            {file.size && (
+                                                                <p className="text-xs text-gray-500">
+                                                                    {(file.size / 1024).toFixed(1)} KB
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-gray-400 hover:text-red-500"
+                                                        onClick={() => handleRemoveFile(file)}
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-3">
+                                    <Label className="text-base font-medium">Đường link</Label>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            type="url"
+                                            placeholder="https://drive.google.com/..."
+                                            value={newLink}
+                                            onChange={(e) => setNewLink(e.target.value)}
+                                            className="flex-1"
+                                        />
+                                        <Button type="button" onClick={handleAddLink} disabled={!newLink.trim()} variant="secondary">
+                                            Thêm
+                                        </Button>
+                                    </div>
+                                    {submissionLinks.length > 0 && (
+                                        <div className="space-y-2">
+                                            {submissionLinks.map((link) => (
+                                                <div
+                                                    key={link}
+                                                    className="flex items-center justify-between border rounded-lg p-3 bg-white shadow-sm"
+                                                >
+                                                    <a
+                                                        href={link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                                                    >
+                                                        <LinkIcon className="w-4 h-4" />
+                                                        {link}
+                                                    </a>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-gray-400 hover:text-red-500"
+                                                        onClick={() => handleRemoveLink(link)}
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
 
-                {assignment.assignment_type === 'essay' && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Paperclip className="w-5 h-5" />
-                                Đính kèm bài làm
-                            </CardTitle>
-                            <CardDescription>
-                                Upload file Word/ZIP hoặc đính kèm link để giáo viên chấm bài.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Tệp Word/ZIP</Label>
-                                <Input
-                                    type="file"
-                                    multiple
-                                    accept=".doc,.docx,.zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip"
-                                    onChange={handleFileUpload}
-                                    disabled={uploadingFiles}
-                                />
-                                {uploadingFiles && (
-                                    <p className="text-xs text-slate-500">Đang upload tệp...</p>
-                                )}
-                                {submissionFiles.length > 0 && (
-                                    <div className="space-y-2">
-                                        {submissionFiles.map((file) => (
-                                            <div
-                                                key={file.path}
-                                                className="flex items-center justify-between border rounded-lg px-3 py-2 text-sm"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <Paperclip className="w-4 h-4 text-slate-500" />
-                                                    <div>
-                                                        <a
-                                                            href={file.url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-blue-600 hover:underline"
-                                                        >
-                                                            {file.name || file.path}
-                                                        </a>
-                                                        {file.size && (
-                                                            <p className="text-xs text-slate-500">
-                                                                {(file.size / 1024).toFixed(1)} KB
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    className="text-red-500 hover:text-red-600"
-                                                    onClick={() => handleRemoveFile(file)}
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                        ))}
+                {/* Sidebar - Tools */}
+                <div className="lg:col-span-1">
+                    <div className="sticky top-6 space-y-6">
+                        {/* Question Palette */}
+                        <Card className="border-0 shadow-md ring-1 ring-gray-100">
+                            <CardHeader className="pb-3 border-b border-gray-100">
+                                <CardTitle className="text-base font-bold text-gray-900">Danh sách câu hỏi</CardTitle>
+                                <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                                        <span>Đã làm</span>
                                     </div>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Đường link</Label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        type="url"
-                                        placeholder="https://drive.google.com/..."
-                                        value={newLink}
-                                        onChange={(e) => setNewLink(e.target.value)}
-                                    />
-                                    <Button type="button" onClick={handleAddLink} disabled={!newLink.trim()}>
-                                        Thêm link
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-3 h-3 rounded-full bg-gray-100 border border-gray-300"></div>
+                                        <span>Chưa làm</span>
+                                    </div>
                                 </div>
-                                {submissionLinks.length > 0 && (
-                                    <div className="space-y-2">
-                                        {submissionLinks.map((link) => (
-                                            <div
-                                                key={link}
-                                                className="flex items-center justify-between border rounded-lg px-3 py-2 text-sm"
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <div className="grid grid-cols-5 gap-2">
+                                    {questions.map((q, i) => {
+                                        const isAnswered = !!answers[q.id];
+                                        return (
+                                            <button
+                                                key={q.id}
+                                                onClick={() => scrollToQuestion(i)}
+                                                className={`aspect-square rounded-lg text-sm font-medium transition-all duration-200 ${isAnswered
+                                                    ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700'
+                                                    : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                                                    }`}
                                             >
-                                                <a
-                                                    href={link}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="flex items-center gap-2 text-blue-600 hover:underline"
-                                                >
-                                                    <LinkIcon className="w-4 h-4" />
-                                                    {link}
-                                                </a>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    className="text-red-500 hover:text-red-600"
-                                                    onClick={() => handleRemoveLink(link)}
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
+                                                {i + 1}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                {/* Submit Button */}
-                <Card className="sticky bottom-4 shadow-xl">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div className="text-sm text-slate-600">
-                                Đã trả lời: {Object.keys(answers).length}/{questions.length} câu
-                            </div>
-                            <Button
-                                onClick={handleSubmit}
-                                disabled={submitting}
-                                size="lg"
-                                className="bg-green-600 hover:bg-green-700"
-                            >
-                                {submitting ? (
-                                    <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                        Đang nộp...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Send className="w-4 h-4 mr-2" />
-                                        Nộp bài
-                                    </>
-                                )}
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                        {/* Submit Action */}
+                        <Card className="border-0 shadow-md ring-1 ring-gray-100 bg-gradient-to-b from-white to-gray-50">
+                            <CardContent className="p-4">
+                                <div className="mb-4 text-sm text-gray-600 text-center">
+                                    Đã hoàn thành <span className="font-bold text-gray-900">{Object.keys(answers).length}/{questions.length}</span> câu
+                                </div>
+                                <Button
+                                    onClick={handleSubmit}
+                                    disabled={submitting}
+                                    size="lg"
+                                    className="w-full bg-green-600 hover:bg-green-700 shadow-sm"
+                                >
+                                    {submitting ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Đang nộp...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send className="w-4 h-4 mr-2" />
+                                            Nộp bài
+                                        </>
+                                    )}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
             </div>
         </div>
     );

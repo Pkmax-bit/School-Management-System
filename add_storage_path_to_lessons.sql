@@ -13,3 +13,4 @@ ALTER TABLE lessons
 ALTER COLUMN storage_path SET NOT NULL;
 
 
+
