@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useTeacherAuth } from '@/hooks/useTeacherAuth';
+import { useApiAuth } from '@/hooks/useApiAuth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,10 +49,10 @@ interface Question {
     correct_answer?: string;
 }
 
-export default function SubmissionsPage() {
+export default function AdminSubmissionsPage() {
     const router = useRouter();
     const params = useParams();
-    const { user } = useTeacherAuth();
+    const { user, loading: authLoading } = useApiAuth();
     const assignmentId = params.id as string;
 
     const [assignment, setAssignment] = useState<Assignment | null>(null);
@@ -66,8 +66,10 @@ export default function SubmissionsPage() {
     const [grading, setGrading] = useState(false);
 
     useEffect(() => {
-        loadData();
-    }, [assignmentId]);
+        if (!authLoading && user && user.role === 'admin') {
+            loadData();
+        }
+    }, [assignmentId, authLoading, user]);
 
     const loadData = async () => {
         try {
@@ -177,7 +179,7 @@ export default function SubmissionsPage() {
     const averageScore = submissions.filter((s) => s.is_graded && s.score !== null)
         .reduce((sum, s) => sum + (s.score || 0), 0) / (gradedCount || 1);
 
-    if (loading) {
+    if (authLoading || loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
@@ -188,21 +190,32 @@ export default function SubmissionsPage() {
         );
     }
 
+    if (!user || user.role !== 'admin') {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <p className="text-gray-600 mb-4">Bạn không có quyền truy cập trang này</p>
+                    <Button onClick={() => router.push('/login')}>Đến trang đăng nhập</Button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50 p-6">
             <div className="max-w-7xl mx-auto space-y-6">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl p-6 text-white shadow-xl">
+                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
                     <Button
                         variant="ghost"
-                        onClick={() => router.push('/teacher/assignments')}
+                        onClick={() => router.push('/grades')}
                         className="text-white hover:bg-white/20 mb-4"
                     >
                         <ArrowLeft className="w-4 h-4 mr-2" />
                         Quay lại
                     </Button>
                     <h1 className="text-3xl font-bold mb-2">Chấm bài: {assignment?.title}</h1>
-                    <p className="text-green-100">Xem và chấm điểm các bài nộp của học sinh</p>
+                    <p className="text-purple-100">Xem và chấm điểm các bài nộp của học sinh</p>
                 </div>
 
                 {/* Statistics */}
@@ -248,8 +261,9 @@ export default function SubmissionsPage() {
                                 return (
                                     <Card
                                         key={submission.id}
-                                        className={`cursor-pointer hover:shadow-md transition-shadow ${selectedSubmission?.id === submission.id ? 'border-2 border-blue-500' : ''
-                                            }`}
+                                        className={`cursor-pointer hover:shadow-md transition-shadow ${
+                                            selectedSubmission?.id === submission.id ? 'border-2 border-blue-500' : ''
+                                        }`}
                                         onClick={() => {
                                             setSelectedSubmission(submission);
                                             setGradeScore(submission.score?.toString() || '');
@@ -454,3 +468,5 @@ export default function SubmissionsPage() {
         </div>
     );
 }
+
+

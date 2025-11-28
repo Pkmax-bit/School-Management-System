@@ -70,7 +70,7 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
       id: 'assignments',
       label: 'Quản lý Bài tập',
       icon: ClipboardCheck,
-      path: 'http://localhost:3000/assignments',
+      path: '/teacher/assignments',
       description: 'Quản lý tất cả bài tập'
     },
     {

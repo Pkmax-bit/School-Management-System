@@ -86,6 +86,7 @@ export default function LessonDetailPage() {
                 setLesson(data);
                 setClassroomId(data.classroom_id);
 
+<<<<<<< Updated upstream
                 // Set initial active file
                 if (data.files && data.files.length > 0) {
                     setActiveFile(data.files[0]);
@@ -97,6 +98,8 @@ export default function LessonDetailPage() {
                     });
                 }
 
+=======
+>>>>>>> Stashed changes
                 // Auto save progress when viewing lesson
                 if (data.classroom_id) {
                     try {
@@ -269,6 +272,7 @@ export default function LessonDetailPage() {
                     </div>
                 </header>
 
+<<<<<<< Updated upstream
                 {/* Content Viewer */}
                 <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6 flex justify-center">
                     <div className="w-full max-w-5xl space-y-6">
@@ -315,6 +319,210 @@ export default function LessonDetailPage() {
                                         </Button>
                                     </div>
                                 )}
+=======
+            {/* Main Content */}
+            <div className="max-w-4xl mx-auto px-6 py-8">
+                <div className="space-y-6">
+                    {/* Description */}
+                    {lesson.description && (
+                        <Card>
+                            <CardContent className="pt-6">
+                                <h2 className="text-lg font-semibold text-gray-900 mb-3">Mô tả bài học</h2>
+                                <div className="text-gray-700 leading-relaxed max-h-96 overflow-y-auto break-words">
+                                    <p className="whitespace-pre-wrap break-words">
+                                        {lesson.description}
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Files Preview/Display */}
+                    <Card>
+                        <CardContent className="pt-6">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                                Tài liệu bài học {lesson.files && lesson.files.length > 0 && `(${lesson.files.length} file)`}
+                            </h2>
+
+                            {/* Display all files */}
+                            {lesson.files && lesson.files.length > 0 ? (
+                                <div className="space-y-6">
+                                    {lesson.files.map((file, index) => (
+                                        <div key={file.id} className="space-y-4">
+                                            {index > 0 && <hr className="border-gray-200" />}
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="text-sm font-medium text-gray-500">File {index + 1}:</span>
+                                                    <span className="text-sm font-semibold text-gray-900">{file.file_name}</span>
+                                                    {file.file_size && (
+                                                        <span className="text-xs text-gray-400">
+                                                            ({(file.file_size / 1024 / 1024).toFixed(2)} MB)
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* PDF Preview */}
+                                                {file.file_name.toLowerCase().endsWith('.pdf') && (
+                                                    <div className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+                                                        <iframe
+                                                            src={file.file_url}
+                                                            className="w-full h-[600px]"
+                                                            title={file.file_name}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Image Preview */}
+                                                {isImageFile(file.file_name) && (
+                                                    <div className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+                                                        <img
+                                                            src={file.file_url}
+                                                            alt={file.file_name}
+                                                            className="w-full max-h-96 object-contain"
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Other file types - Show file info */}
+                                                {!file.file_name.toLowerCase().endsWith('.pdf') &&
+                                                    !isImageFile(file.file_name) && (
+                                                        <div className="bg-gray-50 rounded-lg p-4 md:p-6 border border-gray-200">
+                                                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                                                <div className="w-16 h-16 flex items-center justify-center bg-white rounded-lg border border-gray-200 flex-shrink-0">
+                                                                    {getFileIcon(file.file_name)}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="font-medium text-gray-900 text-base md:text-lg break-words">{file.file_name}</p>
+                                                                    <p className="text-sm text-gray-500 mt-1">
+                                                                        {getFileExtension(file.file_name)} file
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                                                    <a
+                                                                        href={file.file_url}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm"
+                                                                    >
+                                                                        <ExternalLink className="w-4 h-4" />
+                                                                        Mở file
+                                                                    </a>
+                                                                    <a
+                                                                        href={file.file_url}
+                                                                        download={file.file_name}
+                                                                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"
+                                                                    >
+                                                                        <Download className="w-4 h-4" />
+                                                                        Tải xuống
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : lesson.file_url ? (
+                                <div className="mb-6">
+                                    {/* PDF Preview */}
+                                    {lesson.file_name && lesson.file_name.toLowerCase().endsWith('.pdf') && (
+                                        <div className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+                                            <iframe
+                                                src={lesson.file_url}
+                                                className="w-full h-[600px]"
+                                                title={lesson.title}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Image Preview */}
+                                    {lesson.file_name && isImageFile(lesson.file_name) && (
+                                        <div className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+                                            <img
+                                                src={lesson.file_url}
+                                                alt={lesson.title}
+                                                className="w-full max-h-96 object-contain"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Other file types - Show file info */}
+                                    {lesson.file_name &&
+                                        !lesson.file_name.toLowerCase().endsWith('.pdf') &&
+                                        !isImageFile(lesson.file_name) && (
+                                            <div className="bg-gray-50 rounded-lg p-4 md:p-6 border border-gray-200">
+                                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                                    <div className="w-16 h-16 flex items-center justify-center bg-white rounded-lg border border-gray-200 flex-shrink-0">
+                                                        {getFileIcon(lesson.file_name)}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-medium text-gray-900 text-base md:text-lg break-words">{lesson.file_name}</p>
+                                                        <p className="text-sm text-gray-500 mt-1">
+                                                            {getFileExtension(lesson.file_name)} •
+                                                            {format(new Date(lesson.created_at), "dd/MM/yyyy", { locale: vi })}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                                        <a
+                                                            href={lesson.file_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm"
+                                                        >
+                                                            <ExternalLink className="w-4 h-4" />
+                                                            Mở file
+                                                        </a>
+                                                        <a
+                                                            href={lesson.file_url}
+                                                            download={lesson.file_name}
+                                                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"
+                                                        >
+                                                            <Download className="w-4 h-4" />
+                                                            Tải xuống
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                </div>
+                            ) : (
+                                <p className="text-gray-500">Không có tài liệu nào</p>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex flex-wrap gap-3">
+                                <Button
+                                    onClick={handleStartLesson}
+                                    disabled={savingProgress}
+                                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                                >
+                                    {savingProgress ? (
+                                        <>
+                                            <Clock className="w-4 h-4 mr-2 animate-spin" />
+                                            Đang lưu...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play className="w-4 h-4 mr-2" />
+                                            Học bài
+                                        </>
+                                    )}
+                                </Button>
+                                <Button
+                                    asChild
+                                    variant="outline"
+                                >
+                                    <a
+                                        href={lesson.file_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Tải xuống
+                                    </a>
+                                </Button>
+>>>>>>> Stashed changes
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-[60vh] text-gray-400">

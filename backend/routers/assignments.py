@@ -54,6 +54,34 @@ def validate_classrooms_belong_to_teacher(
         print(f"Error validating classrooms: {e}")
         return False
 
+def validate_assignment_access(
+    supabase: Client,
+    assignment_id: str,
+    current_user: User
+) -> bool:
+    """Kiểm tra giáo viên có quyền truy cập assignment không
+    - Admin: có quyền truy cập tất cả
+    - Teacher: chỉ có quyền truy cập assignment của chính mình
+    """
+    if current_user.role == UserRole.ADMIN:
+        return True
+    
+    if current_user.role == UserRole.TEACHER:
+        # Lấy teacher_id từ user
+        teacher_id = get_teacher_id_from_user(supabase, current_user.id)
+        if not teacher_id:
+            return False
+        
+        # Kiểm tra assignment có thuộc về giáo viên này không
+        assignment_result = supabase.table("assignments").select("teacher_id").eq("id", assignment_id).execute()
+        if not assignment_result.data:
+            return False
+        
+        assignment_teacher_id = assignment_result.data[0].get("teacher_id")
+        return assignment_teacher_id == teacher_id
+    
+    return False
+
 # ========== Request/Response Models ==========
 
 class AssignmentCreate(BaseModel):
@@ -134,6 +162,8 @@ class AssignmentSubmissionResponse(BaseModel):
     assignment_id: str
     student_id: str
     answers: Dict[str, Any]
+    files: Optional[List[Dict[str, Any]]] = []  # [{"name": "...", "url": "...", "type": "word|zip|other", "size": 12345}]
+    links: Optional[List[str]] = []  # ["https://...", "https://..."]
     score: Optional[float] = None
     is_graded: bool
     submitted_at: str
@@ -256,8 +286,24 @@ async def get_assignments(
     current_user: User = Depends(get_current_user),
     supabase: Client = Depends(get_db)
 ):
-    """Lấy danh sách bài tập"""
+    """Lấy danh sách bài tập
+    - Admin: có thể xem tất cả hoặc filter theo teacher_id
+    - Teacher: chỉ có thể xem bài tập của chính mình (tự động filter theo teacher_id)
+    """
     try:
+        # Tự động filter theo teacher_id nếu là giáo viên
+        if current_user.role == UserRole.TEACHER:
+            teacher_id_from_user = get_teacher_id_from_user(supabase, current_user.id)
+            if not teacher_id_from_user:
+                return []
+            # Override teacher_id từ query param nếu có
+            if teacher_id and teacher_id != teacher_id_from_user:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Bạn chỉ có thể xem bài tập của chính mình"
+                )
+            teacher_id = teacher_id_from_user
+        
         # Nếu filter theo classroom_id, cần join với assignment_classrooms
         if classroom_id:
             # Lấy danh sách assignment_id từ assignment_classrooms
@@ -289,6 +335,8 @@ async def get_assignments(
         
         return [AssignmentResponse(**a) for a in assignments]
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error fetching assignments: {e}")
         return []
@@ -796,7 +844,10 @@ async def get_submissions(
     current_user: User = Depends(get_current_user),
     supabase: Client = Depends(get_db)
 ):
-    """Lấy danh sách bài nộp (chỉ giáo viên)"""
+    """Lấy danh sách bài nộp
+    - Admin: có thể xem tất cả
+    - Teacher: chỉ có thể xem bài nộp của assignment thuộc về mình
+    """
     if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -804,10 +855,25 @@ async def get_submissions(
         )
     
     try:
+        # Kiểm tra quyền truy cập assignment
+        if not validate_assignment_access(supabase, assignment_id, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không có quyền truy cập assignment này"
+            )
+        
         result = supabase.table("assignment_submissions").select("*").eq("assignment_id", assignment_id).order("submitted_at", desc=True).execute()
         submissions = result.data or []
+        # Ensure files and links are included in response
+        for submission in submissions:
+            if 'files' not in submission or submission['files'] is None:
+                submission['files'] = []
+            if 'links' not in submission or submission['links'] is None:
+                submission['links'] = []
         return [AssignmentSubmissionResponse(**s) for s in submissions]
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error fetching submissions: {e}")
         return []
@@ -826,7 +892,10 @@ async def grade_submission(
     current_user: User = Depends(get_current_user),
     supabase: Client = Depends(get_db)
 ):
-    """Chấm điểm thủ công cho bài tập (chỉ giáo viên)"""
+    """Chấm điểm thủ công cho bài tập
+    - Admin: có thể chấm điểm tất cả
+    - Teacher: chỉ có thể chấm điểm assignment thuộc về mình
+    """
     if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -835,6 +904,13 @@ async def grade_submission(
     
     try:
         from datetime import datetime
+        
+        # Kiểm tra quyền truy cập assignment
+        if not validate_assignment_access(supabase, assignment_id, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không có quyền chấm điểm assignment này"
+            )
         
         # Kiểm tra submission có tồn tại không
         submission_result = supabase.table("assignment_submissions").select("*").eq("id", submission_id).eq("assignment_id", assignment_id).execute()
@@ -879,7 +955,10 @@ async def get_assignment_statistics(
     current_user: User = Depends(get_current_user),
     supabase: Client = Depends(get_db)
 ):
-    """Lấy thống kê bài tập (chỉ giáo viên)"""
+    """Lấy thống kê bài tập
+    - Admin: có thể xem thống kê tất cả
+    - Teacher: chỉ có thể xem thống kê assignment thuộc về mình
+    """
     if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -887,6 +966,13 @@ async def get_assignment_statistics(
         )
     
     try:
+        # Kiểm tra quyền truy cập assignment
+        if not validate_assignment_access(supabase, assignment_id, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không có quyền xem thống kê assignment này"
+            )
+        
         # Lấy thông tin assignment
         assignment_result = supabase.table("assignments").select("*").eq("id", assignment_id).execute()
         if not assignment_result.data:
@@ -968,4 +1054,317 @@ async def get_assignment_statistics(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch statistics: {str(e)}"
+        )
+
+# ========== Student Grade Summary ==========
+
+def calculate_grade_classification(average_score: float) -> str:
+    """Tính xếp loại học sinh dựa trên điểm trung bình"""
+    if average_score >= 8.0:
+        return "Giỏi"
+    elif average_score >= 6.5:
+        return "Khá"
+    elif average_score >= 5.0:
+        return "Trung bình"
+    elif average_score >= 3.5:
+        return "Yếu"
+    else:
+        return "Kém"
+
+@router.get("/students/{student_id}/grade-summary")
+async def get_student_grade_summary(
+    student_id: str,
+    classroom_id: Optional[str] = Query(None),
+    subject_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_db)
+):
+    """Lấy tổng điểm, điểm trung bình và xếp loại của học sinh
+    - Admin: có thể xem tất cả
+    - Teacher: chỉ có thể xem học sinh trong lớp của mình
+    - Student: chỉ có thể xem điểm của chính mình
+    """
+    try:
+        # Kiểm tra quyền truy cập
+        if current_user.role == UserRole.STUDENT:
+            # Học sinh chỉ có thể xem điểm của chính mình
+            student_result = supabase.table("students").select("id, user_id").eq("user_id", current_user.id).execute()
+            if not student_result.data or student_result.data[0]["id"] != student_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Bạn chỉ có thể xem điểm của chính mình"
+                )
+        elif current_user.role == UserRole.TEACHER:
+            # Giáo viên chỉ có thể xem học sinh trong lớp của mình
+            teacher_id = get_teacher_id_from_user(supabase, current_user.id)
+            if not teacher_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Teacher profile not found"
+                )
+            
+            # Kiểm tra học sinh có trong lớp của giáo viên không
+            student_result = supabase.table("students").select("classroom_id").eq("id", student_id).execute()
+            if not student_result.data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Student not found"
+                )
+            
+            student_classroom_id = student_result.data[0].get("classroom_id")
+            if student_classroom_id:
+                classroom_result = supabase.table("classrooms").select("teacher_id").eq("id", student_classroom_id).execute()
+                if classroom_result.data and classroom_result.data[0].get("teacher_id") != teacher_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Bạn chỉ có thể xem điểm của học sinh trong lớp của mình"
+                    )
+        
+        # Lấy tất cả submissions của học sinh
+        submissions_query = supabase.table("assignment_submissions").select("*, assignments(*)").eq("student_id", student_id).eq("is_graded", True)
+        
+        # Filter theo classroom_id nếu có
+        if classroom_id:
+            # Lấy danh sách assignment_id từ assignment_classrooms
+            class_result = supabase.table("assignment_classrooms").select("assignment_id").eq("classroom_id", classroom_id).execute()
+            assignment_ids = [item["assignment_id"] for item in (class_result.data or [])]
+            if assignment_ids:
+                submissions_query = submissions_query.in_("assignment_id", assignment_ids)
+            else:
+                # Không có assignment nào trong lớp này
+                return {
+                    "student_id": student_id,
+                    "classroom_id": classroom_id,
+                    "subject_id": subject_id,
+                    "total_assignments": 0,
+                    "graded_assignments": 0,
+                    "total_score": 0.0,
+                    "average_score": 0.0,
+                    "classification": "Chưa có điểm",
+                    "assignments": []
+                }
+        
+        submissions_result = submissions_query.execute()
+        submissions = submissions_result.data or []
+        
+        # Filter theo subject_id nếu có
+        if subject_id:
+            submissions = [s for s in submissions if s.get("assignments") and s["assignments"].get("subject_id") == subject_id]
+        
+        # Tính toán điểm số
+        graded_submissions = [s for s in submissions if s.get("score") is not None]
+        total_score = sum(float(s.get("score", 0)) for s in graded_submissions)
+        graded_count = len(graded_submissions)
+        average_score = (total_score / graded_count) if graded_count > 0 else 0.0
+        
+        # Tính xếp loại
+        classification = calculate_grade_classification(average_score) if graded_count > 0 else "Chưa có điểm"
+        
+        # Lấy thông tin chi tiết từng assignment
+        assignments_detail = []
+        for submission in graded_submissions:
+            assignment = submission.get("assignments", {})
+            assignments_detail.append({
+                "assignment_id": submission.get("assignment_id"),
+                "assignment_title": assignment.get("title", ""),
+                "subject_id": assignment.get("subject_id"),
+                "subject_name": None,  # Sẽ load sau nếu cần
+                "score": float(submission.get("score", 0)),
+                "total_points": float(assignment.get("total_points", 100)),
+                "percentage": (float(submission.get("score", 0)) / float(assignment.get("total_points", 100)) * 100) if assignment.get("total_points", 100) > 0 else 0,
+                "submitted_at": submission.get("submitted_at"),
+                "graded_at": submission.get("graded_at")
+            })
+        
+        # Load subject names
+        subject_ids = list(set([a["subject_id"] for a in assignments_detail if a["subject_id"]]))
+        subjects_map = {}
+        if subject_ids:
+            subjects_result = supabase.table("subjects").select("id, name").in_("id", subject_ids).execute()
+            subjects_map = {s["id"]: s["name"] for s in (subjects_result.data or [])}
+        
+        for assignment_detail in assignments_detail:
+            if assignment_detail["subject_id"] in subjects_map:
+                assignment_detail["subject_name"] = subjects_map[assignment_detail["subject_id"]]
+        
+        # Lấy tổng số assignment (cả chưa chấm)
+        all_assignments_query = supabase.table("assignments").select("id")
+        if classroom_id:
+            class_result = supabase.table("assignment_classrooms").select("assignment_id").eq("classroom_id", classroom_id).execute()
+            assignment_ids = [item["assignment_id"] for item in (class_result.data or [])]
+            if assignment_ids:
+                all_assignments_query = all_assignments_query.in_("id", assignment_ids)
+            else:
+                total_assignments = 0
+        else:
+            # Lấy tất cả assignment mà học sinh đã nộp hoặc được gán
+            submission_assignments = supabase.table("assignment_submissions").select("assignment_id").eq("student_id", student_id).execute()
+            assignment_ids = [s["assignment_id"] for s in (submission_assignments.data or [])]
+            if assignment_ids:
+                all_assignments_query = all_assignments_query.in_("id", assignment_ids)
+        
+        if classroom_id and not assignment_ids:
+            total_assignments = 0
+        else:
+            all_assignments_result = all_assignments_query.execute()
+            total_assignments = len(all_assignments_result.data or [])
+        
+        return {
+            "student_id": student_id,
+            "classroom_id": classroom_id,
+            "subject_id": subject_id,
+            "total_assignments": total_assignments,
+            "graded_assignments": graded_count,
+            "pending_assignments": total_assignments - graded_count,
+            "total_score": round(total_score, 2),
+            "average_score": round(average_score, 2),
+            "classification": classification,
+            "assignments": assignments_detail
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching student grade summary: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch student grade summary: {str(e)}"
+        )
+
+@router.get("/classrooms/{classroom_id}/grade-summary")
+async def get_classroom_grade_summary(
+    classroom_id: str,
+    subject_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_db)
+):
+    """Lấy bảng điểm tổng hợp của cả lớp
+    - Admin: có thể xem tất cả
+    - Teacher: chỉ có thể xem lớp của mình
+    """
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    try:
+        # Kiểm tra quyền truy cập lớp học
+        if current_user.role == UserRole.TEACHER:
+            teacher_id = get_teacher_id_from_user(supabase, current_user.id)
+            if not teacher_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Teacher profile not found"
+                )
+            
+            classroom_result = supabase.table("classrooms").select("teacher_id").eq("id", classroom_id).execute()
+            if not classroom_result.data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Classroom not found"
+                )
+            
+            if classroom_result.data[0].get("teacher_id") != teacher_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Bạn chỉ có thể xem điểm của lớp mà bạn đang dạy"
+                )
+        
+        # Lấy danh sách học sinh trong lớp
+        students_result = supabase.table("students").select("id, user_id").eq("classroom_id", classroom_id).execute()
+        students = students_result.data or []
+        
+        # Lấy thông tin user để có tên học sinh
+        user_ids = [s["user_id"] for s in students if s.get("user_id")]
+        users_map = {}
+        if user_ids:
+            users_result = supabase.table("users").select("id, full_name").in_("id", user_ids).execute()
+            users_map = {u["id"]: u["full_name"] for u in (users_result.data or [])}
+        
+        # Tính điểm cho từng học sinh
+        students_grades = []
+        for student in students:
+            student_id = student["id"]
+            
+            # Lấy submissions của học sinh này
+            submissions_query = supabase.table("assignment_submissions").select("*, assignments(*)").eq("student_id", student_id).eq("is_graded", True)
+            
+            # Filter theo subject_id nếu có
+            if subject_id:
+                # Lấy assignment_ids của subject này trong lớp
+                class_assignments = supabase.table("assignment_classrooms").select("assignment_id").eq("classroom_id", classroom_id).execute()
+                assignment_ids = [a["assignment_id"] for a in (class_assignments.data or [])]
+                if assignment_ids:
+                    assignments_result = supabase.table("assignments").select("id").in_("id", assignment_ids).eq("subject_id", subject_id).execute()
+                    filtered_assignment_ids = [a["id"] for a in (assignments_result.data or [])]
+                    if filtered_assignment_ids:
+                        submissions_query = submissions_query.in_("assignment_id", filtered_assignment_ids)
+                    else:
+                        # Không có assignment nào của subject này
+                        students_grades.append({
+                            "student_id": student_id,
+                            "student_name": users_map.get(student["user_id"], "Học sinh"),
+                            "total_assignments": 0,
+                            "graded_assignments": 0,
+                            "total_score": 0.0,
+                            "average_score": 0.0,
+                            "classification": "Chưa có điểm"
+                        })
+                        continue
+            
+            submissions_result = submissions_query.execute()
+            submissions = submissions_result.data or []
+            
+            # Filter theo subject_id trong submissions
+            if subject_id:
+                submissions = [s for s in submissions if s.get("assignments") and s["assignments"].get("subject_id") == subject_id]
+            
+            graded_submissions = [s for s in submissions if s.get("score") is not None]
+            total_score = sum(float(s.get("score", 0)) for s in graded_submissions)
+            graded_count = len(graded_submissions)
+            average_score = (total_score / graded_count) if graded_count > 0 else 0.0
+            classification = calculate_grade_classification(average_score) if graded_count > 0 else "Chưa có điểm"
+            
+            # Đếm tổng số assignment
+            if subject_id:
+                class_assignments = supabase.table("assignment_classrooms").select("assignment_id").eq("classroom_id", classroom_id).execute()
+                assignment_ids = [a["assignment_id"] for a in (class_assignments.data or [])]
+                if assignment_ids:
+                    assignments_result = supabase.table("assignments").select("id").in_("id", assignment_ids).eq("subject_id", subject_id).execute()
+                    total_assignments = len(assignments_result.data or [])
+                else:
+                    total_assignments = 0
+            else:
+                class_assignments = supabase.table("assignment_classrooms").select("assignment_id").eq("classroom_id", classroom_id).execute()
+                total_assignments = len(class_assignments.data or [])
+            
+            students_grades.append({
+                "student_id": student_id,
+                "student_name": users_map.get(student["user_id"], "Học sinh"),
+                "total_assignments": total_assignments,
+                "graded_assignments": graded_count,
+                "pending_assignments": total_assignments - graded_count,
+                "total_score": round(total_score, 2),
+                "average_score": round(average_score, 2),
+                "classification": classification
+            })
+        
+        # Sắp xếp theo điểm trung bình giảm dần
+        students_grades.sort(key=lambda x: x["average_score"], reverse=True)
+        
+        return {
+            "classroom_id": classroom_id,
+            "subject_id": subject_id,
+            "total_students": len(students),
+            "students": students_grades
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching classroom grade summary: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch classroom grade summary: {str(e)}"
         )

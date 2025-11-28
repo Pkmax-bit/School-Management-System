@@ -135,7 +135,23 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
               <button
                 key={item.page}
                 onClick={() => {
-                  onNavigate(item.page);
+                  // Map page to full path
+                  const pathMap: Record<string, string> = {
+                    'dashboard': '/admin/dashboard',
+                    'teachers': '/teachers',
+                    'students': '/students',
+                    'subjects': '/subjects',
+                    'classes': '/classrooms',
+                    'campuses': '/campuses',
+                    'schedule': '/schedule',
+                    'finance': '/finance',
+                    'reports': '/reports',
+                    'attendance': '/attendances',
+                    'grades': '/grades',
+                    'documents': '/documents',
+                    'settings': '/settings',
+                  };
+                  onNavigate(pathMap[item.page] || `/${item.page}`);
                   setIsMobileOpen(false);
                 }}
                 className={cn(

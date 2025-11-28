@@ -124,8 +124,11 @@ CREATE TABLE IF NOT EXISTS assignment_submissions (
     assignment_id UUID REFERENCES assignments(id) ON DELETE CASCADE NOT NULL,
     student_id UUID REFERENCES students(id) ON DELETE CASCADE NOT NULL,
     answers JSONB NOT NULL,
+    files JSONB DEFAULT '[]'::jsonb,  -- [{"name": "...", "url": "...", "type": "word|zip|other", "size": 12345}]
+    links JSONB DEFAULT '[]'::jsonb,   -- ["https://...", "https://..."]
     score DECIMAL(5,2),
     is_graded BOOLEAN DEFAULT FALSE,
+    feedback TEXT,  -- Nhận xét của giáo viên/admin
     submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     graded_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(assignment_id, student_id)
@@ -177,6 +180,9 @@ CREATE INDEX IF NOT EXISTS idx_assignments_teacher_id ON assignments(teacher_id)
 CREATE INDEX IF NOT EXISTS idx_assignment_questions_assignment_id ON assignment_questions(assignment_id);
 CREATE INDEX IF NOT EXISTS idx_assignment_submissions_assignment_id ON assignment_submissions(assignment_id);
 CREATE INDEX IF NOT EXISTS idx_assignment_submissions_student_id ON assignment_submissions(student_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_submissions_files ON assignment_submissions USING GIN(files) WHERE files IS NOT NULL AND jsonb_array_length(files) > 0;
+CREATE INDEX IF NOT EXISTS idx_assignment_submissions_links ON assignment_submissions USING GIN(links) WHERE links IS NOT NULL AND jsonb_array_length(links) > 0;
+CREATE INDEX IF NOT EXISTS idx_assignment_submissions_graded ON assignment_submissions(is_graded, score) WHERE is_graded = TRUE;
 CREATE INDEX IF NOT EXISTS idx_attendances_student_id ON attendances(student_id);
 CREATE INDEX IF NOT EXISTS idx_attendances_classroom_id ON attendances(classroom_id);
 CREATE INDEX IF NOT EXISTS idx_attendances_date ON attendances(date);

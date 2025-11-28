@@ -35,9 +35,35 @@ export default function TeacherLessonsPage() {
                     return;
                 }
 
-                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/classrooms`, {
+                // Get teacher_id from user_id
+                let teacherId: string | null = null;
+                try {
+                    const teachersRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teachers?limit=1000`, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                    });
+                    if (teachersRes.ok) {
+                        const teachersData = await teachersRes.json();
+                        const teacher = teachersData.find((t: any) => t.user_id === user.id);
+                        if (teacher) {
+                            teacherId = teacher.id;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error loading teacher ID:', e);
+                }
+
+                // Build URL with teacher_id filter if available
+                const url = teacherId
+                    ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/classrooms?teacher_id=${teacherId}&limit=1000`
+                    : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/classrooms?limit=1000`;
+
+                const response = await fetch(url, {
                     headers: {
-                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
                     },
                 });
 
@@ -49,6 +75,8 @@ export default function TeacherLessonsPage() {
                     }
                 } else {
                     console.error('Failed to fetch classrooms:', response.status);
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
                 }
             } catch (error) {
                 console.error("Failed to fetch classrooms", error);
