@@ -14,7 +14,16 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
     const { isCollapsed } = useSidebar();
     const [isAuthorized, setIsAuthorized] = useState(false);
 
+    // Check if current path is login page - don't apply auth check for login
+    const isLoginPage = pathname === '/student/login';
+
     useEffect(() => {
+        // Skip auth check for login page
+        if (isLoginPage) {
+            setIsAuthorized(true);
+            return;
+        }
+
         if (!loading) {
             if (!user || user.role !== 'student') {
                 router.push('/login');
@@ -22,7 +31,12 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                 setIsAuthorized(true);
             }
         }
-    }, [user, loading, router]);
+    }, [user, loading, router, isLoginPage]);
+
+    // For login page, render without sidebar
+    if (isLoginPage) {
+        return <>{children}</>;
+    }
 
     if (loading) {
         return (

@@ -22,7 +22,7 @@ export default function AdminDashboardPage() {
     <RoleBasedRouteGuard user={user} loading={loading} allowedRoles={['admin']}>
       <AdminDashboard
         user={displayUser}
-        onNavigate={(page) => router.push(`/${page}`)}
+        onNavigate={(page) => router.push(page.startsWith('/') ? page : `/${page}`)}
         onLogout={logout}
       />
     </RoleBasedRouteGuard>

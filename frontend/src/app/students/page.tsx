@@ -49,8 +49,10 @@ export default function StudentsPage() {
 
   // Navigation handler
   const handleNavigate = (page: string) => {
-    setCurrentPage(page);
-    router.push(`/${page}`);
+    // Extract page name from path for currentPage state
+    const pageName = page.split('/').filter(Boolean).pop() || 'students';
+    setCurrentPage(pageName);
+    router.push(page.startsWith('/') ? page : `/${page}`);
   };
   const [formData, setFormData] = useState<CreateStudentData>({
     name: '',

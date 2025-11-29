@@ -49,6 +49,7 @@ export default function AssignmentResultPage() {
     const [submission, setSubmission] = useState<Submission | null>(null);
     const [questions, setQuestions] = useState<Question[]>([]);
     const [loading, setLoading] = useState(true);
+    const [studentId, setStudentId] = useState<string | null>(null);
 
     useEffect(() => {
         loadResult();
@@ -58,6 +59,34 @@ export default function AssignmentResultPage() {
         try {
             setLoading(true);
             const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+
+            // Get current user and student ID
+            const userRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+
+            if (userRes.ok) {
+                const user = await userRes.json();
+                
+                // Get student profile
+                const studentsRes = await fetch(`${API_BASE_URL}/api/students?limit=1000`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                });
+
+                if (studentsRes.ok) {
+                    const studentsData = await studentsRes.json();
+                    const student = studentsData.find((s: any) => s.user_id === user.id);
+                    if (student) {
+                        setStudentId(student.id);
+                    }
+                }
+            }
 
             // Load assignment
             const assignmentRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}`, {
@@ -72,20 +101,46 @@ export default function AssignmentResultPage() {
                 setAssignment(assignmentData);
             }
 
-            // Load submission
-            if (submissionId) {
-                const submissionsRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/submissions`, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                    },
-                });
+            // Load submissions
+            const submissionsRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/submissions`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
 
-                if (submissionsRes.ok) {
-                    const submissionsData = await submissionsRes.json();
+            if (submissionsRes.ok) {
+                const submissionsData = await submissionsRes.json();
+                
+                // Nếu có submission_id từ query param, tìm submission đó
+                if (submissionId) {
                     const sub = submissionsData.find((s: Submission) => s.id === submissionId);
                     if (sub) {
                         setSubmission(sub);
+                    }
+                } else if (studentId) {
+                    // Nếu không có submission_id, lấy tất cả submissions của học sinh
+                    const studentSubmissions = submissionsData.filter((s: Submission) => s.student_id === studentId);
+                    
+                    if (studentSubmissions.length > 0) {
+                        // Nếu có nhiều submission, lấy submission có điểm cao nhất
+                        // Nếu chưa có điểm, lấy submission mới nhất
+                        const bestSubmission = studentSubmissions.reduce((best, current) => {
+                            const bestScore = best.score ?? -1;
+                            const currentScore = current.score ?? -1;
+                            
+                            // Ưu tiên submission có điểm cao hơn
+                            if (currentScore > bestScore) {
+                                return current;
+                            }
+                            // Nếu điểm bằng nhau, ưu tiên submission mới hơn
+                            if (currentScore === bestScore && currentScore === -1) {
+                                return new Date(current.submitted_at) > new Date(best.submitted_at) ? current : best;
+                            }
+                            return best;
+                        });
+                        
+                        setSubmission(bestSubmission);
                     }
                 }
             }
@@ -142,13 +197,41 @@ export default function AssignmentResultPage() {
         );
     }
 
-    if (!assignment || !submission) {
+    if (!assignment) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <Card className="p-6">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
+                <Card className="p-6 max-w-md">
                     <div className="text-center">
-                        <p className="text-gray-600 mb-4">Không tìm thấy kết quả</p>
-                        <Button onClick={() => router.push('/student/assignments')}>Quay lại</Button>
+                        <p className="text-gray-600 mb-4">Không tìm thấy bài tập</p>
+                        <Button onClick={() => router.push('/student/assignments')}>Quay lại danh sách</Button>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
+
+    if (!submission) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
+                <Card className="p-6 max-w-md">
+                    <div className="text-center space-y-4">
+                        <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto">
+                            <Clock className="w-8 h-8 text-yellow-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900 mb-2">Chưa có kết quả</h2>
+                            <p className="text-gray-600 mb-4">
+                                Bạn chưa làm bài tập này hoặc bài làm chưa được lưu.
+                            </p>
+                        </div>
+                        <div className="flex gap-2 justify-center">
+                            <Button variant="outline" onClick={() => router.push('/student/assignments')}>
+                                Quay lại danh sách
+                            </Button>
+                            <Button onClick={() => router.push(`/student/assignments/${assignmentId}`)}>
+                                Làm bài
+                            </Button>
+                        </div>
                     </div>
                 </Card>
             </div>

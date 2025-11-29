@@ -115,7 +115,7 @@ export default function GradesPage() {
             });
 
             if (assignmentsRes.ok) {
-                const assignmentsData = await assignmentsRes.json();
+                const assignmentsData = await assignmentsRes.json() as Assignment[];
                 setAssignments(assignmentsData);
 
                 // Load stats for each assignment
@@ -132,7 +132,7 @@ export default function GradesPage() {
                             }
                         );
                         if (statsRes.ok) {
-                            const statsData = await statsRes.json();
+                            const statsData = await statsRes.json() as AssignmentStats;
                             statsMap[assignment.id] = statsData;
                         }
                     } catch (error) {
@@ -156,7 +156,7 @@ export default function GradesPage() {
                             },
                         });
                         if (teacherRes.ok) {
-                            const teacherData = await teacherRes.json();
+                            const teacherData = await teacherRes.json() as Teacher;
                             teachersMap[teacherId] = teacherData;
                         }
                     } catch (error) {
@@ -176,7 +176,7 @@ export default function GradesPage() {
                             },
                         });
                         if (subjectRes.ok) {
-                            const subjectData = await subjectRes.json();
+                            const subjectData = await subjectRes.json() as Subject;
                             subjectsMap[subjectId] = subjectData;
                         }
                     } catch (error) {

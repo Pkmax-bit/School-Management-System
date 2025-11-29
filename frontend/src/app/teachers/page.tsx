@@ -348,7 +348,7 @@ export default function TeachersPage() {
       <div className="flex min-h-screen">
         <AdminSidebar 
         currentPage="teachers" 
-        onNavigate={(page) => router.push(`/${page}`)} 
+        onNavigate={(page) => router.push(page.startsWith('/') ? page : `/${page}`)} 
         onLogout={logout}
         userName={user?.name}
         userEmail={user?.email}

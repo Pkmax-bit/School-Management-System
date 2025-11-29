@@ -259,7 +259,7 @@ export default function SubjectsPage() {
       <div className="min-h-screen">
         <AdminSidebar
           currentPage="subjects"
-          onNavigate={(page) => router.push(`/${page}`)}
+          onNavigate={(page) => router.push(page.startsWith('/') ? page : `/${page}`)}
           onLogout={logout}
         />
         <div

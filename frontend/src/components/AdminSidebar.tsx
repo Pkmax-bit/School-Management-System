@@ -61,10 +61,10 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
   ];
 
   const quickActions = [
-    { icon: Users, label: 'Thêm giáo viên', action: () => onNavigate('teachers') },
-    { icon: UserCircle, label: 'Thêm học sinh', action: () => onNavigate('students') },
-    { icon: School, label: 'Tạo lớp học', action: () => onNavigate('classes') },
-    { icon: DollarSign, label: 'Thu học phí', action: () => onNavigate('finance') },
+    { icon: Users, label: 'Thêm giáo viên', action: () => onNavigate('/teachers') },
+    { icon: UserCircle, label: 'Thêm học sinh', action: () => onNavigate('/students') },
+    { icon: School, label: 'Tạo lớp học', action: () => onNavigate('/classrooms') },
+    { icon: DollarSign, label: 'Thu học phí', action: () => onNavigate('/finance') },
   ];
 
   return (

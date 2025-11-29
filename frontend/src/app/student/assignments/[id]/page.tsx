@@ -151,6 +151,42 @@ export default function TakeAssignmentPage() {
                 const assignmentData = await assignmentRes.json();
                 setAssignment(assignmentData);
 
+                // Check attempts before loading questions - KIỂM TRA CHÍNH XÁC SỐ LƯỢT
+                if (studentId) {
+                    const submissionsRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/submissions`, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                    });
+
+                    if (submissionsRes.ok) {
+                        const submissionsData = await submissionsRes.json();
+                        // ĐẾM TẤT CẢ SUBMISSIONS CỦA HỌC SINH, KHÔNG CHỈ TÌM 1 CÁI
+                        const studentSubmissions = submissionsData.filter((s: any) => s.student_id === studentId);
+                        const attemptsUsed = studentSubmissions.length;
+                        const attemptsRemaining = assignmentData.attempts_allowed - attemptsUsed;
+
+                        // NGĂN CHẶN NẾU ĐÃ HẾT LƯỢT
+                        if (attemptsRemaining <= 0) {
+                            setError(
+                                `⚠️ BẠN ĐÃ HẾT LƯỢT LÀM BÀI!\n\n` +
+                                `📝 Bài tập: ${assignmentData.title}\n` +
+                                `📊 Số lượt đã dùng: ${attemptsUsed}/${assignmentData.attempts_allowed}\n` +
+                                `❌ Số lượt còn lại: 0/${assignmentData.attempts_allowed}\n\n` +
+                                `✅ Bạn đã hoàn thành bài tập này.\n` +
+                                `Vui lòng quay lại để xem kết quả bài làm của bạn.`
+                            );
+                            setLoading(false);
+                            // Redirect về danh sách sau 3 giây
+                            setTimeout(() => {
+                                router.push('/student/assignments');
+                            }, 3000);
+                            return;
+                        }
+                    }
+                }
+
                 // Load questions
                 const questionsRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/questions`, {
                     headers: {
@@ -299,6 +335,28 @@ export default function TakeAssignmentPage() {
         );
     }
 
+    if (error && !assignment) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
+                <Card className="max-w-md w-full border-0 shadow-xl">
+                    <CardContent className="p-8 text-center">
+                        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                        <h2 className="text-2xl font-bold text-red-600 mb-4">Không thể làm bài</h2>
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                            <p className="text-gray-800 whitespace-pre-line text-left">{error}</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Button onClick={() => router.push('/student/assignments')} className="w-full bg-blue-600 hover:bg-blue-700">
+                                Quay lại danh sách bài tập
+                            </Button>
+                            <p className="text-sm text-gray-500">Sẽ tự động chuyển về danh sách sau 3 giây...</p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
     if (!assignment) {
         return (
             <div className="flex items-center justify-center min-h-[50vh]">
@@ -366,19 +424,29 @@ export default function TakeAssignmentPage() {
                     {questions.map((question, index) => (
                         <Card key={question.id} id={`question-${index}`} className="scroll-mt-24 border-0 shadow-md ring-1 ring-gray-100">
                             <CardHeader className="bg-gray-50/50 border-b border-gray-100 pb-4">
-                                <div className="flex items-start justify-between">
+                                <div className="flex items-start justify-between mb-3">
                                     <div className="flex items-center gap-3">
                                         <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">
                                             {index + 1}
                                         </span>
-                                        <CardTitle className="text-lg font-medium text-gray-900">
-                                            {question.question_text}
-                                        </CardTitle>
+                                        <div>
+                                            <CardTitle className="text-lg font-medium text-gray-900 mb-2">
+                                                Câu hỏi {index + 1}
+                                            </CardTitle>
+                                        </div>
                                     </div>
                                     <Badge variant="secondary" className="bg-white border border-gray-200">
                                         {question.points} điểm
                                     </Badge>
                                 </div>
+
+                                {/* Mô tả câu hỏi */}
+                                <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
+                                    <p className="text-base text-gray-800 leading-relaxed whitespace-pre-wrap">
+                                        {question.question_text}
+                                    </p>
+                                </div>
+
                                 {question.image_url && (
                                     <div className="mt-4">
                                         <img src={question.image_url} alt="Question" className="max-w-full h-auto rounded-lg border" />

@@ -376,14 +376,14 @@ export default function ClassroomsPage() {
         {isTeacher ? (
           <TeacherSidebar
             currentPage="classrooms"
-            onNavigate={(page) => router.push(`/${page}`)}
+            onNavigate={(page) => router.push(page.startsWith('/') ? page : `/${page}`)}
             onLogout={teacherAuth.logout || logout}
             user={{ name: displayUser?.name, email: displayUser?.email }}
           />
         ) : (
           <AdminSidebar
             currentPage="classes"
-            onNavigate={(page) => router.push(`/${page}`)}
+            onNavigate={(page) => router.push(page.startsWith('/') ? page : `/${page}`)}
             onLogout={logout}
           />
         )}

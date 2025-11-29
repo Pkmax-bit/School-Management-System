@@ -764,14 +764,20 @@ async def submit_assignment(
                 )
         
         # Kiểm tra số lần nộp
-        existing_submissions = supabase.table("assignment_submissions").select("id").eq("assignment_id", assignment_id).eq("student_id", submission_data.student_id).execute()
+        existing_submissions = supabase.table("assignment_submissions").select("id, attempt_number").eq("assignment_id", assignment_id).eq("student_id", submission_data.student_id).execute()
         attempts_allowed = assignment.get("attempts_allowed", 1)
         
-        if existing_submissions.data and len(existing_submissions.data) >= attempts_allowed:
+        # Tính số lần đã làm (dựa trên số lượng submissions)
+        attempts_used = len(existing_submissions.data) if existing_submissions.data else 0
+        
+        if attempts_used >= attempts_allowed:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Bạn đã hết lượt làm bài (tối đa {attempts_allowed} lần)"
             )
+        
+        # Tính attempt_number cho submission mới
+        next_attempt_number = attempts_used + 1
         
         # Auto-grading cho multiple choice
         score = None
@@ -819,7 +825,21 @@ async def submit_assignment(
             "is_graded": is_graded
         }
         
-        result = supabase.table("assignment_submissions").insert(submission_dict).execute()
+        # Thêm attempt_number nếu có (cột có thể chưa tồn tại trong database)
+        # Kiểm tra xem có thể insert với attempt_number không
+        submission_dict_with_attempt = {**submission_dict, "attempt_number": next_attempt_number}
+        
+        try:
+            result = supabase.table("assignment_submissions").insert(submission_dict_with_attempt).execute()
+        except Exception as insert_error:
+            # Nếu lỗi do cột attempt_number không tồn tại, thử insert không có attempt_number
+            error_str = str(insert_error)
+            if "attempt_number" in error_str.lower() or "42703" in error_str:
+                # Cột chưa tồn tại, insert không có attempt_number
+                result = supabase.table("assignment_submissions").insert(submission_dict).execute()
+            else:
+                # Lỗi khác, ném lại
+                raise
         
         if not result.data:
             raise HTTPException(
