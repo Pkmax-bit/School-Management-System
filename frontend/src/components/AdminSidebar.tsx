@@ -146,7 +146,7 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
                     'schedule': '/schedule',
                     'finance': '/finance',
                     'reports': '/reports',
-                    'attendance': '/attendances',
+                    'attendance': '/admin/attendance',
                     'grades': '/grades',
                     'documents': '/documents',
                     'settings': '/settings',

@@ -489,6 +489,132 @@ async def delete_student(
             detail=f"Failed to delete student: {str(e)}"
         )
 
+@router.get("/{student_id}/grades")
+async def get_student_grades(
+    student_id: str,
+    classroom_id: Optional[str] = Query(None),
+    subject_id: Optional[str] = Query(None),
+    current_user = Depends(get_current_user_dev),
+    supabase: Client = Depends(get_db)
+):
+    """Lấy điểm số của học sinh - convenience endpoint with frontend-compatible format"""
+    # Import here to avoid circular dependency at module level
+    from routers.assignments import get_student_grade_summary
+    from models.user import User, UserRole
+    
+    try:
+        # Convert current_user to proper User model format
+        user_obj = User(
+            id=current_user.id if hasattr(current_user, 'id') else str(current_user.get('id', '')),
+            email=current_user.email if hasattr(current_user, 'email') else str(current_user.get('email', '')),
+            role=UserRole(current_user.role if hasattr(current_user, 'role') else str(current_user.get('role', 'student')))
+        )
+        
+        # Call the assignments endpoint function
+        grade_data = await get_student_grade_summary(
+            student_id=student_id,
+            classroom_id=classroom_id,
+            subject_id=subject_id,
+            current_user=user_obj,
+            supabase=supabase
+        )
+        
+        # Get student name
+        student_result = supabase.table('students').select('*, users(full_name)').eq('id', student_id).execute()
+        student_name = 'Học sinh'
+        if student_result.data and student_result.data[0].get('users'):
+            student_name = student_result.data[0]['users'].get('full_name', 'Học sinh')
+        elif student_result.data:
+            # Fallback to first_name + last_name if available
+            first_name = student_result.data[0].get('first_name', '')
+            last_name = student_result.data[0].get('last_name', '')
+            if first_name or last_name:
+                student_name = f"{last_name} {first_name}".strip()
+        
+        # Group assignments by subject and calculate subject averages
+        assignments = grade_data.get('assignments', [])
+        subjects_map = {}
+        
+        for assignment in assignments:
+            subj_id = assignment.get('subject_id')
+            subj_name = assignment.get('subject_name', 'Chưa phân loại')
+            
+            if subj_id not in subjects_map:
+                subjects_map[subj_id] = {
+                    'subject_id': subj_id,
+                    'subject_name': subj_name,
+                    'total_assignments': 0,
+                    'graded_assignments': 0,
+                    'total_score': 0.0,
+                    'max_total_score': 0.0,
+                    'scores': []
+                }
+            
+            subjects_map[subj_id]['total_assignments'] += 1
+            if assignment.get('score') is not None:
+                subjects_map[subj_id]['graded_assignments'] += 1
+                score = float(assignment.get('score', 0))
+                max_score = float(assignment.get('total_points', 100))
+                subjects_map[subj_id]['total_score'] += score
+                subjects_map[subj_id]['max_total_score'] += max_score
+                subjects_map[subj_id]['scores'].append(score)
+        
+        # Calculate averages for each subject
+        subjects_list = []
+        for subj_data in subjects_map.values():
+            avg_score = 0.0
+            if subj_data['graded_assignments'] > 0:
+                avg_score = subj_data['total_score'] / subj_data['graded_assignments']
+            
+            subjects_list.append({
+                'subject_id': subj_data['subject_id'],
+                'subject_name': subj_data['subject_name'],
+                'total_assignments': subj_data['total_assignments'],
+                'graded_assignments': subj_data['graded_assignments'],
+                'average_score': round(avg_score, 2),
+                'total_score': round(subj_data['total_score'], 2),
+                'max_total_score': round(subj_data['max_total_score'], 2)
+            })
+        
+        # Transform assignments to frontend-expected format
+        assignments_list = []
+        for assignment in grade_data.get('assignments', []):
+            # Determine status
+            status = 'graded' if assignment.get('score') is not None else 'pending'
+            
+            assignments_list.append({
+                'assignment_id': assignment.get('assignment_id'),
+                'assignment_title': assignment.get('assignment_title', ''),
+                'subject_name': assignment.get('subject_name', 'Chưa phân loại'),
+                'score': float(assignment.get('score', 0)) if assignment.get('score') is not None else 0,
+                'max_score': float(assignment.get('total_points', 100)),
+                'percentage': assignment.get('percentage', 0),
+                'graded_at': assignment.get('graded_at'),
+                'status': status
+            })
+        
+        # Transform to frontend-expected format
+        return {
+            'student_id': grade_data.get('student_id'),
+            'student_name': student_name,
+            'total_assignments': grade_data.get('total_assignments', 0),
+            'graded_assignments': grade_data.get('graded_assignments', 0),
+            'pending_assignments': grade_data.get('pending_assignments', 0),
+            'overall_average': grade_data.get('average_score', 0.0),  # Map average_score to overall_average
+            'classification': grade_data.get('classification', 'Chưa có điểm'),
+            'assignments': assignments_list,
+            'subjects': subjects_list
+        }
+        
+    except Exception as e:
+        print(f"Error in get_student_grades: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch student grades: {str(e)}"
+        )
+
 @router.get("/stats/overview")
 async def get_student_stats(
     current_user = Depends(get_current_user_dev),

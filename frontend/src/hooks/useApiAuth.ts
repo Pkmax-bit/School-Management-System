@@ -18,9 +18,9 @@ export const useApiAuth = () => {
   const checkUser = async () => {
     try {
       // Try multiple token sources (like Phuc Dat pattern)
-      let token = localStorage.getItem('auth_token') || 
-                  localStorage.getItem('access_token') ||
-                  localStorage.getItem('token');
+      let token = localStorage.getItem('auth_token') ||
+        localStorage.getItem('access_token') ||
+        localStorage.getItem('token');
 
       // Fallback to Supabase session token if no local app token
       if (!token) {
@@ -41,7 +41,7 @@ export const useApiAuth = () => {
       if (!token) {
         try {
           const cachedUser = localStorage.getItem('user');
-          if (cachedUser) {
+          if (cachedUser && cachedUser !== 'undefined') {
             const parsed = JSON.parse(cachedUser);
             const mapped = normalizeUser(parsed);
             console.log('useApiAuth - No token, using cached user:', mapped);
@@ -67,7 +67,7 @@ export const useApiAuth = () => {
           // Create AbortController for timeout (compatible with older browsers)
           const controller = new AbortController();
           timeoutId = setTimeout(() => controller.abort(), 5000);
-          
+
           response = await fetch(`${API_BASE_URL}/api/auth/me`, {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -75,7 +75,7 @@ export const useApiAuth = () => {
             },
             signal: controller.signal,
           });
-          
+
           if (timeoutId) clearTimeout(timeoutId);
 
           if (response.ok) {
@@ -130,7 +130,7 @@ export const useApiAuth = () => {
       console.warn('useApiAuth - /api/auth/me failed after retries:', response?.status, response?.statusText);
       try {
         const cachedUser = localStorage.getItem('user');
-        if (cachedUser) {
+        if (cachedUser && cachedUser !== 'undefined') {
           const parsed = JSON.parse(cachedUser);
           const mapped = normalizeUser(parsed);
           console.log('useApiAuth - Using cached user from localStorage as fallback:', mapped);
@@ -156,7 +156,7 @@ export const useApiAuth = () => {
       // On unexpected errors, try to use cached user
       try {
         const cachedUser = localStorage.getItem('user');
-        if (cachedUser) {
+        if (cachedUser && cachedUser !== 'undefined') {
           const parsed = JSON.parse(cachedUser);
           const mapped = normalizeUser(parsed);
           console.log('useApiAuth - Using cached user after error:', mapped);
@@ -193,7 +193,7 @@ export const useApiAuth = () => {
       }
 
       const data = await response.json();
-      
+
       if (data.access_token) {
         localStorage.setItem('auth_token', data.access_token);
         const userData = normalizeUser(data.user);
@@ -224,7 +224,7 @@ export const useApiAuth = () => {
       }
 
       const data = await response.json();
-      
+
       if (data.access_token) {
         localStorage.setItem('auth_token', data.access_token);
         const userData = normalizeUser(data.user);

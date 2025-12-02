@@ -119,7 +119,7 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
       id: 'settings',
       label: 'Cài đặt',
       icon: Settings,
-      path: '/settings',
+      path: '/teacher/settings',
       description: 'Cấu hình'
     }
   ];
