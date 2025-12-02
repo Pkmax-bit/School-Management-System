@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, CheckCircle, Clock, Edit, Save, BarChart3, FileText, Link as LinkIcon, Download, ExternalLink } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, Edit, Save, BarChart3, FileText, Link as LinkIcon, Download, ExternalLink, Eye } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -214,8 +214,8 @@ export default function AdminSubmissionsPage() {
                         <ArrowLeft className="w-4 h-4 mr-2" />
                         Quay lại
                     </Button>
-                    <h1 className="text-3xl font-bold mb-2">Chấm bài: {assignment?.title}</h1>
-                    <p className="text-purple-100">Xem và chấm điểm các bài nộp của học sinh</p>
+                    <h1 className="text-3xl font-bold mb-2">Xem bài nộp: {assignment?.title}</h1>
+                    <p className="text-purple-100">Xem các bài nộp và điểm đã chấm của học sinh (Chỉ xem, không chấm điểm)</p>
                 </div>
 
                 {/* Statistics */}
@@ -253,7 +253,7 @@ export default function AdminSubmissionsPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Danh sách bài nộp</CardTitle>
-                            <CardDescription>Click vào bài nộp để chấm điểm</CardDescription>
+                            <CardDescription>Click vào bài nộp để xem chi tiết</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3 max-h-[600px] overflow-y-auto">
                             {submissions.map((submission) => {
@@ -308,14 +308,14 @@ export default function AdminSubmissionsPage() {
                         </CardContent>
                     </Card>
 
-                    {/* Grading Panel */}
+                    {/* View Panel */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Chấm điểm</CardTitle>
+                            <CardTitle>Chi tiết bài nộp</CardTitle>
                             <CardDescription>
                                 {selectedSubmission
-                                    ? `Chấm bài của ${students[selectedSubmission.student_id]?.name || 'học sinh'}`
-                                    : 'Chọn bài nộp để chấm điểm'}
+                                    ? `Bài nộp của ${students[selectedSubmission.student_id]?.name || 'học sinh'}`
+                                    : 'Chọn bài nộp để xem chi tiết'}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -413,52 +413,51 @@ export default function AdminSubmissionsPage() {
                                         })}
                                     </div>
 
-                                    {/* Grading Form */}
-                                    <div className="space-y-4 border-t pt-4">
-                                        <div className="space-y-2">
-                                            <Label>Điểm (tối đa {assignment?.total_points})</Label>
-                                            <Input
-                                                type="number"
-                                                min={0}
-                                                max={assignment?.total_points}
-                                                step={0.1}
-                                                value={gradeScore}
-                                                onChange={(e) => setGradeScore(e.target.value)}
-                                                placeholder="Nhập điểm"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Nhận xét (tùy chọn)</Label>
-                                            <Textarea
-                                                value={gradeFeedback}
-                                                onChange={(e) => setGradeFeedback(e.target.value)}
-                                                placeholder="Nhận xét cho học sinh..."
-                                                rows={4}
-                                            />
-                                        </div>
-                                        <Button
-                                            onClick={handleGradeSubmission}
-                                            disabled={!gradeScore || grading}
-                                            className="w-full"
-                                        >
-                                            {grading ? (
-                                                <>
-                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                                    Đang lưu...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Save className="w-4 h-4 mr-2" />
-                                                    Lưu điểm
-                                                </>
+                                    {/* Grade Display (Read-only) */}
+                                    {selectedSubmission.is_graded ? (
+                                        <div className="space-y-4 border-t pt-4">
+                                            <div className="space-y-2">
+                                                <Label>Điểm đã chấm</Label>
+                                                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                                    <div className="text-2xl font-bold text-green-700">
+                                                        {selectedSubmission.score?.toFixed(1)} / {assignment?.total_points}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {selectedSubmission.feedback && (
+                                                <div className="space-y-2">
+                                                    <Label>Nhận xét</Label>
+                                                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                                        <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                                                            {selectedSubmission.feedback}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             )}
-                                        </Button>
-                                    </div>
+                                            {selectedSubmission.graded_at && (
+                                                <div className="text-xs text-slate-500">
+                                                    Đã chấm: {new Date(selectedSubmission.graded_at).toLocaleString('vi-VN')}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4 border-t pt-4">
+                                            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+                                                <Clock className="w-8 h-8 mx-auto mb-2 text-yellow-600" />
+                                                <p className="text-sm text-yellow-700 font-medium">
+                                                    Bài này chưa được chấm điểm
+                                                </p>
+                                                <p className="text-xs text-yellow-600 mt-1">
+                                                    Vui lòng nhắc giáo viên chấm điểm từ trang danh sách bài tập
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             ) : (
                                 <div className="text-center py-12 text-slate-500">
-                                    <Edit className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                    <p>Chọn một bài nộp bên trái để bắt đầu chấm điểm</p>
+                                    <Eye className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                                    <p>Chọn một bài nộp bên trái để xem chi tiết</p>
                                 </div>
                             )}
                         </CardContent>

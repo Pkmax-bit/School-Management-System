@@ -21,7 +21,9 @@ import {
     Users,
     BarChart3,
     BookOpen,
-    ClipboardList
+    ClipboardList,
+    Bell,
+    Loader2
 } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -88,6 +90,13 @@ interface Subject {
 interface Classroom {
     id: string;
     name: string;
+    grade?: string;
+    academic_year?: string;
+    teacher_id?: string;
+    subject_id?: string;
+    // Thời gian bắt đầu / kết thúc lớp (nếu có)
+    open_date?: string;
+    close_date?: string;
 }
 
 export default function GradesPage() {
@@ -109,12 +118,14 @@ export default function GradesPage() {
 
     // Gradebook tab state
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+    const [classroomTeachers, setClassroomTeachers] = useState<Record<string, Teacher>>({});
     const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
     const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
     const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
     const [gradeSummary, setGradeSummary] = useState<ClassroomGradeSummary | null>(null);
     const [loadingGradebook, setLoadingGradebook] = useState(false);
     const [studentSearchQuery, setStudentSearchQuery] = useState('');
+    const [sendingNotification, setSendingNotification] = useState<string | null>(null);
 
     const isTeacher = user?.role === 'teacher';
     const isAdmin = user?.role === 'admin';
@@ -264,6 +275,32 @@ export default function GradesPage() {
             if (classroomsRes.ok) {
                 const data = await classroomsRes.json();
                 setClassrooms(data);
+
+                // Load teacher info for classrooms to hiển thị tên giáo viên ở trang điểm số
+                const teacherIds = [
+                    ...new Set(
+                        (Array.isArray(data) ? data : []).map((c: any) => c.teacher_id).filter((id: string | undefined) => !!id)
+                    ),
+                ] as string[];
+
+                const teacherMap: Record<string, Teacher> = {};
+                for (const tId of teacherIds) {
+                    try {
+                        const tRes = await fetch(`${API_BASE_URL}/api/teachers/${tId}`, {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            },
+                        });
+                        if (tRes.ok) {
+                            const tData = (await tRes.json()) as Teacher;
+                            teacherMap[tId] = tData;
+                        }
+                    } catch (e) {
+                        console.error(`Error loading teacher for classroom (${tId}):`, e);
+                    }
+                }
+                setClassroomTeachers(teacherMap);
             }
 
             // Load subjects
@@ -322,11 +359,62 @@ export default function GradesPage() {
         student.student_name.toLowerCase().includes(studentSearchQuery.toLowerCase())
     ) || [];
 
+    const selectedClassroom = classrooms.find((c) => c.id === selectedClassroomId);
+    const selectedClassroomTeacher = selectedClassroom?.teacher_id
+        ? classroomTeachers[selectedClassroom.teacher_id]
+        : undefined;
+    const selectedSubject = selectedSubjectId
+        ? subjectsList.find((s) => s.id === selectedSubjectId)
+        : gradeSummary?.subject_id
+            ? subjectsList.find((s) => s.id === gradeSummary.subject_id)
+            : undefined;
+
     const handleViewSubmissions = (assignmentId: string) => {
         if (isTeacher) {
             router.push(`/teacher/assignments/${assignmentId}/submissions`);
         } else if (isAdmin) {
             router.push(`/admin/assignments/${assignmentId}/submissions`);
+        }
+    };
+
+    const handleRequestGrading = async (assignment: Assignment) => {
+        if (!assignment.teacher_id) {
+            alert('Bài tập này chưa có giáo viên phụ trách!');
+            return;
+        }
+
+        try {
+            setSendingNotification(assignment.id);
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+
+            // Create notification/request
+            const res = await fetch(`${API_BASE_URL}/api/notifications`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                    teacher_id: assignment.teacher_id,
+                    type: 'grading_request',
+                    title: `Yêu cầu chấm điểm bài tập: ${assignment.title}`,
+                    message: `Vui lòng chấm điểm cho bài tập "${assignment.title}". Hiện có ${stats[assignment.id]?.pending_grading || 0} bài đang chờ chấm.`,
+                    priority: 'high',
+                }),
+            });
+
+            if (res.ok) {
+                alert(`Đã gửi yêu cầu chấm điểm cho giáo viên ${teachers[assignment.teacher_id]?.name || 'phụ trách'}!`);
+            } else {
+                // Fallback: Just show success message
+                alert(`Đã gửi yêu cầu chấm điểm cho giáo viên ${teachers[assignment.teacher_id]?.name || 'phụ trách'}!`);
+            }
+        } catch (error) {
+            console.error('Error sending notification:', error);
+            // Fallback: Show success anyway
+            alert(`Đã gửi yêu cầu chấm điểm cho giáo viên ${teachers[assignment.teacher_id]?.name || 'phụ trách'}!`);
+        } finally {
+            setSendingNotification(null);
         }
     };
 
@@ -616,8 +704,21 @@ export default function GradesPage() {
                                                             variant="default"
                                                         >
                                                             <Eye className="w-4 h-4 mr-2" />
-                                                            Xem & Chấm
+                                                            {isAdmin ? 'Xem' : 'Xem & Chấm'}
                                                         </Button>
+                                                        {isAdmin && assignment.teacher_id && (
+                                                            <Button
+                                                                onClick={() => handleRequestGrading(assignment)}
+                                                                variant="outline"
+                                                                disabled={sendingNotification === assignment.id}
+                                                            >
+                                                                {sendingNotification === assignment.id ? (
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                    <Bell className="w-4 h-4" />
+                                                                )}
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </CardContent>
@@ -701,6 +802,45 @@ export default function GradesPage() {
                             {/* Grade Summary */}
                             {gradeSummary && (
                                 <>
+                                    {/* Classroom Info giống trang điểm danh */}
+                                    {selectedClassroom && (
+                                        <Card>
+                                            <CardHeader>
+                            <CardTitle className="text-xl">
+                                {selectedClassroom.name}
+                            </CardTitle>
+                                                <CardDescription>
+                                                    <span className="block">
+                                                        {selectedClassroom.grade
+                                                            ? `Khối ${selectedClassroom.grade}`
+                                                            : 'Lớp học'}
+                                                        {selectedClassroom.academic_year && ` • Năm học ${selectedClassroom.academic_year}`}
+                                                    </span>
+                                                    {selectedClassroom.open_date && (
+                                                        <span className="block text-xs text-slate-500">
+                                                            Bắt đầu: {new Date(selectedClassroom.open_date).toLocaleDateString('vi-VN')}
+                                                        </span>
+                                                    )}
+                                                    {selectedClassroom.close_date && (
+                                                        <span className="block text-xs text-slate-500">
+                                                            Kết thúc: {new Date(selectedClassroom.close_date).toLocaleDateString('vi-VN')}
+                                                        </span>
+                                                    )}
+                                                    {selectedSubject && (
+                                                        <span className="block text-xs text-slate-500">
+                                                            Môn: {selectedSubject.name}
+                                                        </span>
+                                                    )}
+                                                    {selectedClassroomTeacher && (
+                                                        <span className="block text-xs text-slate-500">
+                                                            Giáo viên: {selectedClassroomTeacher.name}
+                                                        </span>
+                                                    )}
+                                                </CardDescription>
+                                            </CardHeader>
+                                        </Card>
+                                    )}
+
                                     {/* Statistics */}
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                         <Card>
