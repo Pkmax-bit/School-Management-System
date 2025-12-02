@@ -295,7 +295,7 @@ export default function FinanceOverviewPage() {
   if (authLoading || loading) {
     return (
       <div className="flex min-h-screen">
-        <AdminSidebar currentPage="finance" onNavigate={(page) => router.push(page.startsWith('/') ? page : `/${page}`)} onLogout={logout} />
+        <AdminSidebar currentPage="finance" onNavigate={(page) => router.push(`/${page}`)} onLogout={logout} />
         <div className="flex-1 lg:ml-64 p-6">
           <div className="flex items-center justify-center min-h-[80vh]">
             <div className="text-center">
@@ -333,7 +333,7 @@ export default function FinanceOverviewPage() {
 
   return (
     <div className="flex min-h-screen">
-      <AdminSidebar currentPage="finance" onNavigate={(page) => router.push(page.startsWith('/') ? page : `/${page}`)} onLogout={logout} />
+      <AdminSidebar currentPage="finance" onNavigate={(page) => router.push(`/${page}`)} onLogout={logout} />
       <div className="flex-1 lg:ml-64 p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
