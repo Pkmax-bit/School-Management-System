@@ -15,7 +15,9 @@ from routers.auth import get_current_user_dev
 router = APIRouter()
 
 class NotificationCreate(BaseModel):
-    teacher_id: str
+    recipient_type: str  # 'teacher' or 'student'
+    teacher_id: Optional[str] = None
+    student_id: Optional[str] = None
     classroom_id: Optional[str] = None
     type: str  # 'attendance_request', 'general', etc.
     title: str
@@ -25,7 +27,9 @@ class NotificationCreate(BaseModel):
 
 class NotificationResponse(BaseModel):
     id: str
-    teacher_id: str
+    recipient_type: str
+    teacher_id: Optional[str] = None
+    student_id: Optional[str] = None
     classroom_id: Optional[str] = None
     type: str
     title: str
@@ -35,6 +39,8 @@ class NotificationResponse(BaseModel):
     created_at: str
     updated_at: Optional[str] = None
     teacher_name: Optional[str] = None
+    student_name: Optional[str] = None
+    student_code: Optional[str] = None
     classroom_name: Optional[str] = None
     classroom_grade: Optional[str] = None
 
@@ -44,26 +50,61 @@ async def create_notification(
     current_user = Depends(get_current_user_dev),
     supabase: Client = Depends(get_db)
 ):
-    """Tạo thông báo mới (chỉ admin)"""
-    if current_user.role != 'admin':
+    """Tạo thông báo mới (admin và teacher với giới hạn quyền)"""
+    # Check permissions
+    if current_user.role == 'teacher':
+        # Teachers can only create notifications for students
+        if notification_data.recipient_type != 'student':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teachers can only create notifications for students"
+            )
+    elif current_user.role != 'admin':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
     
     try:
-        # Check if teacher exists
-        teacher_result = supabase.table('teachers').select('id, user_id').eq('id', notification_data.teacher_id).execute()
-        if not teacher_result.data:
+        # Validate recipient based on type
+        if notification_data.recipient_type == 'teacher':
+            if not notification_data.teacher_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="teacher_id is required for teacher notifications"
+                )
+            # Check if teacher exists
+            teacher_result = supabase.table('teachers').select('id, user_id').eq('id', notification_data.teacher_id).execute()
+            if not teacher_result.data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Teacher not found"
+                )
+        elif notification_data.recipient_type == 'student':
+            if not notification_data.student_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="student_id is required for student notifications"
+                )
+            # Check if student exists
+            student_result = supabase.table('students').select('id, user_id').eq('id', notification_data.student_id).execute()
+            if not student_result.data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Student not found"
+                )
+        else:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Teacher not found"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid recipient_type. Must be 'teacher' or 'student'"
             )
         
         # Create notification
         now = datetime.now().isoformat()
         notification_record = {
+            'recipient_type': notification_data.recipient_type,
             'teacher_id': notification_data.teacher_id,
+            'student_id': notification_data.student_id,
             'classroom_id': notification_data.classroom_id,
             'type': notification_data.type,
             'title': notification_data.title,
@@ -79,18 +120,32 @@ async def create_notification(
         if result.data and len(result.data) > 0:
             notification = result.data[0]
             
-            # Enrich with teacher and classroom info
+            # Enrich with recipient info
             enriched = dict(notification)
             
-            # Get teacher name
-            try:
-                teacher_res = supabase.table('teachers').select('*, users(full_name)').eq('id', notification_data.teacher_id).execute()
-                if teacher_res.data:
-                    teacher_data = teacher_res.data[0]
-                    enriched['teacher_name'] = teacher_data.get('users', {}).get('full_name') or teacher_data.get('name') or 'Giáo viên'
-            except Exception as e:
-                print(f"Error fetching teacher info: {e}")
-                enriched['teacher_name'] = None
+            # Get teacher name if teacher notification
+            if notification_data.recipient_type == 'teacher' and notification_data.teacher_id:
+                try:
+                    teacher_res = supabase.table('teachers').select('*, users(full_name)').eq('id', notification_data.teacher_id).execute()
+                    if teacher_res.data:
+                        teacher_data = teacher_res.data[0]
+                        enriched['teacher_name'] = teacher_data.get('users', {}).get('full_name') or teacher_data.get('name') or 'Giáo viên'
+                except Exception as e:
+                    print(f"Error fetching teacher info: {e}")
+                    enriched['teacher_name'] = None
+            
+            # Get student name if student notification
+            if notification_data.recipient_type == 'student' and notification_data.student_id:
+                try:
+                    student_res = supabase.table('students').select('*, users(full_name)').eq('id', notification_data.student_id).execute()
+                    if student_res.data:
+                        student_data = student_res.data[0]
+                        enriched['student_name'] = student_data.get('users', {}).get('full_name') or 'Học sinh'
+                        enriched['student_code'] = student_data.get('student_code')
+                except Exception as e:
+                    print(f"Error fetching student info: {e}")
+                    enriched['student_name'] = None
+                    enriched['student_code'] = None
             
             # Get classroom info
             if notification_data.classroom_id:
@@ -124,26 +179,50 @@ async def create_notification(
 @router.get("/", response_model=List[NotificationResponse])
 async def get_notifications(
     teacher_id: Optional[str] = Query(None),
+    student_id: Optional[str] = Query(None),
     classroom_id: Optional[str] = Query(None),
     read: Optional[bool] = Query(None),
     current_user = Depends(get_current_user_dev),
     supabase: Client = Depends(get_db)
 ):
-    """Lấy danh sách thông báo"""
+    """
+    Lấy danh sách thông báo
+    
+    - Admin: Xem TẤT CẢ thông báo (của tất cả giáo viên và học sinh)
+    - Teacher: Chỉ xem thông báo được chỉ định cho chính họ
+    - Student: Chỉ xem thông báo được chỉ định cho chính họ
+    
+    Admin có thể filter bằng query params (teacher_id, student_id, classroom_id, read)
+    """
     try:
         query = supabase.table('notifications').select('*')
         
-        # If teacher, only show their notifications
+        # Filter based on current user role
+        # Admin: Không filter gì, xem tất cả thông báo
         if current_user.role == 'teacher':
-            # Get teacher_id from user_id
+            # Teacher: Chỉ xem thông báo được chỉ định cho chính họ
             teacher_result = supabase.table('teachers').select('id').eq('user_id', current_user.id).execute()
             if teacher_result.data:
-                query = query.eq('teacher_id', teacher_result.data[0]['id'])
+                # Show notifications where this teacher is the recipient
+                query = query.eq('recipient_type', 'teacher').eq('teacher_id', teacher_result.data[0]['id'])
             else:
                 return []
+        elif current_user.role == 'student':
+            # Student: Chỉ xem thông báo được chỉ định cho chính họ
+            student_result = supabase.table('students').select('id').eq('user_id', current_user.id).execute()
+            if student_result.data:
+                # Show notifications where this student is the recipient
+                query = query.eq('recipient_type', 'student').eq('student_id', student_result.data[0]['id'])
+            else:
+                return []
+        # Admin: Không có filter mặc định, xem tất cả thông báo
         
+        # Admin có thể filter bằng query params (optional filters)
         if teacher_id and current_user.role == 'admin':
             query = query.eq('teacher_id', teacher_id)
+        
+        if student_id and current_user.role == 'admin':
+            query = query.eq('student_id', student_id)
         
         if classroom_id:
             query = query.eq('classroom_id', classroom_id)
@@ -156,12 +235,12 @@ async def get_notifications(
         result = query.execute()
         notifications = result.data or []
         
-        # Enrich with teacher and classroom info
+        # Enrich with recipient and classroom info
         enriched_notifications = []
         for notification in notifications:
             enriched = dict(notification)
             
-            # Get teacher name
+            # Get teacher name if teacher notification
             if notification.get('teacher_id'):
                 try:
                     teacher_res = supabase.table('teachers').select('*, users(full_name)').eq('id', notification['teacher_id']).execute()
@@ -171,6 +250,19 @@ async def get_notifications(
                 except Exception as e:
                     print(f"Error fetching teacher info: {e}")
                     enriched['teacher_name'] = None
+            
+            # Get student name if student notification
+            if notification.get('student_id'):
+                try:
+                    student_res = supabase.table('students').select('*, users(full_name)').eq('id', notification['student_id']).execute()
+                    if student_res.data:
+                        student_data = student_res.data[0]
+                        enriched['student_name'] = student_data.get('users', {}).get('full_name') or 'Học sinh'
+                        enriched['student_code'] = student_data.get('student_code')
+                except Exception as e:
+                    print(f"Error fetching student info: {e}")
+                    enriched['student_name'] = None
+                    enriched['student_code'] = None
             
             # Get classroom info
             if notification.get('classroom_id'):
@@ -199,9 +291,15 @@ async def mark_notification_read(
     current_user = Depends(get_current_user_dev),
     supabase: Client = Depends(get_db)
 ):
-    """Đánh dấu thông báo đã đọc"""
+    """
+    Đánh dấu thông báo đã đọc
+    
+    - Admin: Có thể đánh dấu bất kỳ thông báo nào
+    - Teacher: Chỉ có thể đánh dấu thông báo của chính họ
+    - Student: Chỉ có thể đánh dấu thông báo của chính họ
+    """
     try:
-        # Check if notification exists and belongs to teacher
+        # Check if notification exists
         notification_result = supabase.table('notifications').select('*').eq('id', notification_id).execute()
         if not notification_result.data:
             raise HTTPException(
@@ -211,14 +309,30 @@ async def mark_notification_read(
         
         notification = notification_result.data[0]
         
-        # If teacher, verify it's their notification
-        if current_user.role == 'teacher':
+        # Admin: Có thể mark as read bất kỳ thông báo nào
+        if current_user.role == 'admin':
+            pass  # Admin có quyền mark as read tất cả
+        elif current_user.role == 'teacher':
+            # Teacher: Chỉ có thể mark as read thông báo của chính họ
             teacher_result = supabase.table('teachers').select('id').eq('user_id', current_user.id).execute()
             if not teacher_result.data or teacher_result.data[0]['id'] != notification['teacher_id']:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Not enough permissions"
+                    detail="Not enough permissions. You can only mark your own notifications as read."
                 )
+        elif current_user.role == 'student':
+            # Student: Chỉ có thể mark as read thông báo của chính họ
+            student_result = supabase.table('students').select('id').eq('user_id', current_user.id).execute()
+            if not student_result.data or student_result.data[0]['id'] != notification['student_id']:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not enough permissions. You can only mark your own notifications as read."
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions"
+            )
         
         # Update notification
         now = datetime.now().isoformat()
@@ -230,10 +344,10 @@ async def mark_notification_read(
         if result.data and len(result.data) > 0:
             updated_notification = result.data[0]
             
-            # Enrich with teacher and classroom info
+            # Enrich with recipient and classroom info
             enriched = dict(updated_notification)
             
-            # Get teacher name
+            # Get teacher name if teacher notification
             if updated_notification.get('teacher_id'):
                 try:
                     teacher_res = supabase.table('teachers').select('*, users(full_name)').eq('id', updated_notification['teacher_id']).execute()
@@ -243,6 +357,19 @@ async def mark_notification_read(
                 except Exception as e:
                     print(f"Error fetching teacher info: {e}")
                     enriched['teacher_name'] = None
+            
+            # Get student name if student notification
+            if updated_notification.get('student_id'):
+                try:
+                    student_res = supabase.table('students').select('*, users(full_name)').eq('id', updated_notification['student_id']).execute()
+                    if student_res.data:
+                        student_data = student_res.data[0]
+                        enriched['student_name'] = student_data.get('users', {}).get('full_name') or 'Học sinh'
+                        enriched['student_code'] = student_data.get('student_code')
+                except Exception as e:
+                    print(f"Error fetching student info: {e}")
+                    enriched['student_name'] = None
+                    enriched['student_code'] = None
             
             # Get classroom info
             if updated_notification.get('classroom_id'):

@@ -7,7 +7,9 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Notification {
     id: string;
-    teacher_id: string;
+    recipient_type: string;
+    teacher_id?: string;
+    student_id?: string;
     classroom_id?: string;
     type: string;
     title: string;
@@ -16,6 +18,8 @@ interface Notification {
     read: boolean;
     created_at: string;
     teacher_name?: string;
+    student_name?: string;
+    student_code?: string;
     classroom_name?: string;
     classroom_grade?: string;
 }
@@ -26,6 +30,16 @@ interface NotificationContextType {
     markAsRead: (id: string) => Promise<void>;
     dismissNotification: (id: string) => void;
     refreshNotifications: () => Promise<void>;
+    createNotification: (data: {
+        recipient_type: string;
+        teacher_id?: string;
+        student_id?: string;
+        classroom_id?: string;
+        type: string;
+        title: string;
+        message: string;
+        priority?: string;
+    }) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -51,12 +65,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }, []);
 
     const refreshNotifications = useCallback(async () => {
-        if (!user || user.role !== 'teacher') {
+        if (!user || (user.role !== 'teacher' && user.role !== 'student' && user.role !== 'admin')) {
             return;
         }
 
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+            // Admin xem tất cả thông báo chưa đọc, teacher/student chỉ xem của mình
             const res = await fetch(`${API_BASE_URL}/api/notifications?read=false`, {
                 headers: {
                     'Content-Type': 'application/json',
@@ -76,7 +91,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     // Poll for new notifications every 30 seconds
     useEffect(() => {
-        if (!user || user.role !== 'teacher') {
+        if (!user || (user.role !== 'teacher' && user.role !== 'student' && user.role !== 'admin')) {
             return;
         }
 
@@ -129,6 +144,40 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // Get notifications that haven't been displayed yet
     const newNotifications = notifications.filter((n) => !displayedNotifications.has(n.id));
 
+    const createNotification = useCallback(async (data: {
+        recipient_type: string;
+        teacher_id?: string;
+        student_id?: string;
+        classroom_id?: string;
+        type: string;
+        title: string;
+        message: string;
+        priority?: string;
+    }) => {
+        try {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+            const res = await fetch(`${API_BASE_URL}/api/notifications`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.detail || 'Failed to create notification');
+            }
+
+            // Refresh notifications after creating one
+            await refreshNotifications();
+        } catch (error) {
+            console.error('Error creating notification:', error);
+            throw error;
+        }
+    }, [refreshNotifications]);
+
     // Clean up old displayed notifications from localStorage (older than 7 days)
     useEffect(() => {
         if (typeof window !== 'undefined' && displayedNotifications.size > 0) {
@@ -153,6 +202,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 markAsRead,
                 dismissNotification,
                 refreshNotifications,
+                createNotification,
             }}
         >
             {children}

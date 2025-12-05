@@ -171,9 +171,20 @@ export default function StudentGradesPage() {
             >
                 <div className="max-w-7xl mx-auto space-y-6">
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
-                        <h1 className="text-3xl font-bold mb-2">Kết quả học tập</h1>
-                        <p className="text-purple-100">Xem điểm số và xếp loại của bạn</p>
+                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl font-bold mb-2">Kết quả học tập</h1>
+                            <p className="text-purple-100">
+                                Xem điểm số tổng quan của bạn trên tất cả các lớp và môn học
+                            </p>
+                        </div>
+                        <Button
+                            variant="outline"
+                            className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                            onClick={() => router.push('/student/grades/classroom')}
+                        >
+                            Xem điểm theo lớp (giống giáo viên)
+                        </Button>
                     </div>
 
                     {gradeSummary && (

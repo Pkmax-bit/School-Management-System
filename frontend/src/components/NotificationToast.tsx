@@ -17,12 +17,13 @@ import {
     School,
 } from 'lucide-react';
 import { cn } from '@/components/ui/utils';
+import { formatDateLocal } from '@/lib/date-utils';
 
 export function NotificationToast() {
     const { notifications, dismissNotification, markAsRead } = useNotifications();
     const [currentNotification, setCurrentNotification] = useState<typeof notifications[0] | null>(null);
     const [isVisible, setIsVisible] = useState(false);
-    
+
     // Use ref to store latest dismissNotification to avoid dependency issues
     const dismissNotificationRef = useRef(dismissNotification);
     useEffect(() => {
@@ -46,14 +47,14 @@ export function NotificationToast() {
     // Show first unread notification (only one at a time)
     // Use notification IDs string to track changes without causing dependency issues
     const notificationIds = notifications.map(n => n.id).join(',');
-    
+
     useEffect(() => {
         if (notifications.length > 0 && !currentNotification && !isVisible) {
             // Sort by priority and created_at, show highest priority first
             const sorted = [...notifications].sort((a, b) => {
                 const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
-                const priorityDiff = (priorityOrder[b.priority as keyof typeof priorityOrder] || 0) - 
-                                    (priorityOrder[a.priority as keyof typeof priorityOrder] || 0);
+                const priorityDiff = (priorityOrder[b.priority as keyof typeof priorityOrder] || 0) -
+                    (priorityOrder[a.priority as keyof typeof priorityOrder] || 0);
                 if (priorityDiff !== 0) return priorityDiff;
                 return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
             });
@@ -63,10 +64,10 @@ export function NotificationToast() {
                 setCurrentNotification(firstNotification);
                 setIsVisible(true);
 
-                // Auto dismiss after 8 seconds
+                // Auto dismiss after 5 seconds
                 const timer = setTimeout(() => {
                     handleDismiss(firstNotification.id);
-                }, 8000);
+                }, 5000);
 
                 return () => clearTimeout(timer);
             }
@@ -184,10 +185,7 @@ export function NotificationToast() {
                                     Đã xem
                                 </Button>
                                 <span className="text-xs text-slate-500">
-                                    {new Date(currentNotification.created_at).toLocaleString('vi-VN', {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                    })}
+                                    {formatDateLocal(currentNotification.created_at, 'HH:mm')}
                                 </span>
                             </div>
                         </div>

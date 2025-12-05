@@ -5,6 +5,7 @@ Students API Router
 import uuid
 from datetime import datetime
 from typing import List, Optional
+from types import SimpleNamespace
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from supabase import Client
 
@@ -500,14 +501,42 @@ async def get_student_grades(
     """Lấy điểm số của học sinh - convenience endpoint with frontend-compatible format"""
     # Import here to avoid circular dependency at module level
     from routers.assignments import get_student_grade_summary
-    from models.user import User, UserRole
+    from models.user import UserRole
     
     try:
-        # Convert current_user to proper User model format
-        user_obj = User(
-            id=current_user.id if hasattr(current_user, 'id') else str(current_user.get('id', '')),
-            email=current_user.email if hasattr(current_user, 'email') else str(current_user.get('email', '')),
-            role=UserRole(current_user.role if hasattr(current_user, 'role') else str(current_user.get('role', 'student')))
+        # Adapt current_user (from dev or real auth) into a lightweight object
+        # that has at least id and role as UserRole for permission checks.
+        raw_id = (
+            current_user.id
+            if hasattr(current_user, "id")
+            else str(current_user.get("id", ""))
+        )
+        raw_email = (
+            current_user.email
+            if hasattr(current_user, "email")
+            else str(current_user.get("email", ""))
+        )
+        raw_role = (
+            current_user.role
+            if hasattr(current_user, "role")
+            else current_user.get("role", "student")
+        )
+
+        # Ensure role is a proper UserRole enum (assignments router relies on this)
+        try:
+            role_enum = (
+                raw_role
+                if isinstance(raw_role, UserRole)
+                else UserRole(str(raw_role))
+            )
+        except ValueError:
+            # Fallback to STUDENT if role string is unexpected
+            role_enum = UserRole.STUDENT
+
+        user_obj = SimpleNamespace(
+            id=str(raw_id),
+            email=str(raw_email),
+            role=role_enum,
         )
         
         # Call the assignments endpoint function
