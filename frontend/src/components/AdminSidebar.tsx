@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
+import { Badge } from './ui/badge';
 import {
   GraduationCap,
   LayoutDashboard,
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react';
 import { cn } from './ui/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 interface AdminSidebarProps {
   currentPage: string;
@@ -39,6 +41,10 @@ interface AdminSidebarProps {
 export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, userEmail, userRole }: AdminSidebarProps) {
   const { isCollapsed, setIsCollapsed } = useSidebar();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  
+  // Get unread count from NotificationContext
+  // This will work if NotificationProvider is in the component tree
+  const { unreadCount = 0 } = useNotifications();
 
   const displayName = (userName && userName.trim()) || undefined;
   const displayEmail = (userEmail && userEmail.trim()) || undefined;
@@ -56,6 +62,7 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
     { icon: BarChart, label: 'Báo cáo', page: 'reports', color: 'text-cyan-600' },
     { icon: ClipboardCheck, label: 'Điểm danh', page: 'attendance', color: 'text-red-600' },
     { icon: Award, label: 'Điểm số', page: 'grades', color: 'text-yellow-600' },
+    { icon: Bell, label: 'Thông báo', page: 'notifications', color: 'text-amber-600' },
     { icon: FileText, label: 'Tài liệu', page: 'documents', color: 'text-gray-600' },
     { icon: Settings, label: 'Cài đặt', page: 'settings', color: 'text-slate-600' },
   ];
@@ -71,7 +78,7 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
     <>
       {/* Mobile overlay */}
       {isMobileOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setIsMobileOpen(false)}
         />
@@ -146,8 +153,9 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
                     'schedule': '/schedule',
                     'finance': '/finance',
                     'reports': '/reports',
-                    'attendance': '/attendances',
+                    'attendance': '/admin/attendance',
                     'grades': '/grades',
+                    'notifications': '/admin/notifications',
                     'documents': '/documents',
                     'settings': '/settings',
                   };
@@ -163,8 +171,8 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
               >
                 <item.icon className={cn(
                   "w-5 h-5 transition-all duration-200 flex-shrink-0",
-                  currentPage === item.page 
-                    ? "text-white" 
+                  currentPage === item.page
+                    ? "text-white"
                     : "text-gray-600"
                 )} />
                 {!isCollapsed && (
@@ -210,9 +218,37 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
               </Avatar>
               {!isCollapsed && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{displayName || 'User'}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{displayName || 'User'}</p>
+                    <button
+                      onClick={() => onNavigate('/admin/notifications')}
+                      className="relative p-1 hover:bg-gray-100 rounded-full transition-colors"
+                      title="Thông báo"
+                    >
+                      <Bell className="w-4 h-4 text-gray-600" />
+                      {unreadCount > 0 && (
+                        <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold border-2 border-white">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </Badge>
+                      )}
+                    </button>
+                  </div>
                   <p className="text-xs text-gray-500 truncate">{displayEmail || ''}</p>
                 </div>
+              )}
+              {isCollapsed && (
+                <button
+                  onClick={() => onNavigate('/admin/notifications')}
+                  className="relative p-1 hover:bg-gray-100 rounded-full transition-colors ml-auto"
+                  title="Thông báo"
+                >
+                  <Bell className="w-5 h-5 text-gray-600" />
+                  {unreadCount > 0 && (
+                    <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold border-2 border-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Badge>
+                  )}
+                </button>
               )}
             </div>
             {!isCollapsed && (

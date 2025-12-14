@@ -6,6 +6,8 @@ import Layout from '@/components/Layout'
 import { BackgroundSettingsProvider } from '@/contexts/BackgroundSettingsContext'
 import { SidebarProvider } from '@/contexts/SidebarContext'
 import { QueryProvider } from '@/providers/QueryProvider'
+import { NotificationProvider } from '@/contexts/NotificationContext'
+import { NotificationToast } from '@/components/NotificationToast'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -26,9 +28,12 @@ export default function RootLayout({
           <SidebarProvider>
             <BackgroundSettingsProvider>
               <AuthProvider>
-                <Layout>
-                  {children}
-                </Layout>
+                <NotificationProvider>
+                  <Layout>
+                    {children}
+                  </Layout>
+                  <NotificationToast />
+                </NotificationProvider>
               </AuthProvider>
             </BackgroundSettingsProvider>
           </SidebarProvider>

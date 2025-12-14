@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # JWT Configuration
     SECRET_KEY: str = "your-super-secret-key-change-this-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 90  # 1.5 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 120  # 2 hours
     
     # Email Configuration
     SMTP_USER: str = ""

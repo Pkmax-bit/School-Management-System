@@ -38,6 +38,7 @@ export default function ClassroomsPage() {
   const [formOpenDate, setFormOpenDate] = useState<string>('');
   const [formCloseDate, setFormCloseDate] = useState<string>('');
   const [formTuitionPerSession, setFormTuitionPerSession] = useState<number>(50000);
+  const [formTuitionDisplay, setFormTuitionDisplay] = useState<string>('50,000');
   const [sessionsPerWeek, setSessionsPerWeek] = useState<number>(2);
   const [autoCode, setAutoCode] = useState<boolean>(true);
   const [saving, setSaving] = useState(false);
@@ -103,6 +104,7 @@ export default function ClassroomsPage() {
     setFormOpenDate('');
     setFormCloseDate('');
     setFormTuitionPerSession(50000);
+    setFormTuitionDisplay('50,000');
     setSessionsPerWeek(2);
     setAutoCode(true);
     setErrorMsg('');
@@ -298,6 +300,28 @@ export default function ClassroomsPage() {
     }
   };
 
+  // Load students for a specific classroom (when editing)
+  const loadClassroomStudents = async (classroomId: string) => {
+    try {
+      const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${API_BASE_URL}/api/students?limit=1000&classroom_id=${classroomId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+        // Set selected student IDs
+        const studentIds = list.map((s: any) => s.id);
+        setSelectedStudentIds(studentIds);
+      }
+    } catch (e) {
+      console.error('Failed to load classroom students', e);
+    }
+  };
+
   const formatDob = (dob?: string | null) => {
     if (!dob) return '';
     const d = new Date(dob);
@@ -477,7 +501,7 @@ export default function ClassroomsPage() {
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              onClick={() => {
+                              onClick={async () => {
                                 setEditing(c);
                                 setFormName(c.name || '');
                                 setFormCode(c.code || '');
@@ -488,9 +512,13 @@ export default function ClassroomsPage() {
                                 setFormDescription(c.description || '');
                                 setFormOpenDate(c.open_date ? c.open_date.slice(0, 10) : '');
                                 setFormCloseDate(c.close_date ? c.close_date.slice(0, 10) : '');
-                                setFormTuitionPerSession(typeof c.tuition_per_session === 'number' ? c.tuition_per_session : 50000);
+                                const tuition = typeof c.tuition_per_session === 'number' ? c.tuition_per_session : 50000;
+                                setFormTuitionPerSession(tuition);
+                                setFormTuitionDisplay(new Intl.NumberFormat('vi-VN').format(tuition));
                                 setSessionsPerWeek(typeof c.sessions_per_week === 'number' ? c.sessions_per_week : 2);
                                 setErrorMsg('');
+                                // Load students for this classroom
+                                await loadClassroomStudents(c.id);
                                 setIsDialogOpen(true);
                               }}
                               className="border-indigo-300 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 transition-all duration-200"
@@ -651,13 +679,28 @@ export default function ClassroomsPage() {
                   </Label>
                   <Input
                     id="tuition_per_session"
-                    type="number"
-                    min="0"
-                    step="10000"
-                    value={formTuitionPerSession}
+                    type="text"
+                    value={formTuitionDisplay}
                     onChange={(e) => {
-                      const value = parseFloat(e.target.value) || 0;
-                      setFormTuitionPerSession(value);
+                      // Remove all non-digit characters
+                      const rawValue = e.target.value.replace(/[^\d]/g, '');
+                      if (rawValue === '') {
+                        setFormTuitionDisplay('');
+                        setFormTuitionPerSession(0);
+                        return;
+                      }
+                      const numValue = parseInt(rawValue, 10);
+                      if (!isNaN(numValue)) {
+                        setFormTuitionPerSession(numValue);
+                        // Format with commas
+                        setFormTuitionDisplay(new Intl.NumberFormat('vi-VN').format(numValue));
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Ensure value is formatted on blur
+                      if (formTuitionPerSession > 0) {
+                        setFormTuitionDisplay(new Intl.NumberFormat('vi-VN').format(formTuitionPerSession));
+                      }
                     }}
                     placeholder="50,000"
                     required

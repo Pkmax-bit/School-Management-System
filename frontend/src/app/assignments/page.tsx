@@ -83,7 +83,7 @@ interface Assignment {
 }
 
 export default function AssignmentsPage() {
-  const { user, loading: authLoading } = useApiAuth();
+  const { user, loading: authLoading, logout } = useApiAuth();
   const router = useRouter();
   const { isCollapsed } = useSidebar();
 
@@ -1153,14 +1153,14 @@ export default function AssignmentsPage() {
         <TeacherSidebar
           currentPage="assignments"
           onNavigate={(path) => router.push(path)}
-          onLogout={() => { }}
+          onLogout={logout}
           user={{ name: user?.name, email: user?.email }}
         />
       ) : (
         <AdminSidebar
           currentPage="assignments"
           onNavigate={(path) => router.push(path)}
-          onLogout={() => { }}
+          onLogout={logout}
           userName={user?.name}
           userEmail={user?.email}
         />

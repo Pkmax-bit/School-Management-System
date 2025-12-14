@@ -9,8 +9,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'placeholder-key'
 
 // Kiểm tra nếu keys hợp lệ
-const isValidSupabaseConfig = supabaseUrl !== 'https://placeholder.supabase.co' && 
-                             supabaseAnonKey !== 'placeholder-key'
+const isValidSupabaseConfig = supabaseUrl !== 'https://placeholder.supabase.co' &&
+  supabaseAnonKey !== 'placeholder-key'
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
@@ -405,6 +405,50 @@ export interface Database {
           date?: string
           is_recurring?: boolean
           created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      grades: {
+        Row: {
+          id: string
+          student_id: string
+          classroom_id: string
+          subject_id: string
+          teacher_id: string
+          grade_type: 'midterm' | 'final' | 'regular' | 'other'
+          score: number
+          max_score: number
+          notes?: string
+          graded_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          student_id: string
+          classroom_id: string
+          subject_id: string
+          teacher_id: string
+          grade_type: 'midterm' | 'final' | 'regular' | 'other'
+          score: number
+          max_score?: number
+          notes?: string
+          graded_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          student_id?: string
+          classroom_id?: string
+          subject_id?: string
+          teacher_id?: string
+          grade_type?: 'midterm' | 'final' | 'regular' | 'other'
+          score?: number
+          max_score?: number
+          notes?: string
+          graded_at?: string
           created_at?: string
           updated_at?: string
         }

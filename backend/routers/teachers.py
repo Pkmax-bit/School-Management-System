@@ -326,14 +326,39 @@ async def get_teacher(
     current_user = Depends(get_current_user),
     supabase: Client = Depends(get_db)
 ):
-    """Lấy thông tin giáo viên theo ID"""
-    result = supabase.table('teachers').select('*').eq('id', teacher_id).execute()
-    if not result.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Teacher not found"
+    """Lấy thông tin giáo viên theo ID (kèm thông tin user)"""
+    try:
+        # Join teachers with users table to get full_name and email
+        result = supabase.table('teachers').select('*, users(full_name, email)').eq('id', teacher_id).execute()
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Teacher not found"
+            )
+
+        item = result.data[0]
+        teacher_response = TeacherResponse(
+            id=item['id'],
+            user_id=item.get('user_id'),
+            teacher_code=item.get('teacher_code'),
+            phone=item.get('phone'),
+            address=item.get('address'),
+            specialization=item.get('specialization'),
+            experience_years=item.get('experience_years'),
+            created_at=item.get('created_at'),
+            updated_at=item.get('updated_at'),
+            name=item.get('users', {}).get('full_name') if item.get('users') else None,
+            email=item.get('users', {}).get('email') if item.get('users') else None,
         )
-    return result.data[0]
+        return teacher_response
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching teacher {teacher_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch teacher: {str(e)}"
+        )
 
 @router.put("/{teacher_id}", response_model=TeacherResponse)
 async def update_teacher(

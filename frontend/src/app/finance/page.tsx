@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useApiAuth } from '@/hooks/useApiAuth';
@@ -79,6 +79,7 @@ export default function FinancePage() {
   const [expenses, setExpenses] = useState<Finance[]>([]);
   const [loadingExpenses, setLoadingExpenses] = useState(true);
   const [expenseSearchQuery, setExpenseSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Finance | null>(null);
@@ -94,11 +95,16 @@ export default function FinancePage() {
   // Revenue state (Classrooms)
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [loadingClassrooms, setLoadingClassrooms] = useState(true);
+  const [refreshingClassrooms, setRefreshingClassrooms] = useState(false);
   const [selectedClassroom, setSelectedClassroom] = useState<Classroom | null>(null);
   const [classroomStudents, setClassroomStudents] = useState<Student[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [isStudentDialogOpen, setIsStudentDialogOpen] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isPaymentHistoryDialogOpen, setIsPaymentHistoryDialogOpen] = useState(false);
+  const [selectedStudentForHistory, setSelectedStudentForHistory] = useState<Student | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [paymentFormData, setPaymentFormData] = useState({
     amount: '',
@@ -197,53 +203,78 @@ export default function FinancePage() {
     }
   }, []);
 
-  // Load classrooms with student count
-  const loadClassrooms = useCallback(async () => {
+  // Load classrooms with student count - OPTIMIZED: parallel API calls
+  const loadClassrooms = useCallback(async (showRefreshing = false) => {
     try {
-      setLoadingClassrooms(true);
+      if (showRefreshing) {
+        setRefreshingClassrooms(true);
+      } else {
+        setLoadingClassrooms(true);
+      }
       const token = localStorage.getItem('auth_token');
       
-      // Load classrooms
-      const classroomsResponse = await fetch(`${API_BASE_URL}/api/classrooms?limit=1000`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      // Load all data in parallel for better performance
+      const [classroomsResponse, studentsResponse, paymentsResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/classrooms?limit=1000`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+        fetch(`${API_BASE_URL}/api/students?limit=1000`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+        fetch(`${API_BASE_URL}/api/payments?limit=10000`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+      ]);
 
       if (classroomsResponse.ok) {
         const classroomsData = await classroomsResponse.json();
         
-        // Load students for each classroom
-        const studentsResponse = await fetch(`${API_BASE_URL}/api/students?limit=1000`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
         let studentsData: Student[] = [];
         if (studentsResponse.ok) {
           studentsData = await studentsResponse.json();
         }
-
-        // Load payments for all classrooms
-        const paymentsResponse = await fetch(`${API_BASE_URL}/api/payments?limit=10000`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
 
         let paymentsData: any[] = [];
         if (paymentsResponse.ok) {
           paymentsData = await paymentsResponse.json();
         }
 
-        // Count students per classroom and calculate revenue
-        const classroomsWithStats = await Promise.all(
-          classroomsData.map(async (classroom: Classroom) => {
-            const studentsInClass = studentsData.filter((s: Student) => s.classroom_id === classroom.id);
+        // Count students per classroom and calculate revenue - optimized calculation
+        // Create maps for faster lookup
+        const studentsByClassroom = new Map<string, Student[]>();
+        studentsData.forEach((student: Student) => {
+          if (student.classroom_id) {
+            if (!studentsByClassroom.has(student.classroom_id)) {
+              studentsByClassroom.set(student.classroom_id, []);
+            }
+            studentsByClassroom.get(student.classroom_id)!.push(student);
+          }
+        });
+
+        const paymentsByClassroom = new Map<string, any[]>();
+        paymentsData
+          .filter((p: any) => p.payment_status === 'paid')
+          .forEach((payment: any) => {
+            if (payment.classroom_id) {
+              if (!paymentsByClassroom.has(payment.classroom_id)) {
+                paymentsByClassroom.set(payment.classroom_id, []);
+              }
+              paymentsByClassroom.get(payment.classroom_id)!.push(payment);
+            }
+          });
+
+        // Calculate revenue synchronously (no async needed)
+        const classroomsWithStats = classroomsData.map((classroom: Classroom) => {
+            const studentsInClass = studentsByClassroom.get(classroom.id) || [];
             const studentCount = studentsInClass.length;
             
             // Get tuition info from classroom (now stored in classrooms table)
@@ -254,27 +285,18 @@ export default function FinancePage() {
               ? (classroom as any).sessions_per_week
               : parseInt(String((classroom as any).sessions_per_week || '2'), 10) || 2;
             
-            // Calculate total revenue: tuition_per_session × sessions_per_week × student_count
-            // For a month (4 weeks): tuition_per_session × sessions_per_week × 4 × student_count
-            const totalRevenue = tuitionPerSession * sessionsPerWeek * 4 * studentCount;
+            // Calculate total revenue: học phí = số học sinh × số buổi
+            // tuition_per_session × sessions_per_week × student_count
+            const totalRevenue = tuitionPerSession * sessionsPerWeek * studentCount;
 
-            // Calculate total paid and total discount from payments
-            // Filter payments by classroom_id and payment_status = 'paid'
-            const classroomPayments = paymentsData.filter(
-              (p: any) => {
-                // Ensure both classroom_id match and payment_status is 'paid'
-                const matchesClassroom = p.classroom_id === classroom.id;
-                const isPaid = p.payment_status === 'paid';
-                return matchesClassroom && isPaid;
-              }
-            );
+            // Get payments for this classroom (already filtered and grouped)
+            const classroomPayments = paymentsByClassroom.get(classroom.id) || [];
 
             let totalPaid = 0;
             let totalDiscount = 0;
 
-            // Calculate from actual paid amounts
-            classroomPayments.forEach((payment: any) => {
-              // amount trong payment là số tiền thực tế đã thu (sau chiết khấu)
+            // Calculate from actual paid amounts - optimized loop
+            for (const payment of classroomPayments) {
               const paidAmount = typeof payment.amount === 'number' 
                 ? payment.amount 
                 : parseFloat(String(payment.amount || '0'));
@@ -283,18 +305,14 @@ export default function FinancePage() {
                 : parseFloat(String(payment.discount_percent || '0'));
               
               // Tính số tiền gốc từ số tiền đã trả và discount_percent
-              // paidAmount = baseAmount * (1 - discountPercent / 100)
-              // baseAmount = paidAmount / (1 - discountPercent / 100)
               const baseAmount = discountPercent > 0 && discountPercent < 100
                 ? paidAmount / (1 - discountPercent / 100)
                 : paidAmount;
               const discountAmount = baseAmount * (discountPercent / 100);
               
-              // totalPaid là tổng số tiền thực tế đã thu (sau chiết khấu)
               totalPaid += paidAmount;
-              // totalDiscount là tổng số tiền đã chiết khấu
               totalDiscount += discountAmount;
-            });
+            }
 
             return {
               ...classroom,
@@ -305,8 +323,7 @@ export default function FinancePage() {
               total_paid: totalPaid,
               total_discount: totalDiscount,
             };
-          })
-        );
+          });
 
         setClassrooms(classroomsWithStats);
       }
@@ -314,6 +331,7 @@ export default function FinancePage() {
       console.error('Error loading classrooms:', error);
     } finally {
       setLoadingClassrooms(false);
+      setRefreshingClassrooms(false);
     }
   }, []);
 
@@ -532,6 +550,29 @@ export default function FinancePage() {
     }
   };
 
+  // Load payment history for a student
+  const loadPaymentHistory = useCallback(async (studentId: string) => {
+    try {
+      setLoadingPaymentHistory(true);
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/api/payments?student_id=${studentId}&limit=100`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentHistory(data);
+      }
+    } catch (error) {
+      console.error('Error loading payment history:', error);
+    } finally {
+      setLoadingPaymentHistory(false);
+    }
+  }, []);
+
   // Handle classroom click
   const handleClassroomClick = async (classroom: Classroom) => {
     setSelectedClassroom(classroom);
@@ -613,8 +654,11 @@ export default function FinancePage() {
       if (response.ok) {
         setIsPaymentDialogOpen(false);
         setEditingStudent(null);
-        // Reload students to update payment status
-        await loadClassroomStudents(selectedClassroom.id);
+        // Reload both students and classrooms to update all data
+        await Promise.all([
+          loadClassroomStudents(selectedClassroom.id),
+          loadClassrooms(true), // Auto-reload classrooms to update revenue stats (show refreshing indicator)
+        ]);
       } else {
         const errorData = await response.json();
         alert(`Lỗi: ${errorData.detail || 'Không thể cập nhật thanh toán'}`);
@@ -718,12 +762,24 @@ export default function FinancePage() {
     }
   }, []);
 
-  const filteredExpenses = expenses.filter(f => {
-    const matchesSearch = f.title.toLowerCase().includes(expenseSearchQuery.toLowerCase()) ||
-      f.description?.toLowerCase().includes(expenseSearchQuery.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || f.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // Debounce search query for better performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(expenseSearchQuery);
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timer);
+  }, [expenseSearchQuery]);
+
+  // Optimized filtered expenses with useMemo
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter(f => {
+      const matchesSearch = f.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        f.description?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+      const matchesCategory = filterCategory === 'all' || f.category === filterCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [expenses, debouncedSearchQuery, filterCategory]);
 
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center">Đang tải...</div>;
@@ -1213,9 +1269,15 @@ export default function FinancePage() {
                 <CardTitle className="flex items-center gap-2">
                   <DollarSign className="h-5 w-5" />
                   Doanh thu từ Lớp học
+                  {refreshingClassrooms && (
+                    <span className="ml-2 text-sm text-blue-600 flex items-center gap-1">
+                      <div className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                      Đang cập nhật...
+                    </span>
+                  )}
                 </CardTitle>
                 <p className="text-sm text-gray-600 mt-2">
-                  Doanh thu dự kiến = Học phí/buổi × Số buổi/tuần × 4 tuần × Số học sinh
+                  Doanh thu dự kiến = Học phí/buổi × Số buổi/tuần × Số học sinh
                 </p>
               </CardHeader>
               <CardContent className="flex-1 overflow-auto">
@@ -1328,7 +1390,7 @@ export default function FinancePage() {
                   const pendingStudents = classroomStudents.filter(s => s.payment_status === 'pending');
                   const tuitionPerSession = selectedClassroom?.tuition_per_session || 0;
                   const sessionsPerWeek = selectedClassroom?.sessions_per_week || 0;
-                  const monthlyTuition = tuitionPerSession * sessionsPerWeek * 4;
+                  const monthlyTuition = tuitionPerSession * sessionsPerWeek;
                   
                   // Tính số tiền đã thu từ payment_amount thực tế
                   const totalPaidAmount = paidStudents.reduce((sum, s) => sum + (s.payment_amount || 0), 0);
@@ -1402,6 +1464,7 @@ export default function FinancePage() {
                         <TableHead className="font-semibold">Mã học sinh</TableHead>
                         <TableHead className="font-semibold">Tên học sinh</TableHead>
                         <TableHead className="font-semibold text-center">Trạng thái</TableHead>
+                        <TableHead className="font-semibold text-right">Số tiền học phí</TableHead>
                         <TableHead className="font-semibold text-right">Số tiền đã đóng</TableHead>
                         <TableHead className="font-semibold text-center">Chiết khấu</TableHead>
                         <TableHead className="font-semibold text-center">Thao tác</TableHead>
@@ -1410,7 +1473,7 @@ export default function FinancePage() {
                     <TableBody>
                       {classroomStudents.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-12 text-gray-500">
+                          <TableCell colSpan={7} className="text-center py-12 text-gray-500">
                             <div className="flex flex-col items-center">
                               <Users className="h-12 w-12 text-gray-300 mb-2" />
                               <p className="text-lg">Lớp học này chưa có học sinh</p>
@@ -1437,6 +1500,18 @@ export default function FinancePage() {
                                   Chưa đóng
                                 </Badge>
                               )}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {(() => {
+                                const tuitionPerSession = selectedClassroom?.tuition_per_session || 0;
+                                const sessionsPerWeek = selectedClassroom?.sessions_per_week || 0;
+                                const studentTuition = tuitionPerSession * sessionsPerWeek;
+                                return (
+                                  <span className="text-blue-600">
+                                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(studentTuition)}
+                                  </span>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell className="text-right font-semibold">
                               {student.payment_status === 'paid' && student.payment_amount ? (
@@ -1469,10 +1544,10 @@ export default function FinancePage() {
                                     try {
                                       const token = localStorage.getItem('auth_token');
                                       
-                                      // Tính học phí tháng
+                                      // Tính học phí
                                       const tuitionPerSession = selectedClassroom?.tuition_per_session || 0;
                                       const sessionsPerWeek = selectedClassroom?.sessions_per_week || 0;
-                                      const monthlyTuition = tuitionPerSession * sessionsPerWeek * 4;
+                                      const monthlyTuition = tuitionPerSession * sessionsPerWeek;
                                       const roundedAmount = Math.round(monthlyTuition / 10000) * 10000;
 
                                       // Tìm payment hiện tại
@@ -1530,8 +1605,11 @@ export default function FinancePage() {
                                       }
 
                                       if (response.ok) {
-                                        // Reload students to update payment status
-                                        await loadClassroomStudents(selectedClassroom.id);
+                                        // Reload both students and classrooms to update all data
+                                        await Promise.all([
+                                          loadClassroomStudents(selectedClassroom.id),
+                                          loadClassrooms(true), // Auto-reload classrooms to update revenue stats (show refreshing indicator)
+                                        ]);
                                       } else {
                                         const errorData = await response.json();
                                         alert(`Lỗi: ${errorData.detail || 'Không thể cập nhật thanh toán'}`);
@@ -1547,6 +1625,19 @@ export default function FinancePage() {
                                   Đã đóng
                                 </Button>
                               )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  setSelectedStudentForHistory(student);
+                                  setIsPaymentHistoryDialogOpen(true);
+                                  await loadPaymentHistory(student.id);
+                                }}
+                                className="mr-1"
+                              >
+                                <Clock className="h-4 w-4 mr-1" />
+                                Lịch sử
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1588,7 +1679,7 @@ export default function FinancePage() {
                                         // No existing payment, use defaults
                                         const tuitionPerSession = selectedClassroom?.tuition_per_session || 0;
                                         const sessionsPerWeek = selectedClassroom?.sessions_per_week || 0;
-                                        const monthlyTuition = tuitionPerSession * sessionsPerWeek * 4;
+                                        const monthlyTuition = tuitionPerSession * sessionsPerWeek;
                                         
                                         setPaymentFormData({
                                           amount: monthlyTuition.toString(),
@@ -1604,7 +1695,7 @@ export default function FinancePage() {
                                       // Fallback to defaults
                                       const tuitionPerSession = selectedClassroom?.tuition_per_session || 0;
                                       const sessionsPerWeek = selectedClassroom?.sessions_per_week || 0;
-                                      const monthlyTuition = tuitionPerSession * sessionsPerWeek * 4;
+                                      const monthlyTuition = tuitionPerSession * sessionsPerWeek;
                                       
                                       setPaymentFormData({
                                         amount: monthlyTuition.toString(),
@@ -1621,7 +1712,7 @@ export default function FinancePage() {
                                     // Use defaults on error
                                     const tuitionPerSession = selectedClassroom?.tuition_per_session || 0;
                                     const sessionsPerWeek = selectedClassroom?.sessions_per_week || 0;
-                                    const monthlyTuition = tuitionPerSession * sessionsPerWeek * 4;
+                                    const monthlyTuition = tuitionPerSession * sessionsPerWeek;
                                     
                                     setPaymentFormData({
                                       amount: monthlyTuition.toString(),
@@ -1809,6 +1900,123 @@ export default function FinancePage() {
                 <Button type="submit">Lưu</Button>
               </div>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Payment History Dialog */}
+        <Dialog open={isPaymentHistoryDialogOpen} onOpenChange={setIsPaymentHistoryDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Lịch sử thanh toán - {selectedStudentForHistory?.name || selectedStudentForHistory?.student_code}
+              </DialogTitle>
+            </DialogHeader>
+            {loadingPaymentHistory ? (
+              <div className="text-center py-8">Đang tải lịch sử thanh toán...</div>
+            ) : (
+              <div className="space-y-4">
+                {paymentHistory.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg">Chưa có lịch sử thanh toán</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="font-semibold">Ngày thanh toán</TableHead>
+                          <TableHead className="font-semibold text-right">Số tiền</TableHead>
+                          <TableHead className="font-semibold text-center">Phương thức</TableHead>
+                          <TableHead className="font-semibold text-center">Trạng thái</TableHead>
+                          <TableHead className="font-semibold text-center">Chiết khấu</TableHead>
+                          <TableHead className="font-semibold">Số biên lai</TableHead>
+                          <TableHead className="font-semibold">Ghi chú</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paymentHistory.map((payment: any, index: number) => (
+                          <TableRow 
+                            key={payment.id}
+                            className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+                          >
+                            <TableCell>
+                              {new Date(payment.payment_date).toLocaleDateString('vi-VN', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              <span className="text-green-600">
+                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(payment.amount || 0)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {payment.payment_method === 'cash' ? 'Tiền mặt' :
+                               payment.payment_method === 'bank_transfer' ? 'Chuyển khoản' :
+                               payment.payment_method === 'card' ? 'Thẻ' : 'Khác'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {payment.payment_status === 'paid' ? (
+                                <Badge className="bg-green-500 hover:bg-green-600 text-white px-3 py-1">
+                                  <CheckCircle className="h-3 w-3 mr-1.5" />
+                                  Đã đóng
+                                </Badge>
+                              ) : payment.payment_status === 'pending' ? (
+                                <Badge variant="outline" className="px-3 py-1">
+                                  <Clock className="h-3 w-3 mr-1.5" />
+                                  Chờ đóng
+                                </Badge>
+                              ) : (
+                                <Badge variant="destructive" className="px-3 py-1">
+                                  <XCircle className="h-3 w-3 mr-1.5" />
+                                  {payment.payment_status}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {payment.discount_percent && payment.discount_percent > 0 ? (
+                                <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 px-3 py-1">
+                                  <span className="font-semibold">-{parseFloat(payment.discount_percent).toFixed(1)}%</span>
+                                </Badge>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {payment.receipt_number || <span className="text-gray-400">—</span>}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600">
+                              {payment.notes || <span className="text-gray-400">—</span>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-4 border-t">
+                  <div className="text-sm text-gray-600">
+                    Tổng số giao dịch: <span className="font-semibold">{paymentHistory.length}</span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Tổng số tiền: <span className="font-semibold text-green-600">
+                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                        paymentHistory.reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={() => setIsPaymentHistoryDialogOpen(false)}>
+                    Đóng
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
         </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import {
     Home,
     BookOpen,
@@ -13,10 +14,12 @@ import {
     ChevronLeft,
     ChevronRight,
     School,
-    User
+    User,
+    Bell
 } from 'lucide-react';
 import { cn } from './ui/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 interface StudentSidebarProps {
     currentPage?: string;
@@ -32,6 +35,10 @@ interface StudentSidebarProps {
 export function StudentSidebar({ currentPage = 'dashboard', onNavigate, onLogout, user }: StudentSidebarProps) {
     const { isCollapsed, setIsCollapsed } = useSidebar();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+    
+    // Get unread count from NotificationContext
+    // This will work if NotificationProvider is in the component tree
+    const { unreadCount = 0 } = useNotifications();
 
     const menuItems = [
         {
@@ -155,10 +162,45 @@ export function StudentSidebar({ currentPage = 'dashboard', onNavigate, onLogout
                                     </span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold truncate text-gray-800">{user.name || 'Học sinh'}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-sm font-semibold truncate text-gray-800">{user.name || 'Học sinh'}</p>
+                                        <button
+                                            onClick={() => {
+                                                // Student có thể xem notifications qua toast hoặc có thể tạo trang riêng
+                                                // Tạm thời chỉ hiển thị icon
+                                            }}
+                                            className="relative p-1 hover:bg-gray-100 rounded-full transition-colors"
+                                            title="Thông báo"
+                                        >
+                                            <Bell className="w-4 h-4 text-gray-600" />
+                                            {unreadCount > 0 && (
+                                                <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold border-2 border-white">
+                                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                                </Badge>
+                                            )}
+                                        </button>
+                                    </div>
                                     <p className="text-xs text-gray-500 truncate">{user.email || ''}</p>
                                 </div>
                             </div>
+                        </div>
+                    )}
+                    {isCollapsed && user && (
+                        <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0 flex justify-center">
+                            <button
+                                onClick={() => {
+                                    // Student có thể xem notifications qua toast
+                                }}
+                                className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                title="Thông báo"
+                            >
+                                <Bell className="w-5 h-5 text-gray-600" />
+                                {unreadCount > 0 && (
+                                    <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold border-2 border-white">
+                                        {unreadCount > 99 ? '99+' : unreadCount}
+                                    </Badge>
+                                )}
+                            </button>
                         </div>
                     )}
 

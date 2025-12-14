@@ -29,8 +29,8 @@ export const useTeacherAuth = () => {
       if (!token) {
         // fallback: try cached user just for display
         const cached = localStorage.getItem('user');
-        if (cached) {
-          try { setUser(normalizeUser(JSON.parse(cached))); } catch {}
+        if (cached && cached !== 'undefined') {
+          try { setUser(normalizeUser(JSON.parse(cached))); } catch { }
         }
         setLoading(false);
         return;
@@ -78,7 +78,7 @@ export const useTeacherAuth = () => {
       }
 
       const data = await response.json();
-      
+
       if (data.access_token) {
         localStorage.setItem('auth_token', data.access_token);
         const userData = normalizeUser(data.user);

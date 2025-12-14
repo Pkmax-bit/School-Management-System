@@ -397,4 +397,3 @@ async def delete_notification_template(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting template: {str(e)}"
         )
-

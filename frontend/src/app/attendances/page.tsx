@@ -1,45 +1,35 @@
 /**
  * Attendances Page
- * Trang quản lý điểm danh
+ * Trang quản lý điểm danh - Redirect to role-specific pages
  */
 
 'use client';
 
-import { useContext } from 'react';
-import { AuthContext } from '@/contexts/AuthContext';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useApiAuth } from '@/hooks/useApiAuth';
 
 export default function AttendancesPage() {
-  const authContext = useContext(AuthContext);
-  const user = authContext?.user;
+  const { user, loading } = useApiAuth();
+  const router = useRouter();
 
-  if (!user || !['admin', 'teacher'].includes(user.role)) {
-    return (
-      <div className="text-center py-12">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
-          Không có quyền truy cập
-        </h1>
-        <p className="text-gray-600">
-          Chỉ quản trị viên và giáo viên mới có thể truy cập trang này.
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.role === 'admin') {
+        router.push('/admin/attendance');
+      } else if (user.role === 'teacher') {
+        router.push('/teacher/attendance');
+      } else {
+        router.push('/login');
+      }
+    }
+  }, [user, loading, router]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          Quản lý Điểm danh
-        </h1>
-        <p className="text-gray-600">
-          Quản lý điểm danh học sinh
-        </p>
-      </div>
-
-      <div className="bg-white p-6 rounded-lg shadow">
-        <p className="text-gray-600">
-          Tính năng quản lý điểm danh sẽ được triển khai trong phiên bản tiếp theo.
-        </p>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Đang chuyển hướng...</p>
       </div>
     </div>
   );
