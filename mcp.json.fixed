@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "supabase-project-1": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "sbp_9cc4ada61b0fe8d048cb3efe7b54023db238c36a"
+      ],
+      "env": {
+        "SUPABASE_PROJECT_ID": "mfmijckzlhevduwfigkl"
+      }
+    },
+    "supabase-school-management": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "sbp_f44f35e73c56d92751d66ddee90f3faae7c980f6"
+      ],
+      "env": {
+        "SUPABASE_PROJECT_ID": "okauzglpkrdatujkqczc"
+      }
+    }
+  }
+}
+

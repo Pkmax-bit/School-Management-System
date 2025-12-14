@@ -5,6 +5,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import Layout from '@/components/Layout'
 import { BackgroundSettingsProvider } from '@/contexts/BackgroundSettingsContext'
 import { SidebarProvider } from '@/contexts/SidebarContext'
+import { QueryProvider } from '@/providers/QueryProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -21,15 +22,17 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <body className={inter.className}>
-        <SidebarProvider>
-          <BackgroundSettingsProvider>
-            <AuthProvider>
-              <Layout>
-                {children}
-              </Layout>
-            </AuthProvider>
-          </BackgroundSettingsProvider>
-        </SidebarProvider>
+        <QueryProvider>
+          <SidebarProvider>
+            <BackgroundSettingsProvider>
+              <AuthProvider>
+                <Layout>
+                  {children}
+                </Layout>
+              </AuthProvider>
+            </BackgroundSettingsProvider>
+          </SidebarProvider>
+        </QueryProvider>
       </body>
     </html>
   )

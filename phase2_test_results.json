@@ -1,0 +1,127 @@
+{
+  "passed": 24,
+  "failed": 0,
+  "total": 24,
+  "details": [
+    {
+      "test": "Table 'import_jobs' exists",
+      "status": "✅ PASS",
+      "message": "Bảng import_jobs đã được tạo"
+    },
+    {
+      "test": "Table 'export_jobs' exists",
+      "status": "✅ PASS",
+      "message": "Bảng export_jobs đã được tạo"
+    },
+    {
+      "test": "Table 'import_templates' exists",
+      "status": "✅ PASS",
+      "message": "Bảng import_templates đã được tạo"
+    },
+    {
+      "test": "Table 'question_banks' exists",
+      "status": "✅ PASS",
+      "message": "Bảng question_banks đã được tạo"
+    },
+    {
+      "test": "Table 'questions' exists",
+      "status": "✅ PASS",
+      "message": "Bảng questions đã được tạo"
+    },
+    {
+      "test": "Table 'exams' exists",
+      "status": "✅ PASS",
+      "message": "Bảng exams đã được tạo"
+    },
+    {
+      "test": "Table 'exam_questions' exists",
+      "status": "✅ PASS",
+      "message": "Bảng exam_questions đã được tạo"
+    },
+    {
+      "test": "Table 'exam_attempts' exists",
+      "status": "✅ PASS",
+      "message": "Bảng exam_attempts đã được tạo"
+    },
+    {
+      "test": "Table 'exam_attempt_answers' exists",
+      "status": "✅ PASS",
+      "message": "Bảng exam_attempt_answers đã được tạo"
+    },
+    {
+      "test": "Table 'file_folders' exists",
+      "status": "✅ PASS",
+      "message": "Bảng file_folders đã được tạo"
+    },
+    {
+      "test": "Table 'file_versions' exists",
+      "status": "✅ PASS",
+      "message": "Bảng file_versions đã được tạo"
+    },
+    {
+      "test": "Table 'file_shares' exists",
+      "status": "✅ PASS",
+      "message": "Bảng file_shares đã được tạo"
+    },
+    {
+      "test": "Table 'media_library' exists",
+      "status": "✅ PASS",
+      "message": "Bảng media_library đã được tạo"
+    },
+    {
+      "test": "Table 'calendar_events' exists",
+      "status": "✅ PASS",
+      "message": "Bảng calendar_events đã được tạo"
+    },
+    {
+      "test": "Table 'calendar_conflicts' exists",
+      "status": "✅ PASS",
+      "message": "Bảng calendar_conflicts đã được tạo"
+    },
+    {
+      "test": "Table 'room_bookings' exists",
+      "status": "✅ PASS",
+      "message": "Bảng room_bookings đã được tạo"
+    },
+    {
+      "test": "Table 'holidays' exists",
+      "status": "✅ PASS",
+      "message": "Bảng holidays đã được tạo"
+    },
+    {
+      "test": "Import template 'students_template' exists",
+      "status": "✅ PASS",
+      "message": "Template students_template đã được tạo"
+    },
+    {
+      "test": "Import template 'teachers_template' exists",
+      "status": "✅ PASS",
+      "message": "Template teachers_template đã được tạo"
+    },
+    {
+      "test": "Import template 'grades_template' exists",
+      "status": "✅ PASS",
+      "message": "Template grades_template đã được tạo"
+    },
+    {
+      "test": "Table 'exams' has required columns",
+      "status": "✅ PASS",
+      "message": "Bảng exams có các columns: id, title, exam_type, duration_minutes, anti_cheat_enabled, fullscreen_required, status"
+    },
+    {
+      "test": "Table 'questions' has required columns",
+      "status": "✅ PASS",
+      "message": "Bảng questions có các columns: id, question_text, question_type, options, correct_answer, points, difficulty"
+    },
+    {
+      "test": "Table 'calendar_events' has required columns",
+      "status": "✅ PASS",
+      "message": "Bảng calendar_events có các columns: id, title, event_type, start_time, end_time, recurrence_rule, reminder_minutes"
+    },
+    {
+      "test": "Table 'media_library' has required columns",
+      "status": "✅ PASS",
+      "message": "Bảng media_library có các columns: id, name, file_path, file_type, mime_type, file_size, folder_id"
+    }
+  ]
+}

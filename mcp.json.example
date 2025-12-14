@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "supabase-project-1": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "YOUR_FIRST_ACCESS_TOKEN_HERE"
+      ],
+      "env": {
+        "SUPABASE_PROJECT_ID": "YOUR_FIRST_PROJECT_ID_HERE"
+      }
+    },
+    "supabase-project-2": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "YOUR_SECOND_ACCESS_TOKEN_HERE"
+      ],
+      "env": {
+        "SUPABASE_PROJECT_ID": "YOUR_SECOND_PROJECT_ID_HERE"
+      }
+    }
+  }
+}
+

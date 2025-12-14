@@ -1,0 +1,287 @@
+{
+  "passed": 56,
+  "failed": 0,
+  "total": 56,
+  "details": [
+    {
+      "test": "Table 'courses' exists",
+      "status": "✅ PASS",
+      "message": "Bảng courses đã được tạo"
+    },
+    {
+      "test": "Table 'course_enrollments' exists",
+      "status": "✅ PASS",
+      "message": "Bảng course_enrollments đã được tạo"
+    },
+    {
+      "test": "Table 'curricula' exists",
+      "status": "✅ PASS",
+      "message": "Bảng curricula đã được tạo"
+    },
+    {
+      "test": "Table 'curriculum_units' exists",
+      "status": "✅ PASS",
+      "message": "Bảng curriculum_units đã được tạo"
+    },
+    {
+      "test": "Table 'curriculum_lessons' exists",
+      "status": "✅ PASS",
+      "message": "Bảng curriculum_lessons đã được tạo"
+    },
+    {
+      "test": "Table 'course_materials' exists",
+      "status": "✅ PASS",
+      "message": "Bảng course_materials đã được tạo"
+    },
+    {
+      "test": "Table 'course_progress' exists",
+      "status": "✅ PASS",
+      "message": "Bảng course_progress đã được tạo"
+    },
+    {
+      "test": "Table 'conversations' exists",
+      "status": "✅ PASS",
+      "message": "Bảng conversations đã được tạo"
+    },
+    {
+      "test": "Table 'conversation_participants' exists",
+      "status": "✅ PASS",
+      "message": "Bảng conversation_participants đã được tạo"
+    },
+    {
+      "test": "Table 'messages' exists",
+      "status": "✅ PASS",
+      "message": "Bảng messages đã được tạo"
+    },
+    {
+      "test": "Table 'message_reads' exists",
+      "status": "✅ PASS",
+      "message": "Bảng message_reads đã được tạo"
+    },
+    {
+      "test": "Table 'forums' exists",
+      "status": "✅ PASS",
+      "message": "Bảng forums đã được tạo"
+    },
+    {
+      "test": "Table 'forum_posts' exists",
+      "status": "✅ PASS",
+      "message": "Bảng forum_posts đã được tạo"
+    },
+    {
+      "test": "Table 'forum_post_likes' exists",
+      "status": "✅ PASS",
+      "message": "Bảng forum_post_likes đã được tạo"
+    },
+    {
+      "test": "Table 'system_settings' exists",
+      "status": "✅ PASS",
+      "message": "Bảng system_settings đã được tạo"
+    },
+    {
+      "test": "Table 'school_info' exists",
+      "status": "✅ PASS",
+      "message": "Bảng school_info đã được tạo"
+    },
+    {
+      "test": "Table 'academic_settings' exists",
+      "status": "✅ PASS",
+      "message": "Bảng academic_settings đã được tạo"
+    },
+    {
+      "test": "Table 'email_settings' exists",
+      "status": "✅ PASS",
+      "message": "Bảng email_settings đã được tạo"
+    },
+    {
+      "test": "Table 'sms_settings' exists",
+      "status": "✅ PASS",
+      "message": "Bảng sms_settings đã được tạo"
+    },
+    {
+      "test": "Table 'payment_settings' exists",
+      "status": "✅ PASS",
+      "message": "Bảng payment_settings đã được tạo"
+    },
+    {
+      "test": "Table 'theme_settings' exists",
+      "status": "✅ PASS",
+      "message": "Bảng theme_settings đã được tạo"
+    },
+    {
+      "test": "Table 'analytics_metrics' exists",
+      "status": "✅ PASS",
+      "message": "Bảng analytics_metrics đã được tạo"
+    },
+    {
+      "test": "Table 'analytics_predictions' exists",
+      "status": "✅ PASS",
+      "message": "Bảng analytics_predictions đã được tạo"
+    },
+    {
+      "test": "Table 'scheduled_reports' exists",
+      "status": "✅ PASS",
+      "message": "Bảng scheduled_reports đã được tạo"
+    },
+    {
+      "test": "School info has default data",
+      "status": "✅ PASS",
+      "message": "Bảng school_info đã có 1 row dữ liệu mặc định"
+    },
+    {
+      "test": "Table 'courses' has required columns",
+      "status": "✅ PASS",
+      "message": "Bảng courses có các columns: id, code, name, status, instructor_id, academic_year, semester, total_hours, credit_hours"
+    },
+    {
+      "test": "Table 'messages' has required columns",
+      "status": "✅ PASS",
+      "message": "Bảng messages có các columns: id, conversation_id, sender_id, message_type, content, attachments, reactions, read_by"
+    },
+    {
+      "test": "Table 'school_info' has required columns",
+      "status": "✅ PASS",
+      "message": "Bảng school_info có các columns: id, name, short_name, logo_url, address, phone, email, website, established_year"
+    },
+    {
+      "test": "Table 'analytics_metrics' has required columns",
+      "status": "✅ PASS",
+      "message": "Bảng analytics_metrics có các columns: id, metric_name, metric_type, metric_value, period_start, period_end, period_type"
+    },
+    {
+      "test": "FK: course_enrollments.course_id → courses",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: course_enrollments.student_id → users",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: curriculum_units.curriculum_id → curricula",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: curriculum_lessons.curriculum_unit_id → curriculum_units",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: course_materials.course_id → courses",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: course_progress.course_id → courses",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: course_progress.student_id → users",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: conversation_participants.conversation_id → conversations",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: conversation_participants.user_id → users",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: messages.conversation_id → conversations",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: messages.sender_id → users",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: forum_posts.forum_id → forums",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "FK: forum_posts.author_id → users",
+      "status": "✅ PASS",
+      "message": "Foreign key relationship đã được thiết lập"
+    },
+    {
+      "test": "Table 'courses' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng courses đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'course_enrollments' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng course_enrollments đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'curricula' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng curricula đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'curriculum_units' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng curriculum_units đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'curriculum_lessons' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng curriculum_lessons đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'conversations' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng conversations đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'messages' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng messages đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'forums' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng forums đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'forum_posts' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng forum_posts đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'system_settings' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng system_settings đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'academic_settings' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng academic_settings đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'analytics_metrics' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng analytics_metrics đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'analytics_predictions' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng analytics_predictions đã có indexes để tối ưu performance"
+    },
+    {
+      "test": "Table 'scheduled_reports' has indexes",
+      "status": "✅ PASS",
+      "message": "Bảng scheduled_reports đã có indexes để tối ưu performance"
+    }
+  ]
+}

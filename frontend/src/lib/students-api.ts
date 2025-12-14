@@ -190,21 +190,45 @@ export interface UpdateStudentData {
 
 // Students API
 export const studentsApi = {
-  // Get all students
-  getStudents: async (params?: { search?: string }): Promise<Student[]> => {
+  // Get all students with pagination
+  getStudents: async (params?: { 
+    search?: string;
+    skip?: number;
+    limit?: number;
+    classroom_id?: string;
+  }): Promise<{ data: Student[]; total: number; skip: number; limit: number }> => {
     try {
-      console.log('Fetching students with real API');
-      const response = await apiGet(`${API_BASE_URL}/api/students/`, params);
+      console.log('Fetching students with real API', params);
+      const queryParams: Record<string, any> = {};
+      
+      // Default pagination: limit 20
+      queryParams.limit = params?.limit || 20;
+      queryParams.skip = params?.skip || 0;
+      
+      if (params?.search) {
+        queryParams.search = params.search;
+      }
+      if (params?.classroom_id) {
+        queryParams.classroom_id = params.classroom_id;
+      }
+      
+      const response = await apiGet(`${API_BASE_URL}/api/students/`, queryParams);
       console.log('✅ Students fetched via API:', response);
       
-      // Backend returns data directly, not wrapped in response.data
-      if (Array.isArray(response)) {
-        return response;
-      } else if (Array.isArray(response.data)) {
-        return response.data;
+      // Backend now returns { data, total, skip, limit }
+      if (response && typeof response === 'object' && 'data' in response) {
+        return {
+          data: Array.isArray(response.data) ? response.data : [],
+          total: response.total || 0,
+          skip: response.skip || 0,
+          limit: response.limit || 20
+        };
+      } else if (Array.isArray(response)) {
+        // Fallback for old format
+        return { data: response, total: response.length, skip: 0, limit: 20 };
       } else {
         console.warn('Unexpected response format:', response);
-        return [];
+        return { data: [], total: 0, skip: 0, limit: 20 };
       }
     } catch (error) {
       console.error('Error fetching students:', error);

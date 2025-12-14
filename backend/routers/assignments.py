@@ -1185,8 +1185,10 @@ async def get_student_grade_summary(
         for submission in graded_submissions:
             assignment = submission.get("assignments", {})
             assignments_detail.append({
+                "submission_id": submission.get("id"),  # Thêm submission_id
                 "assignment_id": submission.get("assignment_id"),
                 "assignment_title": assignment.get("title", ""),
+                "assignment_type": assignment.get("assignment_type", ""),  # Thêm assignment_type
                 "subject_id": assignment.get("subject_id"),
                 "subject_name": None,  # Sẽ load sau nếu cần
                 "score": float(submission.get("score", 0)),

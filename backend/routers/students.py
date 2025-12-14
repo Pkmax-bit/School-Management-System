@@ -241,25 +241,35 @@ async def create_student(
             detail=f"Failed to create student: {error_msg}"
         )
 
-@router.get("/", response_model=List[StudentResponse])
+@router.get("/")
 async def get_students(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None),
     classroom_id: Optional[str] = Query(None),
     current_user = Depends(get_current_user_dev),
     supabase: Client = Depends(get_db)
 ):
-    """Lấy danh sách học sinh với thông tin user"""
+    """Lấy danh sách học sinh với thông tin user và pagination"""
     try:
-        # Join students with users table
+        # Build base query for counting
+        count_query = supabase.table('students').select('id', count='exact')
+        
+        # Build query for data
         query = supabase.table('students').select('*, users(full_name, email, role)')
         
         # Apply filters
         if search:
-            query = query.or_(f'student_code.ilike.%{search}%,users.full_name.ilike.%{search}%,users.email.ilike.%{search}%')
+            search_filter = f'student_code.ilike.%{search}%,users.full_name.ilike.%{search}%,users.email.ilike.%{search}%'
+            query = query.or_(search_filter)
+            count_query = count_query.or_(f'student_code.ilike.%{search}%')
         if classroom_id:
             query = query.eq('classroom_id', classroom_id)
+            count_query = count_query.eq('classroom_id', classroom_id)
+        
+        # Get total count
+        count_result = count_query.execute()
+        total = count_result.count if hasattr(count_result, 'count') and count_result.count is not None else 0
         
         # Order by created_at desc
         query = query.order('created_at', desc=True)
@@ -268,7 +278,12 @@ async def get_students(
         result = query.range(skip, skip + limit - 1).execute()
         
         if not result.data:
-            return []
+            return {
+                "data": [],
+                "total": total,
+                "skip": skip,
+                "limit": limit
+            }
         
         # Map to StudentResponse
         students_data = []
@@ -290,11 +305,21 @@ async def get_students(
             )
             students_data.append(student_response)
         
-        return students_data
+        return {
+            "data": students_data,
+            "total": total,
+            "skip": skip,
+            "limit": limit
+        }
         
     except Exception as e:
         print(f"Error fetching students: {e}")
-        return []
+        return {
+            "data": [],
+            "total": 0,
+            "skip": skip,
+            "limit": limit
+        }
 
 @router.get("/simple", response_model=List[StudentResponse])
 async def get_students_simple(

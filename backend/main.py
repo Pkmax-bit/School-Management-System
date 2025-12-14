@@ -5,6 +5,7 @@ Hệ thống quản lý trường học với FastAPI
 
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from supabase import Client
@@ -14,7 +15,9 @@ import traceback
 
 from database import get_db
 from config import settings
-from routers import auth, users, teachers, students, subjects, classrooms, schedules, assignments, attendances, finances, payments, campuses, expense_categories, rooms, lessons
+from routers import auth, users, teachers, students, subjects, classrooms, schedules, assignments, attendances, finances, payments, campuses, expense_categories, rooms, lessons, reports, roles, notifications, audit_logs, batch
+from middleware.cache_headers import CacheHeadersMiddleware
+from middleware.rate_limiter import RateLimiterMiddleware
 
 app = FastAPI(
     title="School Management System API",
@@ -45,6 +48,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def health_check():
     return {"status": "ok", "message": "Server is running"}
 
+# Rate limiting middleware - 60 requests per minute per client
+app.add_middleware(RateLimiterMiddleware, requests_per_minute=60)
+
+# Cache headers middleware - Add HTTP cache headers
+app.add_middleware(CacheHeadersMiddleware)
+
+# GZip compression middleware - Compress responses > 1000 bytes
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # CORS middleware - Allow all origins in development
 app.add_middleware(
     CORSMiddleware,
@@ -74,6 +86,11 @@ app.include_router(finances.router, prefix="/api/finances", tags=["Finances"])
 app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
 app.include_router(expense_categories.router, prefix="/api/expense-categories", tags=["Expense Categories"])
 app.include_router(lessons.router, prefix="/api/lessons", tags=["Lessons"])
+app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
+app.include_router(roles.router, prefix="/api/roles", tags=["Roles & Permissions"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
+app.include_router(audit_logs.router, prefix="/api/audit-logs", tags=["Audit Logs"])
+app.include_router(batch.router, prefix="/api", tags=["Batch"])
 
 @app.get("/")
 async def root():
