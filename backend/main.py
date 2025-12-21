@@ -14,7 +14,7 @@ import traceback
 
 from database import get_db
 from config import settings
-from routers import auth, users, teachers, students, subjects, classrooms, schedules, assignments, attendances, finances, payments, campuses, expense_categories, rooms, lessons, notifications
+from routers import auth, users, teachers, students, subjects, classrooms, schedules, assignments, attendances, finances, payments, campuses, expense_categories, rooms, lessons, notifications, template_classrooms
 
 app = FastAPI(
     title="School Management System API",
@@ -75,6 +75,7 @@ app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
 app.include_router(expense_categories.router, prefix="/api/expense-categories", tags=["Expense Categories"])
 app.include_router(lessons.router, prefix="/api/lessons", tags=["Lessons"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
+app.include_router(template_classrooms.router, prefix="/api/template-classrooms", tags=["Template Classrooms"])
 
 @app.get("/")
 async def root():

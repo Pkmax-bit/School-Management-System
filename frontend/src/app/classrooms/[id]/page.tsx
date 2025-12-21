@@ -44,34 +44,71 @@ export default function ClassroomDetailPage() {
 
         // Classroom
         const clsRes = await fetch(`${API_BASE_URL}/api/classrooms/${id}`, { headers });
-        if (!clsRes.ok) throw new Error('Failed to load classroom');
-        const cls = await clsRes.json();
-        setClassroom(cls);
+        if (!clsRes.ok) {
+            if (clsRes.status === 401) {
+                // Authentication error - token expired or invalid
+                const errorData = await clsRes.json().catch(() => ({ detail: 'Authentication failed' }));
+                console.error('Authentication failed:', errorData);
+                // Clear tokens and redirect to login
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                router.push('/login');
+                return;
+            } else if (clsRes.status === 403) {
+                // Permission error - user doesn't have access
+                // Try to get error message, but don't fail if response is not JSON
+                try {
+                    const errorData = await clsRes.json();
+                    console.warn('Permission denied:', errorData);
+                } catch {
+                    console.warn('Permission denied: User does not have access to this classroom');
+                }
+                // Don't throw - just set classroom to null and show error message
+                setClassroom(null);
+                // Continue to show error state
+            } else if (clsRes.status === 404) {
+                // Classroom not found
+                console.error('Classroom not found');
+                setClassroom(null);
+            } else {
+                // Other errors
+                throw new Error(`Failed to load classroom: ${clsRes.status} ${clsRes.statusText}`);
+            }
+        } else {
+            const cls = await clsRes.json();
+            setClassroom(cls);
+            
+            // Only continue if we successfully loaded the classroom
+            if (cls) {
+                // Students of classroom
+                const stuRes = await fetch(`${API_BASE_URL}/api/students?limit=1000&classroom_id=${id}`, { headers });
+                if (stuRes.ok) {
+                    const stuData = await stuRes.json();
+                    const list = Array.isArray(stuData) ? stuData : (Array.isArray((stuData as any)?.data) ? (stuData as any).data : []);
+                    setStudents(list);
+                }
 
-        // Students of classroom
-        const stuRes = await fetch(`${API_BASE_URL}/api/students?limit=1000&classroom_id=${id}`, { headers });
-        if (!stuRes.ok) throw new Error('Failed to load students');
-        const stuData = await stuRes.json();
-        const list = Array.isArray(stuData) ? stuData : (Array.isArray((stuData as any)?.data) ? (stuData as any).data : []);
-        setStudents(list);
+                // Teacher
+                if (cls?.teacher_id) {
+                    const tRes = await fetch(`${API_BASE_URL}/api/teachers/${cls.teacher_id}`, { headers });
+                    if (tRes.ok) {
+                        const t = await tRes.json();
+                        setTeacherName(t?.users?.full_name || t?.name || '');
+                    }
+                }
 
-        // Teacher
-        if (cls?.teacher_id) {
-          const tRes = await fetch(`${API_BASE_URL}/api/teachers/${cls.teacher_id}`, { headers });
-          if (tRes.ok) {
-            const t = await tRes.json();
-            setTeacherName(t?.users?.full_name || t?.name || '');
-          }
+                // Fetch all classrooms for the teacher (for lesson sharing)
+                if (user?.role === 'teacher' || user?.role === 'admin') {
+                    const clsListRes = await fetch(`${API_BASE_URL}/api/classrooms`, { headers });
+                    if (clsListRes.ok) {
+                        const clsList = await clsListRes.json();
+                        setClassrooms(Array.isArray(clsList) ? clsList : []);
+                    }
+                }
+            }
         }
 
-        // Fetch all classrooms for the teacher (for lesson sharing)
-        if (user?.role === 'teacher' || user?.role === 'admin') {
-          const clsListRes = await fetch(`${API_BASE_URL}/api/classrooms`, { headers });
-          if (clsListRes.ok) {
-            const clsList = await clsListRes.json();
-            setClassrooms(Array.isArray(clsList) ? clsList : []);
-          }
-        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -99,7 +136,16 @@ export default function ClassroomDetailPage() {
     return (
       <div className="p-6">
         <Button variant="outline" onClick={() => router.back()} className="mb-4"><ArrowLeft className="w-4 h-4 mr-2" />Quay lại</Button>
-        <div>Không tìm thấy lớp học.</div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-red-600 mb-4">Không thể tải thông tin lớp học.</p>
+              <p className="text-gray-600 text-sm mb-4">
+                Bạn có thể không có quyền truy cập lớp học này hoặc lớp học không tồn tại.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

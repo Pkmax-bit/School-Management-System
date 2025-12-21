@@ -8,6 +8,7 @@ import os
 import time
 import traceback
 import re
+import unicodedata
 
 from database import get_db
 from models.lesson import Lesson, LessonProgressCreate, LessonProgressResponse, LessonFile, LessonFileCreate
@@ -24,6 +25,60 @@ def slugify_classroom_folder(name: Optional[str], code: Optional[str], fallback:
     base_value = (name or "").strip() or (code or "").strip() or fallback
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", base_value).strip("-").lower()
     return slug or fallback
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize filename để phù hợp với Supabase Storage.
+    Loại bỏ ký tự đặc biệt, normalize Unicode, và đảm bảo an toàn.
+    Supabase Storage chỉ chấp nhận: a-z, A-Z, 0-9, -, _, ., và không có ký tự đặc biệt khác.
+    """
+    if not filename:
+        return "file"
+    
+    # Lấy phần extension (giữ nguyên extension)
+    if '.' in filename:
+        name_part, ext = filename.rsplit('.', 1)
+        # Sanitize extension cũng
+        ext = '.' + re.sub(r'[^a-zA-Z0-9]', '_', ext.lower())
+    else:
+        name_part = filename
+        ext = ''
+    
+    # Normalize Unicode (NFD) để tách dấu tiếng Việt
+    name_part = unicodedata.normalize('NFD', name_part)
+    
+    # Loại bỏ các ký tự combining (dấu tiếng Việt)
+    name_part = ''.join(c for c in name_part if unicodedata.category(c) != 'Mn')
+    
+    # Chuyển thành chữ thường để đồng nhất
+    name_part = name_part.lower()
+    
+    # Chỉ giữ lại chữ cái, số, dấu gạch ngang, dấu gạch dưới, và dấu chấm
+    # Loại bỏ tất cả ký tự đặc biệt khác
+    name_part = re.sub(r'[^a-z0-9._-]', '_', name_part)
+    
+    # Loại bỏ nhiều dấu gạch dưới/dấu chấm liên tiếp
+    name_part = re.sub(r'[._]+', '_', name_part)
+    
+    # Loại bỏ dấu gạch dưới và dấu chấm ở đầu và cuối
+    name_part = name_part.strip('_.')
+    
+    # Loại bỏ dấu gạch ngang ở đầu (tránh conflict với path)
+    name_part = name_part.lstrip('-')
+    
+    # Đảm bảo không rỗng
+    if not name_part:
+        name_part = "file"
+    
+    # Giới hạn độ dài (tránh quá dài, Supabase có giới hạn)
+    if len(name_part) > 200:
+        name_part = name_part[:200]
+    
+    # Kết hợp với extension
+    safe_filename = name_part + ext
+    
+    return safe_filename
 
 
 def get_teacher_classroom_ids(db: Client, user_id: str) -> Set[str]:
@@ -187,7 +242,7 @@ async def upload_lesson(
                 continue
 
             timestamp = int(time.time())
-            safe_filename = file.filename.replace(" ", "_").replace("/", "_").replace("\\", "_")
+            safe_filename = sanitize_filename(file.filename)
             storage_path = f"{classroom_folder}/{timestamp}_{idx}_{safe_filename}"
 
             print(f"Uploading file {idx + 1}/{len(files)} to path: {storage_path}")
@@ -350,7 +405,27 @@ async def upload_lesson(
             .execute()
         )
 
-        return lesson_result.data[0]
+        if not lesson_result.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve created lesson record"
+            )
+
+        lesson = lesson_result.data
+        
+        # Fetch files for this lesson
+        files_response = (
+            db.table("lesson_files")
+            .select("*")
+            .eq("lesson_id", lesson_id)
+            .order("sort_order")
+            .execute()
+        )
+        
+        # Add files to lesson (for backward compatibility)
+        lesson["files"] = files_response.data or []
+        
+        return lesson
     except HTTPException:
         raise
     except Exception as e:
@@ -359,13 +434,14 @@ async def upload_lesson(
         print(f"Error creating lesson record: {error_msg}")
         print(f"Traceback: {error_trace}")
 
-        # If insert failed, we should cleanup the uploaded file
-        if storage_path:
+        # If insert failed, we should cleanup all uploaded files
+        for uploaded_file in uploaded_files:
             try:
-                db.storage.from_("lesson-materials").remove([storage_path])
-                print(f"Cleaned up uploaded file: {storage_path}")
+                if uploaded_file.get("storage_path"):
+                    db.storage.from_("lesson-materials").remove([uploaded_file["storage_path"]])
+                    print(f"Cleaned up uploaded file: {uploaded_file['storage_path']}")
             except Exception as cleanup_error:
-                print(f"Warning: Failed to cleanup file {storage_path}: {str(cleanup_error)}")
+                print(f"Warning: Failed to cleanup file {uploaded_file.get('storage_path', 'unknown')}: {str(cleanup_error)}")
 
         # Check for specific database errors
         if "column" in error_msg and "does not exist" in error_msg:
@@ -750,7 +826,7 @@ async def update_lesson(
 
                     # Upload new file
                     timestamp = int(time.time())
-                    safe_filename = file.filename.replace(" ", "_").replace("/", "_").replace("\\", "_")
+                    safe_filename = sanitize_filename(file.filename)
                     classroom_folder = slugify_classroom_folder(
                         classroom.get("name") if classroom else None,
                         classroom.get("code") if classroom else None,
@@ -951,7 +1027,7 @@ async def copy_lessons(
                 # Generate new path in target classroom folder
                 timestamp = int(time.time())
                 original_filename = original_lesson.get("file_name", "unknown")
-                safe_filename = original_filename.replace(" ", "_").replace("/", "_")
+                safe_filename = sanitize_filename(original_filename)
                 
                 target_folder = slugify_classroom_folder(
                     target_cls_data.get("name"),
@@ -1238,7 +1314,7 @@ async def add_lesson_file(
 
         # Upload file
         timestamp = int(time.time())
-        safe_filename = file.filename.replace(" ", "_").replace("/", "_").replace("\\", "_")
+        safe_filename = sanitize_filename(file.filename)
         classroom_folder = slugify_classroom_folder(
             classroom.get("name") if classroom else None,
             classroom.get("code") if classroom else None,

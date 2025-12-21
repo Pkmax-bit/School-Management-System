@@ -106,7 +106,15 @@ export default function LessonPreviewModal({ isOpen, onClose, lessons, classroom
 
     const handleStartLesson = async (lessonId: string) => {
         const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
-        if (!token) return;
+        if (!token) {
+            console.warn("No token available for saving progress");
+            // Still allow viewing the lesson file even without saving progress
+            const lesson = studentViewLessons.find(l => l.id === lessonId);
+            if (lesson) {
+                window.open(lesson.file_url, '_blank');
+            }
+            return;
+        }
 
         setSavingProgress(lessonId);
         try {
@@ -130,9 +138,29 @@ export default function LessonPreviewModal({ isOpen, onClose, lessons, classroom
                 if (lesson) {
                     window.open(lesson.file_url, '_blank');
                 }
+            } else if (response.status === 401 || response.status === 403) {
+                // Token expired or invalid - don't clear token in preview mode
+                // Just log and allow viewing the file
+                console.warn("Authentication failed when saving progress, but allowing file view");
+                const lesson = studentViewLessons.find(l => l.id === lessonId);
+                if (lesson) {
+                    window.open(lesson.file_url, '_blank');
+                }
+            } else {
+                // Other errors - still allow viewing the file
+                console.error("Failed to save progress:", response.status, response.statusText);
+                const lesson = studentViewLessons.find(l => l.id === lessonId);
+                if (lesson) {
+                    window.open(lesson.file_url, '_blank');
+                }
             }
         } catch (err) {
             console.error("Failed to save progress:", err);
+            // Still allow viewing the lesson file even if saving progress fails
+            const lesson = studentViewLessons.find(l => l.id === lessonId);
+            if (lesson) {
+                window.open(lesson.file_url, '_blank');
+            }
         } finally {
             setSavingProgress(null);
         }

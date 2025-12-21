@@ -216,11 +216,65 @@ async def get_classroom(
     current_user = Depends(get_current_user),
     supabase: Client = Depends(get_db),
 ):
-    """Lấy thông tin một lớp học"""
-    result = supabase.table("classrooms").select("*").eq("id", classroom_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
-    return result.data[0]
+    """Lấy thông tin một lớp học
+    - Admin: có thể xem tất cả lớp học
+    - Teacher: có thể xem lớp của mình
+    - Student: có thể xem lớp mà mình đang học
+    """
+    # Admin có thể xem tất cả
+    if current_user.role == "admin":
+        result = supabase.table("classrooms").select("*").eq("id", classroom_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+        return result.data[0]
+    
+    # Teacher chỉ có thể xem lớp của mình
+    if current_user.role == "teacher":
+        # Lấy teacher_id của current_user
+        teacher_result = supabase.table("teachers").select("id").eq("user_id", current_user.id).execute()
+        if teacher_result.data:
+            current_teacher_id = teacher_result.data[0]["id"]
+            # Kiểm tra lớp có thuộc về giáo viên này không
+            result = supabase.table("classrooms").select("*").eq("id", classroom_id).eq("teacher_id", current_teacher_id).execute()
+            if not result.data:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Bạn chỉ có thể xem các lớp mà bạn đang dạy"
+                )
+            return result.data[0]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teacher profile not found"
+            )
+    
+    # Student chỉ có thể xem lớp mà mình đang học
+    if current_user.role == "student":
+        # Lấy student_id của current_user
+        student_result = supabase.table("students").select("id, classroom_id").eq("user_id", current_user.id).execute()
+        if student_result.data:
+            student_classroom_ids = [s["classroom_id"] for s in student_result.data if s.get("classroom_id")]
+            if classroom_id not in student_classroom_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Bạn chỉ có thể xem các lớp mà bạn đang học"
+                )
+            # Lấy thông tin lớp
+            result = supabase.table("classrooms").select("*").eq("id", classroom_id).execute()
+            if not result.data:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+            return result.data[0]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Student profile not found"
+            )
+    
+    # Role khác không được phép
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Not enough permissions"
+    )
 
 
 @router.put("/{classroom_id}", response_model=ClassroomResponse)
@@ -307,8 +361,8 @@ async def get_next_class_code(
     current_user = Depends(get_current_user),
     supabase: Client = Depends(get_db),
 ):
-    """Lấy mã lớp tiếp theo (chỉ admin)"""
-    if current_user.role != "admin":
+    """Lấy mã lớp tiếp theo (admin và teacher)"""
+    if current_user.role not in ["admin", "teacher"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
     # Lấy tất cả code dạng Class#### (giới hạn để an toàn)

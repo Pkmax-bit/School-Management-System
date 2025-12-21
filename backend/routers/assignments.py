@@ -31,23 +31,27 @@ def validate_classrooms_belong_to_teacher(
     classroom_ids: List[str], 
     teacher_id: str
 ) -> bool:
-    """Kiểm tra tất cả các lớp có thuộc về giáo viên không"""
+    """Kiểm tra tất cả các lớp có thuộc về giáo viên không (hoặc là template)"""
     if not classroom_ids:
         return True
     
     try:
-        # Lấy tất cả classrooms
-        result = supabase.table("classrooms").select("id, teacher_id").in_("id", classroom_ids).execute()
+        # Lấy tất cả classrooms (bao gồm is_template)
+        result = supabase.table("classrooms").select("id, teacher_id, is_template").in_("id", classroom_ids).execute()
         classrooms = result.data or []
-        
-        # Kiểm tra tất cả đều thuộc về giáo viên này
-        for classroom in classrooms:
-            if classroom.get("teacher_id") != teacher_id:
-                return False
         
         # Kiểm tra số lượng (đảm bảo tất cả classroom_ids đều tồn tại)
         if len(classrooms) != len(classroom_ids):
             return False
+        
+        # Kiểm tra tất cả đều thuộc về giáo viên này HOẶC là template
+        for classroom in classrooms:
+            # Template không cần kiểm tra teacher_id
+            if classroom.get("is_template"):
+                continue
+            # Lớp học thường phải thuộc về giáo viên này
+            if classroom.get("teacher_id") != teacher_id:
+                return False
         
         return True
     except Exception as e:
