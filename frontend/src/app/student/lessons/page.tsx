@@ -42,7 +42,7 @@ interface Lesson {
 }
 
 export default function StudentLessonsPage() {
-    const { user, loading: authLoading } = useApiAuth();
+    const { user, loading: authLoading, logout } = useApiAuth();
     const router = useRouter();
     const { isCollapsed } = useSidebar();
     const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -127,7 +127,7 @@ export default function StudentLessonsPage() {
             <StudentSidebar
                 currentPage="lessons"
                 onNavigate={(path) => router.push(path)}
-                onLogout={() => { }}
+                onLogout={logout}
                 user={{ name: user?.name, email: user?.email }}
             />
 

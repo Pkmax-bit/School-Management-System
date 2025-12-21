@@ -6,11 +6,11 @@ import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import {
     ArrowLeft, Download, FileText, FileIcon, Calendar,
-    BookOpen, ExternalLink, Play, Clock, Loader2,
-    ChevronRight, Menu, X, CheckCircle, Video
+    BookOpen, Play, Clock, Loader2,
+    Menu, X, Video, Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -47,7 +47,7 @@ interface Lesson {
     updated_at: string;
 }
 
-export default function LessonDetailPage() {
+export default function TeacherLessonPreviewPage() {
     const router = useRouter();
     const params = useParams();
     const lessonId = params.id as string;
@@ -56,170 +56,82 @@ export default function LessonDetailPage() {
     const [lesson, setLesson] = useState<Lesson | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [savingProgress, setSavingProgress] = useState(false);
     const [classroomId, setClassroomId] = useState<string | null>(null);
     const [activeFile, setActiveFile] = useState<LessonFile | { file_url: string; file_name: string; id: string } | null>(null);
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
-    // Redirect to login if not authenticated
+    // Redirect if not teacher
     useEffect(() => {
-        if (!authLoading && !user) {
-            router.push('/login');
+        if (!authLoading && user?.role !== 'teacher') {
+            router.push('/teacher/login');
         }
     }, [authLoading, user, router]);
 
     useEffect(() => {
         const fetchLesson = async () => {
-            // Wait for auth to complete
             if (authLoading) return;
             
-            // Check if user is authenticated
-            if (!user) {
-                router.push('/login');
+            if (!user || user.role !== 'teacher') {
+                router.push('/teacher/login');
                 return;
             }
 
             const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
             if (!token) {
-                router.push('/login');
+                router.push('/teacher/login');
                 return;
             }
 
             try {
-                // Check if we're in preview mode (admin/teacher)
-                const isPreviewMode = user?.role === 'admin' || user?.role === 'teacher';
-                
-                let response = await fetch(`${API_BASE_URL}/api/lessons/${lessonId}`, {
+                // Try to get lesson data from sessionStorage first (passed from preview modal)
+                const cachedLesson = sessionStorage.getItem(`lesson_preview_${lessonId}`);
+                if (cachedLesson) {
+                    try {
+                        const lessonData = JSON.parse(cachedLesson);
+                        setLesson(lessonData);
+                        setClassroomId(lessonData.classroom_id);
+                        
+                        if (lessonData.files && lessonData.files.length > 0) {
+                            setActiveFile(lessonData.files[0]);
+                        } else if (lessonData.file_url) {
+                            setActiveFile({
+                                id: 'main',
+                                file_url: lessonData.file_url,
+                                file_name: lessonData.file_name || 'Main File'
+                            });
+                        }
+                        
+                        sessionStorage.removeItem(`lesson_preview_${lessonId}`);
+                        setLoading(false);
+                        return;
+                    } catch (e) {
+                        console.warn("Failed to parse cached lesson:", e);
+                    }
+                }
+
+                // Fetch from API
+                const response = await fetch(`${API_BASE_URL}/api/lessons/${lessonId}`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                     },
                 });
 
-                // If 401/403 in preview mode, retry once (might be temporary auth issue)
-                if (!response.ok && isPreviewMode && (response.status === 401 || response.status === 403)) {
-                    console.warn(`Preview mode: Got ${response.status}, retrying once...`);
-                    // Wait a bit and retry
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    response = await fetch(`${API_BASE_URL}/api/lessons/${lessonId}`, {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    });
-                }
-
                 if (!response.ok) {
-                    if (response.status === 401) {
-                        // 401 = Unauthorized - token invalid or expired
-                        // For admin/teacher preview mode, don't clear token - might be API issue
-                        // Only clear token for students
-                        if (user?.role === 'student') {
-                            localStorage.removeItem('auth_token');
-                            localStorage.removeItem('access_token');
-                            localStorage.removeItem('user');
-                            router.push('/login');
-                            return;
-                        } else {
-                            // Admin/teacher preview - don't clear token
-                            // Try to get lesson data from sessionStorage (passed from preview modal)
-                            try {
-                                const cachedLesson = sessionStorage.getItem(`lesson_preview_${lessonId}`);
-                                if (cachedLesson) {
-                                    const lessonData = JSON.parse(cachedLesson);
-                                    setLesson(lessonData);
-                                    setClassroomId(lessonData.classroom_id);
-                                    
-                                    // Set initial active file
-                                    if (lessonData.files && lessonData.files.length > 0) {
-                                        setActiveFile(lessonData.files[0]);
-                                    } else if (lessonData.file_url) {
-                                        setActiveFile({
-                                            id: 'main',
-                                            file_url: lessonData.file_url,
-                                            file_name: lessonData.file_name || 'Main File'
-                                        });
-                                    }
-                                    
-                                    // Clear cached data after use
-                                    sessionStorage.removeItem(`lesson_preview_${lessonId}`);
-                                    setLoading(false);
-                                    console.log("Using cached lesson data from preview modal");
-                                    return;
-                                }
-                            } catch (cacheError) {
-                                console.warn("Failed to load cached lesson data:", cacheError);
-                            }
-                            
-                            console.warn("Authentication failed in preview mode, but keeping session");
-                            setError('Không thể tải thông tin bài học từ server. Vui lòng thử lại hoặc quay lại danh sách bài học.');
-                            setLoading(false);
-                            return;
-                        }
-                    } else if (response.status === 403) {
-                        // 403 = Forbidden - permission issue
-                        // For admin/teacher preview, don't clear token
-                        // But still show error message
-                        if (user?.role === 'student') {
-                            // Student got 403 - might be permission issue, but still redirect to login
-                            localStorage.removeItem('auth_token');
-                            localStorage.removeItem('access_token');
-                            localStorage.removeItem('user');
-                            router.push('/login');
-                            return;
-                        } else {
-                            // Admin/teacher preview - don't clear token
-                            // Try to get lesson data from sessionStorage (passed from preview modal)
-                            try {
-                                const cachedLesson = sessionStorage.getItem(`lesson_preview_${lessonId}`);
-                                if (cachedLesson) {
-                                    const lessonData = JSON.parse(cachedLesson);
-                                    setLesson(lessonData);
-                                    setClassroomId(lessonData.classroom_id);
-                                    
-                                    // Set initial active file
-                                    if (lessonData.files && lessonData.files.length > 0) {
-                                        setActiveFile(lessonData.files[0]);
-                                    } else if (lessonData.file_url) {
-                                        setActiveFile({
-                                            id: 'main',
-                                            file_url: lessonData.file_url,
-                                            file_name: lessonData.file_name || 'Main File'
-                                        });
-                                    }
-                                    
-                                    // Clear cached data after use
-                                    sessionStorage.removeItem(`lesson_preview_${lessonId}`);
-                                    setLoading(false);
-                                    console.log("Using cached lesson data from preview modal (403 fallback)");
-                                    return;
-                                }
-                            } catch (cacheError) {
-                                console.warn("Failed to load cached lesson data:", cacheError);
-                            }
-                            
-                            // Try to get error message
-                            let errorMsg = 'Không có quyền truy cập bài học này. Vui lòng kiểm tra lại quyền truy cập.';
-                            try {
-                                const errorData = await response.json();
-                                errorMsg = errorData.detail || errorMsg;
-                            } catch {
-                                // Ignore JSON parse error
-                            }
-                            setError(errorMsg);
-                            setLoading(false);
-                            return;
-                        }
+                    if (response.status === 401 || response.status === 403) {
+                        setError('Không có quyền truy cập bài học này.');
+                    } else if (response.status === 404) {
+                        setError('Không tìm thấy bài học.');
+                    } else {
+                        setError('Không thể tải bài học.');
                     }
-                    if (response.status === 404) {
-                        throw new Error('Không tìm thấy bài học');
-                    }
-                    throw new Error('Không thể tải bài học');
+                    setLoading(false);
+                    return;
                 }
 
                 const data = await response.json();
                 setLesson(data);
                 setClassroomId(data.classroom_id);
 
-                // Set initial active file
                 if (data.files && data.files.length > 0) {
                     setActiveFile(data.files[0]);
                 } else if (data.file_url) {
@@ -228,35 +140,6 @@ export default function LessonDetailPage() {
                         file_url: data.file_url,
                         file_name: data.file_name || 'Main File'
                     });
-                }
-
-                // Auto save progress when viewing lesson (only for students)
-                // Skip for admin/teacher preview to avoid authentication issues
-                if (data.classroom_id && user?.role === 'student') {
-                    try {
-                        const progressResponse = await fetch(
-                            `${API_BASE_URL}/api/lessons/${lessonId}/start`,
-                            {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                    Authorization: `Bearer ${token}`,
-                                },
-                                body: JSON.stringify({
-                                    classroom_id: data.classroom_id,
-                                }),
-                            }
-                        );
-                        
-                        // If 401/403, don't clear token - might be admin preview
-                        if (!progressResponse.ok && (progressResponse.status === 401 || progressResponse.status === 403)) {
-                            console.warn("Cannot save progress (might be admin preview):", progressResponse.status);
-                            // Don't clear token or redirect - just skip saving progress
-                        }
-                    } catch (progressErr) {
-                        console.error("Failed to save progress:", progressErr);
-                        // Don't clear token on error - might be network issue or admin preview
-                    }
                 }
             } catch (err: any) {
                 setError(err.message || 'Có lỗi xảy ra');
@@ -269,47 +152,6 @@ export default function LessonDetailPage() {
             fetchLesson();
         }
     }, [lessonId, authLoading, user, router]);
-
-    const handleStartLesson = async () => {
-        if (!lesson || !classroomId) return;
-
-        // Only allow saving progress for students
-        if (user?.role !== 'student') {
-            console.warn("Only students can save lesson progress");
-            return;
-        }
-
-        const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
-        if (!token) return;
-
-        setSavingProgress(true);
-        try {
-            const response = await fetch(
-                `${API_BASE_URL}/api/lessons/${lesson.id}/start`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        classroom_id: classroomId,
-                    }),
-                }
-            );
-
-            if (response.ok) {
-                // Could trigger some completion animation or state update
-            } else if (response.status === 401 || response.status === 403) {
-                // Don't clear token on permission error - might be admin preview
-                console.warn("Cannot save progress (permission issue):", response.status);
-            }
-        } catch (err) {
-            console.error("Failed to save progress:", err);
-        } finally {
-            setSavingProgress(false);
-        }
-    };
 
     const getFileIcon = (filename: string) => {
         const ext = filename.split('.').pop()?.toLowerCase();
@@ -345,7 +187,6 @@ export default function LessonDetailPage() {
         return !!ext && ['mp4', 'webm', 'ogg'].includes(ext);
     };
 
-    // Show loading while checking auth or fetching lesson
     if (authLoading || loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -357,8 +198,7 @@ export default function LessonDetailPage() {
         );
     }
 
-    // Don't render if not authenticated (will redirect)
-    if (!user) {
+    if (!user || user.role !== 'teacher') {
         return null;
     }
 
@@ -380,8 +220,23 @@ export default function LessonDetailPage() {
         );
     }
 
+    const isLessonAvailable = (lesson: Lesson): boolean => {
+        if (!lesson.available_at) return true;
+        const now = new Date();
+        const availableAt = new Date(lesson.available_at);
+        return now >= availableAt;
+    };
+
     return (
         <div className="flex h-screen bg-gray-100 overflow-hidden">
+            {/* Preview Badge */}
+            <div className="fixed top-4 right-4 z-50">
+                <Badge className="bg-blue-500 text-white px-4 py-2 text-sm font-semibold shadow-lg">
+                    <Eye className="w-4 h-4 mr-2 inline" />
+                    Chế độ xem trước (Giáo viên)
+                </Badge>
+            </div>
+
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full overflow-hidden">
                 {/* Header */}
@@ -397,23 +252,21 @@ export default function LessonDetailPage() {
                         </Button>
                         <div>
                             <h1 className="text-lg font-bold text-gray-900 truncate max-w-xl">{lesson.title}</h1>
-                            <p className="text-xs text-gray-500 flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {format(new Date(lesson.created_at), "dd/MM/yyyy", { locale: vi })}
-                            </p>
+                            <div className="flex items-center gap-3 text-xs text-gray-500">
+                                <span className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    {format(new Date(lesson.created_at), "dd/MM/yyyy", { locale: vi })}
+                                </span>
+                                {!isLessonAvailable(lesson) && (
+                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                        <Clock className="w-3 h-3 mr-1" />
+                                        Chưa mở
+                                    </Badge>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        {lesson.assignment_id && (
-                            <Button
-                                variant="outline"
-                                className="hidden md:flex items-center gap-2 text-purple-600 border-purple-200 hover:bg-purple-50"
-                                onClick={() => router.push(`/student/assignments/${lesson.assignment_id}`)}
-                            >
-                                <BookOpen className="w-4 h-4" />
-                                Làm bài tập
-                            </Button>
-                        )}
                         <Button
                             variant="ghost"
                             size="icon"
@@ -519,7 +372,7 @@ export default function LessonDetailPage() {
                             <div className="space-y-2">
                                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Tài liệu</h3>
                                 {lesson.files && lesson.files.length > 0 ? (
-                                    lesson.files.map((file, index) => (
+                                    lesson.files.map((file) => (
                                         <button
                                             key={file.id}
                                             onClick={() => setActiveFile(file)}
@@ -595,14 +448,7 @@ export default function LessonDetailPage() {
                                                 </div>
                                                 <div>
                                                     <h4 className="text-sm font-bold text-gray-900">Bài tập về nhà</h4>
-                                                    <p className="text-xs text-purple-700 mt-1 mb-3">Hoàn thành bài tập để củng cố kiến thức.</p>
-                                                    <Button
-                                                        size="sm"
-                                                        className="w-full bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs"
-                                                        onClick={() => router.push(`/student/assignments/${lesson.assignment_id}`)}
-                                                    >
-                                                        Làm ngay
-                                                    </Button>
+                                                    <p className="text-xs text-purple-700 mt-1">Có bài tập liên quan đến bài học này.</p>
                                                 </div>
                                             </div>
                                         </CardContent>
@@ -611,24 +457,9 @@ export default function LessonDetailPage() {
                             )}
                         </div>
                     </ScrollArea>
-
-                    {/* Footer Actions */}
-                    <div className="p-4 border-t border-gray-200 bg-gray-50">
-                        <Button
-                            className="w-full bg-green-600 hover:bg-green-700 text-white"
-                            onClick={handleStartLesson}
-                            disabled={savingProgress}
-                        >
-                            {savingProgress ? (
-                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                            ) : (
-                                <CheckCircle className="w-4 h-4 mr-2" />
-                            )}
-                            Đánh dấu hoàn thành
-                        </Button>
-                    </div>
                 </div>
             </aside>
         </div>
     );
 }
+

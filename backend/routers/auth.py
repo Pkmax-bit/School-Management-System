@@ -122,20 +122,26 @@ async def get_current_user(
     
     # Xác thực bằng Supabase Auth token
     try:
+        print(f"[get_current_user] Attempting Supabase Auth validation...")
         auth_user_response = supabase.auth.get_user(credentials.credentials)
         if not getattr(auth_user_response, 'user', None):
+            print(f"[get_current_user] Supabase Auth: No user in response")
             raise credentials_exception
         auth_user = auth_user_response.user
         auth_email = getattr(auth_user, 'email', None)
         auth_id = getattr(auth_user, 'id', None)
         if not auth_email or not auth_id:
+            print(f"[get_current_user] Supabase Auth: Missing email or id. Email: {auth_email}, ID: {auth_id}")
             raise credentials_exception
+
+        print(f"[get_current_user] Supabase Auth success. User ID: {auth_id}, Email: {auth_email}")
 
         # Lấy thông tin ứng dụng từ bảng users
         try:
             db_user_resp = supabase.table('users').select('*').eq('id', auth_id).single().execute()
             if not db_user_resp.data:
                 # Nếu chưa có thì tạo bản ghi tối thiểu
+                print(f"[get_current_user] User not found in DB, creating minimal record...")
                 full_name = (getattr(auth_user, 'user_metadata', {}) or {}).get('full_name', auth_email.split('@')[0])
                 insert_resp = supabase.table('users').insert({
                     'id': auth_id,
@@ -147,24 +153,34 @@ async def get_current_user(
                 db_user = insert_resp.data[0]
             else:
                 db_user = db_user_resp.data
-        except Exception:
+            
+            user_role = db_user.get('role', 'teacher')
+            print(f"[get_current_user] DB user found. ID: {db_user.get('id')}, Role: {user_role}")
+            
+            return User(
+                id=db_user['id'],
+                email=db_user['email'],
+                full_name=db_user.get('full_name', auth_email),
+                role=user_role,
+                is_active=db_user.get('is_active', True),
+                created_at=db_user.get('created_at', datetime.now().isoformat())
+            )
+        except Exception as db_error:
+            print(f"[get_current_user] Error accessing DB: {str(db_error)}")
             raise credentials_exception
-
-        return User(
-            id=db_user['id'],
-            email=db_user['email'],
-            full_name=db_user.get('full_name', auth_email),
-            role=db_user.get('role', 'teacher'),
-            is_active=db_user.get('is_active', True),
-            created_at=db_user.get('created_at', datetime.now().isoformat())
-        )
-    except Exception:
+    except HTTPException:
+        raise
+    except Exception as supabase_error:
+        print(f"[get_current_user] Supabase Auth failed: {str(supabase_error)}, trying JWT fallback...")
         # Fallback: thử xác thực bằng app JWT do backend cấp
         try:
             payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
             user_id: str = payload.get("sub")
             email: Optional[str] = payload.get("email")
+            role: Optional[str] = payload.get("role")
+            print(f"[get_current_user] JWT decoded. User ID: {user_id}, Email: {email}, Role: {role}")
             if user_id is None:
+                print(f"[get_current_user] JWT: No user_id in payload")
                 raise credentials_exception
             # Lấy user từ DB theo id (ưu tiên) hoặc email
             try:
@@ -173,21 +189,33 @@ async def get_current_user(
                 elif email:
                     db_user_resp = supabase.table('users').select('*').eq('email', email).single().execute()
                 else:
+                    print(f"[get_current_user] JWT: No user_id or email")
                     raise credentials_exception
                 if not db_user_resp.data:
+                    print(f"[get_current_user] JWT: User not found in DB")
                     raise credentials_exception
                 db_user = db_user_resp.data
+                user_role = db_user.get('role', role or 'teacher')
+                print(f"[get_current_user] JWT: User found. ID: {db_user.get('id')}, Role: {user_role}")
                 return User(
                     id=db_user['id'],
                     email=db_user['email'],
                     full_name=db_user.get('full_name', db_user['email']),
-                    role=db_user.get('role', 'teacher'),
+                    role=user_role,
                     is_active=db_user.get('is_active', True),
                     created_at=db_user.get('created_at', datetime.now().isoformat())
                 )
-            except Exception:
+            except Exception as db_error:
+                print(f"[get_current_user] JWT: Error accessing DB: {str(db_error)}")
                 raise credentials_exception
-        except Exception:
+        except jwt.ExpiredSignatureError:
+            print(f"[get_current_user] JWT: Token expired")
+            raise credentials_exception
+        except jwt.JWTError as jwt_error:
+            print(f"[get_current_user] JWT: Invalid token: {str(jwt_error)}")
+            raise credentials_exception
+        except Exception as jwt_error:
+            print(f"[get_current_user] JWT: Unexpected error: {str(jwt_error)}")
             raise credentials_exception
 
 @router.post("/login", response_model=Token)

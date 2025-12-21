@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useApiAuth } from '@/hooks/useApiAuth';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,12 +17,16 @@ import {
     Clock,
     Users,
     School,
+    Eye,
 } from 'lucide-react';
 import { cn } from '@/components/ui/utils';
 import { formatDateLocal } from '@/lib/date-utils';
+import { getNotificationRoute } from '@/lib/notification-routes';
 
 export function NotificationToast() {
     const { notifications, dismissNotification, markAsRead } = useNotifications();
+    const { user } = useApiAuth();
+    const router = useRouter();
     const [currentNotification, setCurrentNotification] = useState<typeof notifications[0] | null>(null);
     const [isVisible, setIsVisible] = useState(false);
 
@@ -183,6 +189,19 @@ export function NotificationToast() {
                                     onClick={() => handleMarkAsRead(currentNotification.id)}
                                 >
                                     Đã xem
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="default"
+                                    className="text-xs h-7 bg-blue-600 hover:bg-blue-700"
+                                    onClick={() => {
+                                        handleDismiss(currentNotification.id);
+                                        const route = getNotificationRoute(user?.role);
+                                        router.push(route);
+                                    }}
+                                >
+                                    <Eye className="w-3 h-3 mr-1" />
+                                    Xem tất cả
                                 </Button>
                                 <span className="text-xs text-slate-500">
                                     {formatDateLocal(currentNotification.created_at, 'HH:mm')}

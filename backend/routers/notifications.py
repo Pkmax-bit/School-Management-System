@@ -129,9 +129,20 @@ async def create_notification(
                     teacher_res = supabase.table('teachers').select('*, users(full_name)').eq('id', notification_data.teacher_id).execute()
                     if teacher_res.data:
                         teacher_data = teacher_res.data[0]
-                        enriched['teacher_name'] = teacher_data.get('users', {}).get('full_name') or teacher_data.get('name') or 'Giáo viên'
+                        # Handle nested users data safely
+                        users_data = teacher_data.get('users')
+                        if isinstance(users_data, dict):
+                            enriched['teacher_name'] = users_data.get('full_name') or teacher_data.get('name') or 'Giáo viên'
+                        elif isinstance(users_data, list) and len(users_data) > 0:
+                            enriched['teacher_name'] = users_data[0].get('full_name') or teacher_data.get('name') or 'Giáo viên'
+                        else:
+                            enriched['teacher_name'] = teacher_data.get('name') or 'Giáo viên'
+                    else:
+                        enriched['teacher_name'] = None
                 except Exception as e:
                     print(f"Error fetching teacher info: {e}")
+                    import traceback
+                    traceback.print_exc()
                     enriched['teacher_name'] = None
             
             # Get student name if student notification
@@ -140,10 +151,22 @@ async def create_notification(
                     student_res = supabase.table('students').select('*, users(full_name)').eq('id', notification_data.student_id).execute()
                     if student_res.data:
                         student_data = student_res.data[0]
-                        enriched['student_name'] = student_data.get('users', {}).get('full_name') or 'Học sinh'
+                        # Handle nested users data safely
+                        users_data = student_data.get('users')
+                        if isinstance(users_data, dict):
+                            enriched['student_name'] = users_data.get('full_name') or 'Học sinh'
+                        elif isinstance(users_data, list) and len(users_data) > 0:
+                            enriched['student_name'] = users_data[0].get('full_name') or 'Học sinh'
+                        else:
+                            enriched['student_name'] = 'Học sinh'
                         enriched['student_code'] = student_data.get('student_code')
+                    else:
+                        enriched['student_name'] = None
+                        enriched['student_code'] = None
                 except Exception as e:
                     print(f"Error fetching student info: {e}")
+                    import traceback
+                    traceback.print_exc()
                     enriched['student_name'] = None
                     enriched['student_code'] = None
             
@@ -181,7 +204,7 @@ async def get_notifications(
     teacher_id: Optional[str] = Query(None),
     student_id: Optional[str] = Query(None),
     classroom_id: Optional[str] = Query(None),
-    read: Optional[bool] = Query(None),
+    read: Optional[bool] = Query(None, description="Filter by read status (true/false)"),
     current_user = Depends(get_current_user_dev),
     supabase: Client = Depends(get_db)
 ):
@@ -228,7 +251,9 @@ async def get_notifications(
             query = query.eq('classroom_id', classroom_id)
         
         if read is not None:
-            query = query.eq('read', read)
+            # Ensure read is a boolean
+            read_bool = bool(read) if read is not None else None
+            query = query.eq('read', read_bool)
         
         query = query.order('created_at', desc=True)
         
@@ -238,46 +263,81 @@ async def get_notifications(
         # Enrich with recipient and classroom info
         enriched_notifications = []
         for notification in notifications:
-            enriched = dict(notification)
-            
-            # Get teacher name if teacher notification
-            if notification.get('teacher_id'):
-                try:
-                    teacher_res = supabase.table('teachers').select('*, users(full_name)').eq('id', notification['teacher_id']).execute()
-                    if teacher_res.data:
-                        teacher_data = teacher_res.data[0]
-                        enriched['teacher_name'] = teacher_data.get('users', {}).get('full_name') or teacher_data.get('name') or 'Giáo viên'
-                except Exception as e:
-                    print(f"Error fetching teacher info: {e}")
-                    enriched['teacher_name'] = None
-            
-            # Get student name if student notification
-            if notification.get('student_id'):
-                try:
-                    student_res = supabase.table('students').select('*, users(full_name)').eq('id', notification['student_id']).execute()
-                    if student_res.data:
-                        student_data = student_res.data[0]
-                        enriched['student_name'] = student_data.get('users', {}).get('full_name') or 'Học sinh'
-                        enriched['student_code'] = student_data.get('student_code')
-                except Exception as e:
-                    print(f"Error fetching student info: {e}")
-                    enriched['student_name'] = None
-                    enriched['student_code'] = None
-            
-            # Get classroom info
-            if notification.get('classroom_id'):
-                try:
-                    classroom_res = supabase.table('classrooms').select('name, grade').eq('id', notification['classroom_id']).execute()
-                    if classroom_res.data:
-                        classroom_data = classroom_res.data[0]
-                        enriched['classroom_name'] = classroom_data.get('name')
-                        enriched['classroom_grade'] = classroom_data.get('grade')
-                except Exception as e:
-                    print(f"Error fetching classroom info: {e}")
-                    enriched['classroom_name'] = None
-                    enriched['classroom_grade'] = None
-            
-            enriched_notifications.append(enriched)
+            try:
+                enriched = dict(notification)
+                
+                # Get teacher name if teacher notification
+                if notification.get('teacher_id'):
+                    try:
+                        teacher_res = supabase.table('teachers').select('*, users(full_name)').eq('id', notification['teacher_id']).execute()
+                        if teacher_res.data:
+                            teacher_data = teacher_res.data[0]
+                            # Handle nested users data safely
+                            users_data = teacher_data.get('users')
+                            if isinstance(users_data, dict):
+                                enriched['teacher_name'] = users_data.get('full_name') or teacher_data.get('name') or 'Giáo viên'
+                            elif isinstance(users_data, list) and len(users_data) > 0:
+                                enriched['teacher_name'] = users_data[0].get('full_name') or teacher_data.get('name') or 'Giáo viên'
+                            else:
+                                enriched['teacher_name'] = teacher_data.get('name') or 'Giáo viên'
+                        else:
+                            enriched['teacher_name'] = None
+                    except Exception as e:
+                        print(f"Error fetching teacher info for notification {notification.get('id')}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        enriched['teacher_name'] = None
+                
+                # Get student name if student notification
+                if notification.get('student_id'):
+                    try:
+                        student_res = supabase.table('students').select('*, users(full_name)').eq('id', notification['student_id']).execute()
+                        if student_res.data:
+                            student_data = student_res.data[0]
+                            # Handle nested users data safely
+                            users_data = student_data.get('users')
+                            if isinstance(users_data, dict):
+                                enriched['student_name'] = users_data.get('full_name') or 'Học sinh'
+                            elif isinstance(users_data, list) and len(users_data) > 0:
+                                enriched['student_name'] = users_data[0].get('full_name') or 'Học sinh'
+                            else:
+                                enriched['student_name'] = 'Học sinh'
+                            enriched['student_code'] = student_data.get('student_code')
+                        else:
+                            enriched['student_name'] = None
+                            enriched['student_code'] = None
+                    except Exception as e:
+                        print(f"Error fetching student info for notification {notification.get('id')}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        enriched['student_name'] = None
+                        enriched['student_code'] = None
+                
+                # Get classroom info
+                if notification.get('classroom_id'):
+                    try:
+                        classroom_res = supabase.table('classrooms').select('name, grade').eq('id', notification['classroom_id']).execute()
+                        if classroom_res.data:
+                            classroom_data = classroom_res.data[0]
+                            enriched['classroom_name'] = classroom_data.get('name')
+                            enriched['classroom_grade'] = classroom_data.get('grade')
+                        else:
+                            enriched['classroom_name'] = None
+                            enriched['classroom_grade'] = None
+                    except Exception as e:
+                        print(f"Error fetching classroom info for notification {notification.get('id')}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        enriched['classroom_name'] = None
+                        enriched['classroom_grade'] = None
+                
+                enriched_notifications.append(enriched)
+            except Exception as e:
+                print(f"Error enriching notification {notification.get('id', 'unknown')}: {e}")
+                import traceback
+                traceback.print_exc()
+                # Still add the notification without enrichment
+                enriched_notifications.append(dict(notification))
         
         return enriched_notifications
         
@@ -353,9 +413,20 @@ async def mark_notification_read(
                     teacher_res = supabase.table('teachers').select('*, users(full_name)').eq('id', updated_notification['teacher_id']).execute()
                     if teacher_res.data:
                         teacher_data = teacher_res.data[0]
-                        enriched['teacher_name'] = teacher_data.get('users', {}).get('full_name') or teacher_data.get('name') or 'Giáo viên'
+                        # Handle nested users data safely
+                        users_data = teacher_data.get('users')
+                        if isinstance(users_data, dict):
+                            enriched['teacher_name'] = users_data.get('full_name') or teacher_data.get('name') or 'Giáo viên'
+                        elif isinstance(users_data, list) and len(users_data) > 0:
+                            enriched['teacher_name'] = users_data[0].get('full_name') or teacher_data.get('name') or 'Giáo viên'
+                        else:
+                            enriched['teacher_name'] = teacher_data.get('name') or 'Giáo viên'
+                    else:
+                        enriched['teacher_name'] = None
                 except Exception as e:
                     print(f"Error fetching teacher info: {e}")
+                    import traceback
+                    traceback.print_exc()
                     enriched['teacher_name'] = None
             
             # Get student name if student notification
@@ -364,10 +435,22 @@ async def mark_notification_read(
                     student_res = supabase.table('students').select('*, users(full_name)').eq('id', updated_notification['student_id']).execute()
                     if student_res.data:
                         student_data = student_res.data[0]
-                        enriched['student_name'] = student_data.get('users', {}).get('full_name') or 'Học sinh'
+                        # Handle nested users data safely
+                        users_data = student_data.get('users')
+                        if isinstance(users_data, dict):
+                            enriched['student_name'] = users_data.get('full_name') or 'Học sinh'
+                        elif isinstance(users_data, list) and len(users_data) > 0:
+                            enriched['student_name'] = users_data[0].get('full_name') or 'Học sinh'
+                        else:
+                            enriched['student_name'] = 'Học sinh'
                         enriched['student_code'] = student_data.get('student_code')
+                    else:
+                        enriched['student_name'] = None
+                        enriched['student_code'] = None
                 except Exception as e:
                     print(f"Error fetching student info: {e}")
+                    import traceback
+                    traceback.print_exc()
                     enriched['student_name'] = None
                     enriched['student_code'] = None
             

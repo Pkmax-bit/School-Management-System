@@ -7,6 +7,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { StudentSidebar } from '@/components/StudentSidebar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     Users,
@@ -49,7 +50,7 @@ interface Classroom {
 }
 
 export default function StudentClassroomPage() {
-    const { user, loading: authLoading } = useApiAuth();
+    const { user, loading: authLoading, logout } = useApiAuth();
     const router = useRouter();
     const { isCollapsed } = useSidebar();
     const [classroom, setClassroom] = useState<Classroom | null>(null);
@@ -159,7 +160,7 @@ export default function StudentClassroomPage() {
             <StudentSidebar
                 currentPage="classroom"
                 onNavigate={(path) => router.push(path)}
-                onLogout={() => { }}
+                onLogout={logout}
                 user={{ name: user?.name, email: user?.email }}
             />
 

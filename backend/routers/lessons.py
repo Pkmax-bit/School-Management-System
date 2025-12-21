@@ -464,8 +464,17 @@ async def get_lesson(
 ):
     """
     Get a specific lesson by ID with its files.
+    - Admin: có thể xem tất cả bài học
+    - Teacher: có thể xem bài học của lớp mình dạy hoặc được share
+    - Student: có thể xem bài học của lớp mình học hoặc được share
     """
     try:
+        # Normalize role to lowercase for comparison
+        user_role = (current_user.role or "").lower()
+        
+        # Debug logging
+        print(f"[get_lesson] User ID: {current_user.id}, Role: {current_user.role} (normalized: {user_role}), Lesson ID: {lesson_id}")
+        
         response = (
             db.table("lessons")
             .select("*")
@@ -481,6 +490,64 @@ async def get_lesson(
             )
         
         lesson = response.data
+        classroom_id = lesson.get("classroom_id")
+        shared_classroom_ids = lesson.get("shared_classroom_ids", [])
+        if not isinstance(shared_classroom_ids, list):
+            shared_classroom_ids = []
+        
+        # Check access permissions
+        has_access = False
+        
+        # Admin có thể xem tất cả
+        if user_role == "admin":
+            has_access = True
+        # Teacher chỉ có thể xem bài học của lớp mình dạy hoặc được share
+        elif user_role == "teacher":
+            try:
+                teacher_result = db.table("teachers").select("id").eq("user_id", current_user.id).execute()
+                if teacher_result.data:
+                    current_teacher_id = teacher_result.data[0]["id"]
+                    # Kiểm tra lớp chính của bài học
+                    if classroom_id:
+                        classroom_result = db.table("classrooms").select("teacher_id").eq("id", classroom_id).execute()
+                        if classroom_result.data and classroom_result.data[0].get("teacher_id") == current_teacher_id:
+                            has_access = True
+                    
+                    # Kiểm tra các lớp được share
+                    if not has_access and shared_classroom_ids:
+                        for shared_classroom_id in shared_classroom_ids:
+                            if shared_classroom_id:
+                                shared_classroom_result = db.table("classrooms").select("teacher_id").eq("id", shared_classroom_id).execute()
+                                if shared_classroom_result.data and shared_classroom_result.data[0].get("teacher_id") == current_teacher_id:
+                                    has_access = True
+                                    break
+            except Exception as e:
+                print(f"[get_lesson] Error checking teacher access: {str(e)}")
+                has_access = False
+        # Student chỉ có thể xem bài học của lớp mình học hoặc được share
+        elif user_role == "student":
+            try:
+                student_result = db.table("students").select("id, classroom_id").eq("user_id", current_user.id).execute()
+                if student_result.data:
+                    student_classroom_ids = [s["classroom_id"] for s in student_result.data if s.get("classroom_id")]
+                    # Kiểm tra lớp chính của bài học
+                    if classroom_id and classroom_id in student_classroom_ids:
+                        has_access = True
+                    # Kiểm tra các lớp được share
+                    if not has_access and shared_classroom_ids:
+                        for shared_classroom_id in shared_classroom_ids:
+                            if shared_classroom_id and shared_classroom_id in student_classroom_ids:
+                                has_access = True
+                                break
+            except Exception as e:
+                print(f"[get_lesson] Error checking student access: {str(e)}")
+                has_access = False
+        
+        if not has_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không có quyền truy cập bài học này"
+            )
         
         # Fetch files for this lesson
         files_response = (
