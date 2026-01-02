@@ -125,7 +125,7 @@ export default function AssignmentResultPage() {
                     if (studentSubmissions.length > 0) {
                         // Nếu có nhiều submission, lấy submission có điểm cao nhất
                         // Nếu chưa có điểm, lấy submission mới nhất
-                        const bestSubmission = studentSubmissions.reduce((best, current) => {
+                        const bestSubmission = studentSubmissions.reduce((best: Submission, current: Submission) => {
                             const bestScore = best.score ?? -1;
                             const currentScore = current.score ?? -1;
                             

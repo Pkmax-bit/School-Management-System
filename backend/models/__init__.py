@@ -12,10 +12,11 @@ from .schedule import Schedule
 from .assignment import Assignment, AssignmentQuestion, AssignmentSubmission
 from .attendance import Attendance
 from .finance import Finance
+from .lesson import Lesson
 
 __all__ = [
     "User",
-    "Teacher", 
+    "Teacher",
     "Student",
     "Subject",
     "Classroom",
@@ -24,5 +25,6 @@ __all__ = [
     "AssignmentQuestion",
     "AssignmentSubmission",
     "Attendance",
-    "Finance"
+    "Finance",
+    "Lesson"
 ]

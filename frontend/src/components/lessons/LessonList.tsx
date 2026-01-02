@@ -339,20 +339,47 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms, on
                                         {lesson.title}
                                     </h4>
                                     <div className="flex flex-wrap items-center gap-2 mt-1">
-                                        <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
-                                            {getFileExtension(lesson.file_name || '')}
-                                        </span>
+                                        {(() => {
+                                            const fileNames = lesson.file_names || (lesson.file_name ? [lesson.file_name] : []);
+                                            if (fileNames.length === 1) {
+                                                return (
+                                                    <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                                                        {getFileExtension(fileNames[0])}
+                                                    </span>
+                                                );
+                                            } else if (fileNames.length > 1) {
+                                                const extensions = [...new Set(fileNames.map(name => getFileExtension(name)))];
+                                                return extensions.map(ext => (
+                                                    <span key={ext} className="inline-flex px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                                                        {ext}
+                                                    </span>
+                                                ));
+                                            }
+                                            return null;
+                                        })()}
                                         {typeof lesson.sort_order === "number" && !Number.isNaN(lesson.sort_order) && (
                                             <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded">
                                                 Thứ tự: {lesson.sort_order}
                                             </span>
                                         )}
                                     </div>
-                                    {lesson.file_name && (
-                                        <p className="text-xs text-gray-500 truncate mt-1" title={lesson.file_name}>
-                                            {lesson.file_name}
-                                        </p>
-                                    )}
+                                    {(() => {
+                                        const fileNames = lesson.file_names || (lesson.file_name ? [lesson.file_name] : []);
+                                        if (fileNames.length === 1) {
+                                            return (
+                                                <p className="text-xs text-gray-500 truncate mt-1" title={fileNames[0]}>
+                                                    {fileNames[0]}
+                                                </p>
+                                            );
+                                        } else if (fileNames.length > 0) {
+                                            return (
+                                                <p className="text-xs text-gray-500 truncate mt-1" title={fileNames.join(', ')}>
+                                                    {fileNames.length} files: {fileNames.slice(0, 2).join(', ')}{fileNames.length > 2 ? '...' : ''}
+                                                </p>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                     {lesson.classroom_id !== classroomId && (
                                         <p className="text-xs text-amber-600 mt-1">
                                             Nguồn: {classroomLookup.get(lesson.classroom_id)?.name || "Lớp khác"}
@@ -401,21 +428,48 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms, on
                             </div>
                         )}
 
-                        {/* Image Preview */}
-                        {lesson.file_url && lesson.file_name && isImageFile(lesson.file_name) && (
-                            <a
-                                href={lesson.file_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block mb-4"
-                            >
-                                <img
-                                    src={lesson.file_url}
-                                    alt={lesson.title}
-                                    className="w-full h-48 object-cover rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
-                                />
-                            </a>
-                        )}
+                        {/* File/Image Previews */}
+                        {(() => {
+                            // Handle both single files (backward compatibility) and multiple files
+                            const fileUrls = lesson.file_urls || (lesson.file_url ? [lesson.file_url] : []);
+                            const fileNames = lesson.file_names || (lesson.file_name ? [lesson.file_name] : []);
+                            const imageFiles = fileUrls.filter((_, index) => {
+                                const fileName = fileNames[index] || '';
+                                return isImageFile(fileName);
+                            });
+
+                            // Show first image if there are image files
+                            if (imageFiles.length > 0) {
+                                return (
+                                    <a
+                                        href={imageFiles[0]}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block mb-4"
+                                    >
+                                        <img
+                                            src={imageFiles[0]}
+                                            alt={lesson.title}
+                                            className="w-full h-48 object-cover rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+                                        />
+                                    </a>
+                                );
+                            }
+
+                            // Show file count if there are files but no images
+                            if (fileUrls.length > 0) {
+                                return (
+                                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                                            <FileText className="w-4 h-4" />
+                                            <span>{fileUrls.length} file{fileUrls.length > 1 ? 's' : ''} đính kèm</span>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            return null;
+                        })()}
 
                         {/* Footer with date and download */}
                         <div className="flex justify-between items-center mt-auto pt-3 border-t border-gray-100">
@@ -456,26 +510,58 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms, on
                                     </>
                                 )}
                                 {(user?.role === 'teacher' || user?.role === 'admin' || isLessonAvailable(lesson)) ? (
-                                    <a
-                                        href={lesson.file_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded-lg transition-colors"
-                                        title="Tải xuống"
-                                    >
-                                        <Download className="w-4 h-4" />
-                                        Tải xuống
-                                    </a>
-                                ) : (
-                                    <button
-                                        disabled
-                                        className="flex items-center gap-1.5 text-sm bg-gray-100 text-gray-400 font-medium py-1.5 px-3 rounded-lg cursor-not-allowed"
-                                        title={`Bài học sẽ mở vào ${format(new Date(lesson.available_at!), "dd/MM/yyyy HH:mm", { locale: vi })}`}
-                                    >
-                                        <Lock className="w-4 h-4" />
-                                        Chưa mở
-                                    </button>
-                                )}
+                      (() => {
+                        // Handle multiple files
+                        const fileUrls = lesson.file_urls || (lesson.file_url ? [lesson.file_url] : []);
+                        const fileNames = lesson.file_names || (lesson.file_name ? [lesson.file_name] : []);
+
+                        if (fileUrls.length === 0) {
+                          return null;
+                        }
+
+                        if (fileUrls.length === 1) {
+                          // Single file - direct download
+                          return (
+                            <a
+                              href={fileUrls[0]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded-lg transition-colors"
+                              title="Tải xuống"
+                            >
+                              <Download className="w-4 h-4" />
+                              Tải xuống
+                            </a>
+                          );
+                        } else {
+                          // Multiple files - show dropdown or list
+                          return (
+                            <div className="relative">
+                              <button
+                                onClick={() => {
+                                  // Simple approach: open all files in new tabs
+                                  fileUrls.forEach(url => window.open(url, '_blank'));
+                                }}
+                                className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded-lg transition-colors"
+                                title={`Tải xuống ${fileUrls.length} files`}
+                              >
+                                <Download className="w-4 h-4" />
+                                Tải xuống ({fileUrls.length})
+                              </button>
+                            </div>
+                          );
+                        }
+                      })()
+                    ) : (
+                      <button
+                        disabled
+                        className="flex items-center gap-1.5 text-sm bg-gray-100 text-gray-400 font-medium py-1.5 px-3 rounded-lg cursor-not-allowed"
+                        title={`Bài học sẽ mở vào ${format(new Date(lesson.available_at!), "dd/MM/yyyy HH:mm", { locale: vi })}`}
+                      >
+                        <Lock className="w-4 h-4" />
+                        Chưa mở
+                      </button>
+                    )}
                             </div>
                         </div>
                     </div>

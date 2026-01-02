@@ -988,7 +988,7 @@ export default function GradesPage() {
                                 <Card>
                                     <CardContent className="p-12 text-center">
                                         <BarChart3 className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                        <p className="text-slate-500">Chọn lớp học và nhấn "Xem bảng điểm" để xem kết quả</p>
+                                        <p className="text-slate-500">Chọn lớp học và nhấn &quot;Xem bảng điểm&quot; để xem kết quả</p>
                                     </CardContent>
                                 </Card>
                             )}

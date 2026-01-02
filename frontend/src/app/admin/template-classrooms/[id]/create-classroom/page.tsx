@@ -244,7 +244,23 @@ export default function CreateClassroomFromTemplatePage() {
   return (
     <PageWithBackground>
       <div className="flex h-screen overflow-hidden">
-        {userRole === 'admin' ? <AdminSidebar /> : <TeacherSidebar />}
+        {userRole === 'admin' ? (
+          <AdminSidebar
+            currentPage="template-classrooms"
+            onNavigate={(page) => router.push(`/admin/${page}`)}
+            onLogout={() => router.push('/login')}
+            userName={user?.name}
+            userEmail={user?.email}
+            userRole={user?.role}
+          />
+        ) : (
+          <TeacherSidebar
+            currentPage="template-classrooms"
+            onNavigate={(page) => router.push(`/teacher/${page}`)}
+            onLogout={() => router.push('/login')}
+            user={user}
+          />
+        )}
         <div className={`flex-1 flex flex-col overflow-hidden ${isCollapsed ? 'ml-16' : 'ml-64'}`}>
           <div className="flex-1 overflow-y-auto p-6">
             <div className="max-w-4xl mx-auto">

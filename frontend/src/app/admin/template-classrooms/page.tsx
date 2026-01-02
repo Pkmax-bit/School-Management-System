@@ -217,7 +217,14 @@ export default function TemplateClassroomsPage() {
   return (
     <PageWithBackground>
       <div className="flex h-screen overflow-hidden">
-        <AdminSidebar />
+        <AdminSidebar
+          currentPage="template-classrooms"
+          onNavigate={(page) => router.push(`/admin/${page}`)}
+          onLogout={() => router.push('/login')}
+          userName={user?.name}
+          userEmail={user?.email}
+          userRole={user?.role}
+        />
         <div className={`flex-1 flex flex-col overflow-hidden ${isCollapsed ? 'ml-16' : 'ml-64'}`}>
           <div className="flex-1 overflow-y-auto p-6">
             <div className="max-w-7xl mx-auto">

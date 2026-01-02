@@ -255,7 +255,7 @@ export default function AdminAttendancePage() {
                 setAttendanceRecords(records);
 
                 // Calculate stats
-                let totalDays = records.length;
+                const totalDays = records.length;
                 let presentCount = 0;
                 let absentCount = 0;
                 let lateCount = 0;
