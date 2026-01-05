@@ -39,6 +39,11 @@ export default function DocumentsPage() {
   const { user, loading: authLoading } = useApiAuth();
   const router = useRouter();
   const { isCollapsed } = useSidebar();
+
+  // Debug user role
+  console.log('DocumentsPage - User:', user);
+  console.log('DocumentsPage - User role:', user?.role);
+  console.log('DocumentsPage - User role type:', typeof user?.role);
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<TemplateClassroom[]>([]);
   const [search, setSearch] = useState('');
@@ -229,6 +234,13 @@ export default function DocumentsPage() {
   const canEdit = userRole === 'admin' || userRole === 'teacher';
   const canDelete = userRole === 'admin';
 
+  // Debug userRole
+  console.log('DocumentsPage - userRole:', userRole, typeof userRole);
+  console.log('DocumentsPage - userRole === "admin":', userRole === 'admin');
+  console.log('DocumentsPage - userRole === "teacher":', userRole === 'teacher');
+  console.log('DocumentsPage - user object:', user);
+  console.log('DocumentsPage - user.role:', user?.role, typeof user?.role);
+
   if (!user || !canEdit) {
     return (
       <PageWithBackground>
@@ -249,7 +261,7 @@ export default function DocumentsPage() {
   return (
       <PageWithBackground>
       <div className="flex h-screen overflow-hidden">
-        {userRole === 'admin' ? (
+        {user?.role === 'admin' ? (
           <AdminSidebar
             currentPage="documents"
             onNavigate={(page) => router.push(`/admin/${page}`)}
@@ -258,7 +270,7 @@ export default function DocumentsPage() {
             userEmail={user?.email}
             userRole={user?.role}
           />
-        ) : userRole === 'teacher' ? (
+        ) : user?.role === 'teacher' ? (
           <TeacherSidebar
             currentPage="documents"
             onNavigate={(page) => router.push(`/teacher/${page}`)}

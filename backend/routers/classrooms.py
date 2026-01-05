@@ -200,7 +200,7 @@ async def get_classrooms(
         else:
             # Nếu không tìm thấy teacher profile, không cho phép filter theo teacher_id
             teacher_id = None
-    
+
     query = supabase.table("classrooms").select("*")
     if teacher_id:
         query = query.eq("teacher_id", teacher_id)
@@ -208,6 +208,39 @@ async def get_classrooms(
         query = query.eq("campus_id", campus_id)
     result = query.order("created_at", desc=True).range(skip, skip + limit - 1).execute()
     return result.data or []
+
+
+@router.get("/next-code")
+async def get_next_class_code(
+    current_user = Depends(get_current_user),
+    supabase: Client = Depends(get_db),
+):
+    """Lấy mã lớp tiếp theo (admin và teacher)"""
+    if current_user.role not in ["admin", "teacher"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    # Lấy tất cả code dạng Class#### (giới hạn để an toàn)
+    codes_res = supabase.table("classrooms").select("code").ilike("code", "Class%").limit(1000).execute()
+    max_num = 0
+    if codes_res.data:
+        for row in codes_res.data:
+            code = (row.get("code") or "").strip()
+            if code.startswith("Class"):
+                suffix = code[5:]  # Lấy phần sau "Class"
+                if suffix.isdigit() and len(suffix) == 4:  # Đảm bảo đúng format 4 chữ số
+                    try:
+                        max_num = max(max_num, int(suffix))
+                    except Exception:
+                        pass
+
+    # Tìm mã tiếp theo có sẵn
+    attempt = 1
+    while True:
+        candidate = f"Class{attempt:04d}"
+        dup = supabase.table("classrooms").select("id").eq("code", candidate).execute()
+        if not dup.data:
+            return {"next_code": candidate}
+        attempt += 1
 
 
 @router.get("/{classroom_id}", response_model=ClassroomResponse)
@@ -395,38 +428,6 @@ async def delete_classroom(
 class ClassroomAssignStudents(BaseModel):
     student_ids: List[str]
 
-
-@router.get("/next-code")
-async def get_next_class_code(
-    current_user = Depends(get_current_user),
-    supabase: Client = Depends(get_db),
-):
-    """Lấy mã lớp tiếp theo (admin và teacher)"""
-    if current_user.role not in ["admin", "teacher"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-
-    # Lấy tất cả code dạng Class#### (giới hạn để an toàn)
-    codes_res = supabase.table("classrooms").select("code").ilike("code", "Class%").limit(1000).execute()
-    max_num = 0
-    if codes_res.data:
-        for row in codes_res.data:
-            code = (row.get("code") or "").strip()
-            if code.startswith("Class"):
-                suffix = code[5:]  # Lấy phần sau "Class"
-                if suffix.isdigit() and len(suffix) == 4:  # Đảm bảo đúng format 4 chữ số
-                    try:
-                        max_num = max(max_num, int(suffix))
-                    except Exception:
-                        pass
-    
-    # Tìm mã tiếp theo có sẵn
-    attempt = 1
-    while True:
-        candidate = f"Class{attempt:04d}"
-        dup = supabase.table("classrooms").select("id").eq("code", candidate).execute()
-        if not dup.data:
-            return {"next_code": candidate}
-        attempt += 1
 
 @router.post("/{classroom_id}/students")
 async def add_students_to_classroom(

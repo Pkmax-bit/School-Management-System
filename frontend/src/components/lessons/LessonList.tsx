@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Lesson } from "@/types/lesson";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
@@ -18,6 +19,7 @@ interface LessonListProps {
 }
 
 export default function LessonList({ classroomId, refreshTrigger, classrooms, onEditLesson }: LessonListProps) {
+    const router = useRouter();
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -275,15 +277,26 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms, on
 
                 <div className="flex items-center gap-2">
                     {(user?.role === 'teacher' || user?.role === 'admin') && (
-                        <Button
-                            onClick={() => setIsPreviewModalOpen(true)}
-                            size="sm"
-                            variant="outline"
-                            className="gap-2"
-                        >
-                            <Eye className="w-4 h-4" />
-                            Xem trước (Học sinh)
-                        </Button>
+                        <>
+                            <Button
+                                onClick={() => router.push('/teacher/view-lessons')}
+                                size="sm"
+                                variant="default"
+                                className="gap-2"
+                            >
+                                <Eye className="w-4 h-4" />
+                                Xem (Học sinh)
+                            </Button>
+                            <Button
+                                onClick={() => setIsPreviewModalOpen(true)}
+                                size="sm"
+                                variant="outline"
+                                className="gap-2"
+                            >
+                                <Eye className="w-4 h-4" />
+                                Xem trước
+                            </Button>
+                        </>
                     )}
                     {selectedLessons.size > 0 && (
                         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5 duration-200">
@@ -583,6 +596,7 @@ export default function LessonList({ classroomId, refreshTrigger, classrooms, on
                 classroomName={classroomLookup.get(classroomId)?.name || "Lớp học"}
                 classroomId={classroomId}
             />
+
 
         </div>
     );

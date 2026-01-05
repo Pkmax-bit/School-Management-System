@@ -96,7 +96,7 @@ export default function SettingsPage() {
           onNavigate={(page) => router.push(`/${page}`)} 
           onLogout={logout} 
         />
-        <div className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+        <div className={`flex-1 min-h-screen flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
         <div className="flex-1 flex flex-col p-6 space-y-6 overflow-y-auto">
           {/* Header */}
           <div>

@@ -13,6 +13,7 @@ import {
   X,
   BookOpen,
   Award,
+  Eye,
   FileText,
   BarChart3,
   Bell,
@@ -66,10 +67,10 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
       description: 'Quản lý lớp học'
     },
     {
-      id: 'lessons',
+      id: 'manage-lessons',
       label: 'Quản lý bài học',
       icon: BookOpen,
-      path: '/teacher/lessons',
+      path: '/assignments', // Redirect to assignments page which has classroom selection
       description: 'Quản lý bài học'
     },
     {
@@ -78,6 +79,13 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
       icon: ClipboardCheck,
       path: '/teacher/assignments',
       description: 'Quản lý tất cả bài tập'
+    },
+    {
+      id: 'view-lessons',
+      label: '📖 Xem bài học',
+      icon: Eye,
+      path: '/teacher/view-lessons',
+      description: 'Xem bài học như học sinh'
     },
     {
       id: 'schedule',
@@ -152,68 +160,59 @@ export function TeacherSidebar({ currentPage = 'dashboard', onNavigate, onLogout
         isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
         <div className="flex flex-col h-full overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white flex-shrink-0">
-            {!isCollapsed && (
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
-                  <span className="text-white font-bold text-sm">T</span>
-                </div>
-                <div>
-                  <h1 className="font-bold text-lg text-gray-800">Teacher</h1>
-                  <p className="text-xs text-gray-500">Giảng dạy</p>
-                </div>
-              </div>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="hidden lg:flex text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-            >
-              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMobileOpen(false)}
-              className="lg:hidden text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* User Info */}
+          {/* User Info Header */}
           {!isCollapsed && user && (
             <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-sm">
-                  <span className="text-white font-semibold text-sm">
-                    {(user.name?.charAt(0) || user.email?.charAt(0) || 'T').toUpperCase()}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold truncate text-gray-800">{user.name || 'Giáo viên'}</p>
-                    <button
-                      onClick={() => onNavigate('/teacher/notifications')}
-                      className="relative p-1 hover:bg-gray-100 rounded-full transition-colors"
-                      title="Thông báo"
-                    >
-                      <Bell className="w-4 h-4 text-gray-600" />
-                      {unreadCount > 0 && (
-                        <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold border-2 border-white">
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </Badge>
-                      )}
-                    </button>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-3 flex-1">
+                  <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-sm">
+                    <span className="text-white font-semibold text-sm">
+                      {(user.name?.charAt(0) || user.email?.charAt(0) || 'T').toUpperCase()}
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{user.email || ''}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold truncate text-gray-800">{user.name || 'Giáo viên'}</p>
+                      <button
+                        onClick={() => onNavigate('/teacher/notifications')}
+                        className="relative p-1 hover:bg-gray-100 rounded-full transition-colors"
+                        title="Thông báo"
+                      >
+                        <Bell className="w-4 h-4 text-gray-600" />
+                        {unreadCount > 0 && (
+                          <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold border-2 border-white">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </Badge>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">{user.email || ''}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    className="hidden lg:flex text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                  >
+                    {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsMobileOpen(false)}
+                    className="lg:hidden text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             </div>
           )}
-          {isCollapsed && user && (
+
+          {/* Collapsed Header */}
+          {isCollapsed && (
             <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0 flex justify-center">
               <button
                 onClick={() => onNavigate('/teacher/notifications')}

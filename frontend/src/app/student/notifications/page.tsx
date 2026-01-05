@@ -218,7 +218,7 @@ export default function StudentNotificationsPage() {
                     onLogout={logout}
                 />
                 
-                <div className={`flex-1 h-screen flex flex-col p-4 lg:p-6 overflow-hidden transition-all duration-300 ml-0 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+                <div className={`flex-1 min-h-screen flex flex-col p-4 lg:p-6 overflow-y-auto transition-all duration-300 ml-0 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
                     <div className="flex-1 flex flex-col overflow-y-auto">
                         {/* Header */}
                         <div className="mb-8">

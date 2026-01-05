@@ -7,6 +7,7 @@
 
 import { ReactNode, useContext } from 'react';
 import { useBackendAuth } from '@/hooks/useBackendAuth';
+import { useSidebar } from '@/contexts/SidebarContext';
 import Header from './Header';
 
 interface LayoutProps {
@@ -15,6 +16,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const { user, loading } = useBackendAuth();
+  const { isCollapsed } = useSidebar();
 
   if (loading) {
     return (
