@@ -8,7 +8,7 @@ services:
     env: python
     region: singapore  # Hoặc chọn region gần bạn nhất
     plan: free  # Đổi thành 'starter' nếu muốn instance mạnh hơn
-    buildCommand: pip install -r backend/requirements.txt
+    buildCommand: pip install --upgrade pip && pip cache purge && pip install -r backend/requirements.txt --force-reinstall
     startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30 --timeout-graceful-shutdown 10 --limit-concurrency 10
     healthCheckPath: /api/health
     envVars:

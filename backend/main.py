@@ -11,6 +11,7 @@ from supabase import Client
 import uvicorn
 from typing import List
 import traceback
+import os
 
 from database import get_db
 from config import settings
@@ -44,6 +45,37 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "message": "Server is running"}
+
+# Debug endpoint to check versions and connections
+@app.get("/api/debug")
+async def debug_info():
+    """Debug endpoint to check system status"""
+    import supabase
+    import httpx
+
+    try:
+        from services.supabase_client import get_supabase_client
+        client = get_supabase_client()
+
+        return {
+            "status": "ok",
+            "versions": {
+                "supabase": supabase.__version__,
+                "httpx": httpx.__version__,
+            },
+            "supabase_connection": "success",
+            "environment": os.getenv("ENVIRONMENT", "unknown")
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "versions": {
+                "supabase": getattr(supabase, '__version__', 'unknown'),
+                "httpx": getattr(httpx, '__version__', 'unknown'),
+            }
+        }
 
 # CORS middleware - Allow all origins in development
 app.add_middleware(
