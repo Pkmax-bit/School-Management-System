@@ -35,7 +35,7 @@ services:
     env: node
     region: singapore  # Cùng region với backend
     plan: free
-    buildCommand: cd frontend && npm install && npm run build
+    buildCommand: cd frontend && npm install --production=false && npm run build
     startCommand: cd frontend && npm start
     healthCheckPath: /
     envVars:
@@ -49,6 +49,10 @@ services:
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: 1
 
 # Databases (Optional - nếu bạn muốn sử dụng PostgreSQL managed by Render)
 # databases:
