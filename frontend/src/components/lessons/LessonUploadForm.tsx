@@ -1,613 +1,598 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { LessonCreate, Assignment, Lesson, LessonFile } from "@/types/lesson";
-import { FileText, AlignLeft, Upload, Loader2, Clock, BookOpen, X, ExternalLink, Download } from "lucide-react";
+import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Upload,
+  X,
+  FileText,
+  Plus,
+  Loader2,
+  AlertCircle,
+  Youtube,
+  Calendar,
+  Clock
+} from "lucide-react";
+import { uploadLessonFile } from "@/lib/uploadToSupabase";
+import { DatePicker } from "@/components/ui/date-picker";
 
 interface LessonUploadFormProps {
-    classroomId: string;
-    classrooms: Array<{ id: string; name: string; code?: string }>;
-    onUploadSuccess: () => void;
-    editingLesson?: Lesson | null;
-    onCancelEdit?: () => void;
+  classroomId: string;
+  classrooms: Array<{ id: string; name: string; code?: string }>;
+  onUploadSuccess: () => void;
+  editingLesson?: any;
+  onCancelEdit?: () => void;
 }
 
-export default function LessonUploadForm({ classroomId, classrooms, onUploadSuccess, editingLesson, onCancelEdit }: LessonUploadFormProps) {
-    const { register, handleSubmit, reset, formState: { errors }, watch, setValue } = useForm<LessonCreate>();
-    const [isUploading, setIsUploading] = useState(false);
-    const [uploadError, setUploadError] = useState<string | null>(null);
-    const [uploadSuccess, setUploadSuccess] = useState(false);
-    const [sharedClassrooms, setSharedClassrooms] = useState<string[]>([]);
-    const [assignments, setAssignments] = useState<Assignment[]>([]);
-    const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("");
-    const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
-    const [nextSortOrder, setNextSortOrder] = useState<number>(1);
+const LessonUploadForm: React.FC<LessonUploadFormProps> = ({
+  classroomId,
+  classrooms,
+  onUploadSuccess,
+  editingLesson,
+  onCancelEdit,
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [youtubeUrls, setYoutubeUrls] = useState<{url: string, title: string}[]>([]);
+  const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
+  const [newYoutubeTitle, setNewYoutubeTitle] = useState("");
+  const [availableAt, setAvailableAt] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<number | undefined>();
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const selectedFiles = watch("files");
+  // Populate form when editing
+  React.useEffect(() => {
+    if (editingLesson) {
+      setTitle(editingLesson.title || "");
+      setDescription(editingLesson.description || "");
+      // For editing, we don't repopulate files since they are already uploaded
+      // Users would need to add additional files or keep existing ones
+      // Handle both old string format and new object format
+      const youtubeUrls = editingLesson.youtube_urls || [];
+      if (youtubeUrls.length > 0 && typeof youtubeUrls[0] === 'string') {
+        // Convert old format to new format
+        setYoutubeUrls(youtubeUrls.map((url: string, index: number) => ({
+          url,
+          title: `Video ${index + 1}`
+        })));
+      } else {
+        // Already in new format
+        setYoutubeUrls(youtubeUrls.map((video: any) => ({
+          url: video.url || video,
+          title: video.title || `Video ${(youtubeUrls as any[]).indexOf(video) + 1}`
+        })));
+      }
+      setAvailableAt(editingLesson.available_at ? new Date(editingLesson.available_at).toISOString().split('T')[0] : "");
+      setSortOrder(editingLesson.sort_order || undefined);
+      setIsExpanded(true);
+    }
+  }, [editingLesson]);
 
-    // Fetch assignments and get next sort_order
-    useEffect(() => {
-        const fetchData = async () => {
-            const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
-            if (!token) return;
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setSelectedFiles([]);
+    setYoutubeUrls([]);
+    setNewYoutubeUrl("");
+    setNewYoutubeTitle("");
+    setAvailableAt("");
+    setSortOrder(undefined);
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
-            setIsLoadingAssignments(true);
-            try {
-                // Fetch assignments
-                const assignmentsResponse = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons/classroom/${classroomId}/assignments`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    }
-                );
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
 
-                if (assignmentsResponse.ok) {
-                    const assignmentsData = await assignmentsResponse.json();
-                    setAssignments(assignmentsData);
-                }
+    // Check total file size (50MB limit per file)
+    const oversizedFiles = files.filter(file => file.size > 50 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      setError(`File ${oversizedFiles[0].name} vượt quá 50MB`);
+      return;
+    }
 
-                // Fetch lessons to get max sort_order
-                const lessonsResponse = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons/classroom/${classroomId}`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    }
-                );
+    // Add new files to existing ones
+    setSelectedFiles(prev => [...prev, ...files]);
+    setError(null);
+  };
 
-                if (lessonsResponse.ok) {
-                    const lessonsData = await lessonsResponse.json();
-                    if (lessonsData && lessonsData.length > 0) {
-                        // Find max sort_order
-                        const maxSortOrder = Math.max(
-                            ...lessonsData.map((l: any) => l.sort_order ?? 0)
-                        );
-                        const nextOrder = maxSortOrder + 1;
-                        setNextSortOrder(nextOrder);
-                        setValue("sort_order", nextOrder);
-                    } else {
-                        setNextSortOrder(1);
-                        setValue("sort_order", 1);
-                    }
-                }
-            } catch (err) {
-                console.error("Failed to fetch data:", err);
-            } finally {
-                setIsLoadingAssignments(false);
-            }
-        };
+  const addYoutubeUrl = () => {
+    if (newYoutubeUrl.trim()) {
+      // Basic YouTube URL validation
+      const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)[a-zA-Z0-9_-]{11}/;
+      if (!youtubeRegex.test(newYoutubeUrl.trim())) {
+        setError("URL YouTube không hợp lệ");
+        return;
+      }
 
-        fetchData();
-    }, [classroomId]);
+      setYoutubeUrls([...youtubeUrls, {
+        url: newYoutubeUrl.trim(),
+        title: newYoutubeTitle.trim() || `Video ${youtubeUrls.length + 1}`
+      }]);
+      setNewYoutubeUrl("");
+      setNewYoutubeTitle("");
+      setError(null);
+    }
+  };
 
-    // Load lesson data when editing
-    useEffect(() => {
-        if (editingLesson) {
-            // Convert available_at to datetime-local format
-            let availableAtLocal = "";
-            if (editingLesson.available_at) {
-                const date = new Date(editingLesson.available_at);
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                const hours = String(date.getHours()).padStart(2, '0');
-                const minutes = String(date.getMinutes()).padStart(2, '0');
-                availableAtLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
-            }
+  const removeYoutubeUrl = (index: number) => {
+    setYoutubeUrls(youtubeUrls.filter((_, i) => i !== index));
+  };
 
-            reset({
-                title: editingLesson.title,
-                description: editingLesson.description || "",
-                sort_order: editingLesson.sort_order ?? nextSortOrder,
-                available_at: availableAtLocal,
-            });
-            setSelectedAssignmentId(editingLesson.assignment_id || "");
-            setSharedClassrooms(editingLesson.shared_classroom_ids || []);
-        } else {
-            // Reset form for new lesson
-            reset();
-            setSharedClassrooms([]);
-            setSelectedAssignmentId("");
-            setValue("sort_order", nextSortOrder);
+  const updateYoutubeTitle = (index: number, title: string) => {
+    const updated = [...youtubeUrls];
+    updated[index] = { ...updated[index], title };
+    setYoutubeUrls(updated);
+  };
+
+  const extractYoutubeId = (url: string): string => {
+    const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : "";
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!title.trim()) {
+      setError("Vui lòng nhập tiêu đề bài học");
+      return;
+    }
+
+    if (selectedFiles.length === 0 && !description.trim() && youtubeUrls.length === 0) {
+      setError("Vui lòng tải lên file, nhập mô tả hoặc thêm video YouTube");
+      return;
+    }
+
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      // Upload all selected files
+      const uploadedFiles = [];
+      for (const file of selectedFiles) {
+        const uploadResult = await uploadLessonFile(file, classroomId);
+        if (uploadResult.error) {
+          throw new Error(`Upload failed for ${file.name}: ${uploadResult.error}`);
         }
-    }, [editingLesson, nextSortOrder, reset, setValue]);
+        uploadedFiles.push({
+          url: uploadResult.url,
+          name: file.name,
+          path: uploadResult.path,
+          size: file.size,
+          type: file.type
+        });
+      }
 
-    const onSubmit = async (data: LessonCreate) => {
-        // Get token from localStorage
-        const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+      // Prepare lesson data with multiple files
+      let finalFileUrls: string[] = [];
+      let finalFileNames: string[] = [];
+      let finalStoragePaths: string[] = [];
 
-        if (!token) {
-            setUploadError('Bạn cần đăng nhập để tải lên bài học');
-            return;
-        }
+      if (editingLesson) {
+        // For updates, append new files to existing ones
+        const existingUrls = editingLesson.file_urls || (editingLesson.file_url ? [editingLesson.file_url] : []);
+        const existingNames = editingLesson.file_names || (editingLesson.file_name ? [editingLesson.file_name] : []);
+        const existingPaths = editingLesson.storage_paths || (editingLesson.storage_path ? [editingLesson.storage_path] : []);
 
-        setIsUploading(true);
-        setUploadError(null);
-        setUploadSuccess(false);
+        finalFileUrls = [...existingUrls, ...uploadedFiles.map(f => f.url)];
+        finalFileNames = [...existingNames, ...uploadedFiles.map(f => f.name)];
+        finalStoragePaths = [...existingPaths, ...uploadedFiles.map(f => f.path)];
+      } else {
+        // For new lessons, use only uploaded files
+        finalFileUrls = uploadedFiles.map(f => f.url);
+        finalFileNames = uploadedFiles.map(f => f.name);
+        finalStoragePaths = uploadedFiles.map(f => f.path);
+      }
 
-        // If editing, use PUT request
-        if (editingLesson) {
-            const formData = new FormData();
-            formData.append("title", data.title);
-            if (data.description !== undefined) {
-                formData.append("description", data.description || "");
-            }
-            if (typeof data.sort_order === "number" && !Number.isNaN(data.sort_order)) {
-                formData.append("sort_order", data.sort_order.toString());
-            }
-            if (data.available_at) {
-                const localDateTime = new Date(data.available_at);
-                const offsetMs = localDateTime.getTimezoneOffset() * 60000;
-                const offsetHours = Math.floor(Math.abs(offsetMs) / 3600000);
-                const offsetMinutes = Math.floor((Math.abs(offsetMs) % 3600000) / 60000);
-                const offsetSign = offsetMs <= 0 ? '+' : '-';
-                const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMinutes).padStart(2, '0')}`;
-                const isoString = `${data.available_at}:00${offsetString}`;
-                formData.append("available_at", isoString);
-            } else {
-                formData.append("available_at", "");
-            }
-            if (selectedAssignmentId) {
-                formData.append("assignment_id", selectedAssignmentId);
-            } else {
-                formData.append("assignment_id", "");
-            }
-            if (sharedClassrooms.length > 0) {
-                sharedClassrooms.forEach((id) => formData.append("shared_classroom_ids", id));
-            }
-            // Only append files if new files are selected
-            const fileList = data.files as unknown as FileList;
-            if (fileList && fileList.length > 0) {
-                for (let i = 0; i < fileList.length; i++) {
-                    formData.append("files", fileList[i]);
-                }
-            }
+      const lessonData = {
+        classroom_id: classroomId,
+        title: title.trim(),
+        description: description.trim() || null,
+        file_urls: finalFileUrls,
+        file_names: finalFileNames,
+        storage_paths: finalStoragePaths,
+        youtube_urls: youtubeUrls.length > 0 ? youtubeUrls.map(v => ({ url: v.url, title: v.title })) : [],
+        available_at: availableAt ? new Date(availableAt).toISOString() : null,
+        sort_order: sortOrder || 0,
+        shared_classroom_ids: editingLesson?.shared_classroom_ids || [],
+      };
 
-            try {
-                const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons/${editingLesson.id}`,
-                    {
-                        method: "PUT",
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                        body: formData,
-                    }
-                );
+      // Get auth token
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error("Không tìm thấy token xác thực");
+      }
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || "Không thể cập nhật bài học");
-                }
+      // Create or update lesson record
+      const method = editingLesson ? "PUT" : "POST";
+      const url = editingLesson
+        ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons/${editingLesson.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons`;
 
-                setUploadSuccess(true);
-                reset();
-                setSharedClassrooms([]);
-                setSelectedAssignmentId("");
-                setValue("sort_order", nextSortOrder);
-                setTimeout(() => setUploadSuccess(false), 3000);
-                if (onCancelEdit) onCancelEdit();
-                onUploadSuccess();
-            } catch (err: any) {
-                setUploadError(err.message);
-            } finally {
-                setIsUploading(false);
-            }
-        } else {
-            // Create new lesson
-            const formData = new FormData();
-            formData.append("classroom_id", classroomId);
-            formData.append("title", data.title);
-            if (data.description) {
-                formData.append("description", data.description);
-            }
-            if (typeof data.sort_order === "number" && !Number.isNaN(data.sort_order)) {
-                formData.append("sort_order", data.sort_order.toString());
-            }
-            if (data.available_at) {
-                const localDateTime = new Date(data.available_at);
-                const offsetMs = localDateTime.getTimezoneOffset() * 60000;
-                const offsetHours = Math.floor(Math.abs(offsetMs) / 3600000);
-                const offsetMinutes = Math.floor((Math.abs(offsetMs) % 3600000) / 60000);
-                const offsetSign = offsetMs <= 0 ? '+' : '-';
-                const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMinutes).padStart(2, '0')}`;
-                const isoString = `${data.available_at}:00${offsetString}`;
-                formData.append("available_at", isoString);
-            }
-            if (selectedAssignmentId) {
-                formData.append("assignment_id", selectedAssignmentId);
-            }
-            sharedClassrooms.forEach((id) => formData.append("shared_classroom_ids", id));
-            const fileList = data.files as unknown as FileList;
-            for (let i = 0; i < fileList.length; i++) {
-                formData.append("files", fileList[i]);
-            }
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(lessonData),
+      });
 
-            try {
-                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons/upload`, {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: formData,
-                });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Không thể ${editingLesson ? 'cập nhật' : 'tạo'} bài học`);
+      }
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || "Không thể tải lên bài học");
-                }
+      // Success
+      if (editingLesson && onCancelEdit) {
+        onCancelEdit();
+      }
+      resetForm();
+      setIsExpanded(false);
+      onUploadSuccess();
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      setError(err.message || "Có lỗi xảy ra khi tải lên bài học");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
-                setUploadSuccess(true);
-                reset();
-                setSharedClassrooms([]);
-                setSelectedAssignmentId("");
-                setValue("sort_order", nextSortOrder + 1);
-                setNextSortOrder(nextSortOrder + 1);
-                setTimeout(() => setUploadSuccess(false), 3000);
-                onUploadSuccess();
-            } catch (err: any) {
-                setUploadError(err.message);
-            } finally {
-                setIsUploading(false);
-            }
-        }
-    };
+  const getFileIcon = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const iconClass = "w-5 h-5";
 
+    switch (ext) {
+      case 'pdf':
+        return <FileText className={`${iconClass} text-red-500`} />;
+      case 'doc':
+      case 'docx':
+        return <FileText className={`${iconClass} text-blue-500`} />;
+      case 'xls':
+      case 'xlsx':
+        return <FileText className={`${iconClass} text-green-500`} />;
+      case 'ppt':
+      case 'pptx':
+        return <FileText className={`${iconClass} text-orange-500`} />;
+      default:
+        return <FileText className={`${iconClass} text-gray-500`} />;
+    }
+  };
+
+  if (!isExpanded) {
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Edit Mode Header */}
-            {editingLesson && (
-                <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mb-4">
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-blue-900">Đang sửa bài học:</span>
-                        <span className="text-sm text-blue-700">{editingLesson.title}</span>
-                    </div>
-                    {onCancelEdit && (
-                        <button
-                            type="button"
-                            onClick={onCancelEdit}
-                            className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
-                            title="Hủy sửa"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    )}
-                </div>
-            )}
-
-            {/* Title Field */}
-            <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    Tiêu đề bài học <span className="text-red-500">*</span>
-                </label>
-                <input
-                    type="text"
-                    {...register("title", { required: "Tiêu đề là bắt buộc" })}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Nhập tiêu đề bài học..."
-                />
-                {errors.title && <p className="text-red-500 text-sm flex items-center gap-1">
-                    <span className="text-xs">⚠</span> {errors.title.message as string}
-                </p>}
-            </div>
-
-            {/* Description Field */}
-            <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <AlignLeft className="w-4 h-4 text-blue-600" />
-                    Mô tả
-                </label>
-                <textarea
-                    {...register("description")}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
-                    placeholder="Mô tả chi tiết về bài học (tùy chọn)..."
-                    rows={4}
-                />
-            </div>
-
-            {/* Sort Order Field */}
-            <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-blue-50 text-blue-600 text-xs font-semibold">#</span>
-                    Thứ tự hiển thị
-                </label>
-                <input
-                    type="number"
-                    min={1}
-                    {...register("sort_order", { 
-                        valueAsNumber: true,
-                        value: nextSortOrder,
-                        setValueAs: (v) => v === '' ? nextSortOrder : parseInt(v, 10)
-                    })}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder={`Tự động: ${nextSortOrder}`}
-                />
-                <p className="text-xs text-gray-500">
-                    Số thứ tự tự động điền dựa trên bài học trước đó. Bắt đầu từ 1.
-                </p>
-            </div>
-
-            {/* Available At Field */}
-            <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <Clock className="w-4 h-4 text-blue-600" />
-                    Ngày giờ mở bài học
-                </label>
-                <input
-                    type="datetime-local"
-                    {...register("available_at")}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-                <p className="text-xs text-gray-500">
-                    Chọn ngày giờ để mở bài học cho học sinh. Nếu để trống, bài học sẽ mở ngay lập tức.
-                </p>
-            </div>
-
-            {/* Assignment Link Field */}
-            {assignments.length > 0 && (
-                <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                        <BookOpen className="w-4 h-4 text-blue-600" />
-                        Liên kết bài tập (tùy chọn)
-                    </label>
-                    <select
-                        value={selectedAssignmentId}
-                        onChange={(e) => setSelectedAssignmentId(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
-                    >
-                        <option value="">-- Không liên kết bài tập --</option>
-                        {assignments.map((assignment) => (
-                            <option key={assignment.id} value={assignment.id}>
-                                {assignment.title} ({assignment.assignment_type === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'})
-                                {assignment.total_points && ` - ${assignment.total_points} điểm`}
-                            </option>
-                        ))}
-                    </select>
-                    <p className="text-xs text-gray-500">
-                        Chọn bài tập để gắn liên kết vào bài học. Học sinh có thể truy cập bài tập từ bài học này.
-                    </p>
-                </div>
-            )}
-
-            {/* File Upload Field */}
-            <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <Upload className="w-4 h-4 text-blue-600" />
-                    Tệp tin tài liệu {!editingLesson && <span className="text-red-500">*</span>}
-                </label>
-                
-                {/* Current Files Display (when editing) */}
-                {editingLesson && (editingLesson.files && editingLesson.files.length > 0 || editingLesson.file_name) && (
-                    <div className="space-y-2">
-                        <p className="text-xs font-medium text-blue-700">File hiện tại ({editingLesson.files?.length || 1}):</p>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {editingLesson.files && editingLesson.files.length > 0 ? (
-                                editingLesson.files.map((file, index) => (
-                                    <div key={file.id} className="flex items-center justify-between gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                                            <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                <FileText className="w-5 h-5 text-blue-600" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-900 truncate">
-                                                    {file.file_name}
-                                                </p>
-                                                <p className="text-xs text-gray-500 mt-0.5">
-                                                    {file.file_size ? `(${(file.file_size / 1024 / 1024).toFixed(2)} MB)` : ''} • Thứ tự: {file.sort_order + 1}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                            {file.file_url && (
-                                                <>
-                                                    <a
-                                                        href={file.file_url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded transition-colors"
-                                                        title="Xem file"
-                                                    >
-                                                        <ExternalLink className="w-4 h-4" />
-                                                    </a>
-                                                    <a
-                                                        href={file.file_url}
-                                                        download={file.file_name}
-                                                        className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded transition-colors"
-                                                        title="Tải xuống"
-                                                    >
-                                                        <Download className="w-4 h-4" />
-                                                    </a>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))
-                            ) : editingLesson.file_name ? (
-                                <div className="flex items-center justify-between gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                            <FileText className="w-5 h-5 text-blue-600" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-gray-900 truncate">
-                                                {editingLesson.file_name}
-                                            </p>
-                                            <p className="text-xs text-gray-500 mt-0.5">File hiện tại</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                        {editingLesson.file_url && (
-                                            <>
-                                                <a
-                                                    href={editingLesson.file_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded transition-colors"
-                                                    title="Xem file"
-                                                >
-                                                    <ExternalLink className="w-4 h-4" />
-                                                </a>
-                                                <a
-                                                    href={editingLesson.file_url}
-                                                    download={editingLesson.file_name}
-                                                    className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded transition-colors"
-                                                    title="Tải xuống"
-                                                >
-                                                    <Download className="w-4 h-4" />
-                                                </a>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
-                    </div>
-                )}
-
-                <div className="relative">
-                    <input
-                        type="file"
-                        multiple
-                        {...register("files", { required: !editingLesson ? "Vui lòng chọn ít nhất một tệp tin" : false })}
-                        className="w-full text-sm text-gray-600 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:cursor-pointer cursor-pointer border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar"
-                    />
-                    {editingLesson && (
-                        <p className="text-xs text-gray-500 mt-1">
-                            Chọn file mới để thay thế file hiện tại. Để trống nếu không muốn thay đổi.
-                        </p>
-                    )}
-                </div>
-                
-                {/* New Files Selected Display */}
-                {selectedFiles && (selectedFiles as unknown as FileList).length > 0 && (
-                    <div className="space-y-2">
-                        <p className="text-xs font-medium text-green-700">File mới đã chọn ({(selectedFiles as unknown as FileList).length}):</p>
-                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                            {Array.from(selectedFiles as unknown as FileList).map((file, index) => (
-                                <div key={index} className="flex items-center gap-2 text-sm text-gray-600 bg-green-50 border border-green-200 px-3 py-2 rounded-lg">
-                                    <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
-                                    <span className="truncate flex-1">{file.name}</span>
-                                    <span className="text-xs text-gray-500 flex-shrink-0">
-                                        ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                
-                {errors.files && <p className="text-red-500 text-sm flex items-center gap-1">
-                    <span className="text-xs">⚠</span> {errors.files.message as string}
-                </p>}
-                <p className="text-xs text-gray-500">
-                    Hỗ trợ: PDF, Word, PowerPoint, Excel, Text, ZIP (Tối đa 50MB)
-                </p>
-            </div>
-
-            {/* Shared Classrooms */}
-            {classrooms.length > 1 && (
-                <div className="space-y-3 border border-dashed border-gray-200 rounded-xl p-4 bg-gray-50/60">
-                    <div className="space-y-1">
-                        <p className="text-sm font-medium text-gray-700">Chia sẻ cho lớp khác</p>
-                        <p className="text-xs text-gray-500">
-                            Bạn chỉ có thể chọn các lớp do mình quản lý. Lớp hiện tại đã được chọn mặc định.
-                        </p>
-                    </div>
-                    <div className="grid sm:grid-cols-2 gap-2">
-                        {classrooms.filter(cls => cls.id !== classroomId).map((cls) => {
-                            const checked = sharedClassrooms.includes(cls.id);
-                            return (
-                                <label key={cls.id} className={`flex items-start gap-3 p-3 rounded-lg border transition ${checked ? "border-blue-500 bg-white shadow-sm" : "border-gray-200 bg-white/60 hover:border-blue-200"}`}>
-                                    <input
-                                        type="checkbox"
-                                        className="mt-1"
-                                        checked={checked}
-                                        onChange={(e) => {
-                                            setSharedClassrooms((prev) => {
-                                                if (e.target.checked) {
-                                                    return [...prev, cls.id];
-                                                }
-                                                return prev.filter(id => id !== cls.id);
-                                            });
-                                        }}
-                                    />
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium text-gray-800">{cls.name}</p>
-                                        {cls.code && <p className="text-xs text-gray-500">{cls.code}</p>}
-                                    </div>
-                                </label>
-                            );
-                        })}
-                        {classrooms.filter(cls => cls.id !== classroomId).length === 0 && (
-                            <p className="text-sm text-gray-500">Không có lớp khác để chia sẻ.</p>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Error Message */}
-            {uploadError && (
-                <div className="flex items-start gap-2 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-                    <span className="text-lg">⚠</span>
-                    <span>{uploadError}</span>
-                </div>
-            )}
-
-            {/* Success Message */}
-            {uploadSuccess && (
-                <div className="flex items-start gap-2 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
-                    <span className="text-lg">✓</span>
-                    <span>Tải lên bài học thành công!</span>
-                </div>
-            )}
-
-            {/* Submit Button */}
-            <div className="flex gap-3">
-                {editingLesson && onCancelEdit && (
-                    <Button
-                        type="button"
-                        onClick={onCancelEdit}
-                        variant="outline"
-                        disabled={isUploading}
-                        className="flex-1"
-                    >
-                        Hủy
-                    </Button>
-                )}
-                <Button
-                    type="submit"
-                    disabled={isUploading}
-                    className={`${editingLesson ? 'flex-1' : 'w-full'} py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
-                >
-                    {isUploading ? (
-                        <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            {editingLesson ? 'Đang cập nhật...' : 'Đang tải lên...'}
-                        </>
-                    ) : (
-                        <>
-                            {editingLesson ? (
-                                <>
-                                    <FileText className="w-5 h-5" />
-                                    Cập nhật bài học
-                                </>
-                            ) : (
-                                <>
-                                    <Upload className="w-5 h-5" />
-                                    Tải lên bài học
-                                </>
-                            )}
-                        </>
-                    )}
-                </Button>
-            </div>
-        </form>
+      <Card className="border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors">
+        <CardContent className="p-6">
+          <div className="text-center">
+            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Tải lên bài học mới
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Upload file, thêm mô tả hoặc chia sẻ video YouTube
+            </p>
+            <Button
+              onClick={() => setIsExpanded(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Thêm bài học
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
-}
+  }
+
+  return (
+    <Card className="border-blue-200 bg-blue-50/30">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Upload className="w-5 h-5 text-blue-600" />
+            {editingLesson ? "Chỉnh sửa bài học" : "Tải lên bài học mới"}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {editingLesson && onCancelEdit && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onCancelEdit}
+                className="text-gray-600"
+              >
+                Hủy chỉnh sửa
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                resetForm();
+                setIsExpanded(false);
+                if (editingLesson && onCancelEdit) {
+                  onCancelEdit();
+                }
+              }}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Title */}
+          <div>
+            <Label htmlFor="title" className="text-sm font-medium">
+              Tiêu đề bài học <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Nhập tiêu đề bài học..."
+              className="mt-1"
+              required
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <Label htmlFor="description" className="text-sm font-medium">
+              Mô tả bài học
+            </Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Nhập mô tả chi tiết về bài học..."
+              className="mt-1 min-h-20"
+              rows={3}
+            />
+          </div>
+
+          {/* File Upload */}
+          <div>
+            <Label className="text-sm font-medium">File bài học</Label>
+            <div className="mt-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar,.png,.jpg,.jpeg,.gif,.bmp,.webp,.svg"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-20 border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors"
+              >
+                <div className="text-center">
+                  <Upload className="w-6 h-6 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">
+                    {selectedFiles.length > 0
+                      ? `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} đã chọn`
+                      : "Chọn file để tải lên"
+                    }
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    PDF, Word, PowerPoint, Excel, TXT, ZIP, hình ảnh (tối đa 50MB)
+                  </p>
+                </div>
+              </Button>
+            </div>
+
+            {selectedFiles.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {selectedFiles.map((file, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                    {getFileIcon(file.name)}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {(file.size / (1024 * 1024)).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+                      }}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                {selectedFiles.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedFiles([]);
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                      }
+                    }}
+                    className="text-red-500 hover:text-red-700 text-xs"
+                  >
+                    Xóa tất cả
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* YouTube URLs */}
+          <div>
+            <Label className="text-sm font-medium">Video YouTube</Label>
+            <div className="mt-1 space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <Input
+                  value={newYoutubeUrl}
+                  onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="flex-1"
+                />
+                <div className="flex gap-2">
+                  <Input
+                    value={newYoutubeTitle}
+                    onChange={(e) => setNewYoutubeTitle(e.target.value)}
+                    placeholder="Tên video (tùy chọn)"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    onClick={addYoutubeUrl}
+                    variant="outline"
+                    size="sm"
+                    disabled={!newYoutubeUrl.trim()}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {youtubeUrls.length > 0 && (
+                <div className="space-y-2">
+                  {youtubeUrls.map((video, index) => (
+                    <div key={index} className="p-3 bg-red-50 rounded-lg border border-red-100">
+                      <div className="flex items-start gap-3">
+                        <Youtube className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <Input
+                            value={video.title}
+                            onChange={(e) => updateYoutubeTitle(index, e.target.value)}
+                            placeholder="Tên video"
+                            className="text-sm font-medium bg-white"
+                          />
+                          <div className="space-y-1">
+                            <p className="text-xs text-gray-600 truncate">
+                              ID: {extractYoutubeId(video.url)}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">{video.url}</p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeYoutubeUrl(index)}
+                          className="text-red-500 hover:text-red-700 flex-shrink-0"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Advanced Options */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+            <div>
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Ngày mở bài học
+              </Label>
+              <div className="mt-1">
+                <DatePicker
+                  value={availableAt}
+                  onChange={setAvailableAt}
+                  placeholder="Chọn ngày mở bài học..."
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Để trống nếu muốn bài học mở ngay lập tức
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="sortOrder" className="text-sm font-medium">
+                Thứ tự sắp xếp
+              </Label>
+              <Input
+                id="sortOrder"
+                type="number"
+                value={sortOrder || ""}
+                onChange={(e) => setSortOrder(e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="0"
+                className="mt-1"
+                min="0"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Số nhỏ hơn sẽ hiển thị trước
+              </p>
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Submit Buttons */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                resetForm();
+                setIsExpanded(false);
+              }}
+              disabled={isUploading}
+            >
+              Hủy bỏ
+            </Button>
+            <Button
+              type="submit"
+              disabled={isUploading || !title.trim()}
+              className="bg-blue-600 hover:bg-blue-700 min-w-32"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Đang tải lên...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Tải lên
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default LessonUploadForm;

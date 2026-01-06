@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useApiAuth } from '@/hooks/useApiAuth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -48,6 +48,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const { user } = useApiAuth();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [displayedNotifications, setDisplayedNotifications] = useState<Set<string>>(new Set());
+    const [consecutiveErrors, setConsecutiveErrors] = useState(0);
+    const [isFetching, setIsFetching] = useState(false);
+    const consecutiveErrorsRef = useRef(0);
+    const isFetchingRef = useRef(false);
 
     // Load displayed notifications from localStorage on mount
     useEffect(() => {
@@ -69,6 +73,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             return;
         }
 
+        // If we've had too many consecutive errors, skip this fetch to avoid spam
+        if (consecutiveErrorsRef.current >= 5) {
+            return;
+        }
+
+        // Prevent multiple simultaneous fetches
+        if (isFetchingRef.current) {
+            return;
+        }
+
+        isFetchingRef.current = true;
+        setIsFetching(true);
         try {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
             // Admin xem tất cả thông báo chưa đọc, teacher/student chỉ xem của mình
@@ -80,31 +96,87 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             });
 
             if (res.ok) {
-                const data = await res.json();
-                const newNotifications = Array.isArray(data) ? data : [];
-                setNotifications(newNotifications);
+                try {
+                    const data = await res.json();
+                    const newNotifications = Array.isArray(data) ? data : [];
+                    setNotifications(newNotifications);
+                    // Reset error count on success
+                    consecutiveErrorsRef.current = 0;
+                    setConsecutiveErrors(0);
+                } catch (parseError) {
+                    // If response is ok but JSON parsing fails, just log and continue
+                    console.warn('Failed to parse notifications response:', parseError);
+                    setNotifications([]);
+                    consecutiveErrorsRef.current += 1;
+                    setConsecutiveErrors(prev => prev + 1);
+                }
+            } else {
+                // If response is not ok, check if it's a client error (4xx) or server error (5xx)
+                // For 4xx errors, we might want to clear notifications or keep existing ones
+                // For 5xx errors, we keep existing notifications
+                if (res.status >= 400 && res.status < 500) {
+                    // Client error - might be auth issue, but don't clear notifications
+                    console.warn('Client error fetching notifications:', res.status);
+                } else {
+                    // Server error - keep existing notifications
+                    console.warn('Server error fetching notifications:', res.status);
+                }
+                consecutiveErrorsRef.current += 1;
+                setConsecutiveErrors(prev => prev + 1);
             }
         } catch (error) {
-            console.error('Error fetching notifications:', error);
+            // Network error or fetch failed - this is expected if backend is down
+            // Silently fail and keep existing notifications
+            if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                // Network error - backend might be down, silently skip
+                // Only log in debug mode to avoid console spam
+                if (consecutiveErrorsRef.current === 0) {
+                    console.debug('Network error fetching notifications (backend may be unavailable)');
+                }
+            } else {
+                console.error('Error fetching notifications:', error);
+            }
+            // Increment error count
+            consecutiveErrorsRef.current += 1;
+            setConsecutiveErrors(prev => prev + 1);
+            // Don't clear notifications on error - keep existing ones
+        } finally {
+            isFetchingRef.current = false;
+            setIsFetching(false);
         }
     }, [user]);
 
-    // Poll for new notifications every 30 seconds
+    // Poll for new notifications every 60 seconds (reduced frequency to avoid spam)
     useEffect(() => {
         if (!user || (user.role !== 'teacher' && user.role !== 'student' && user.role !== 'admin')) {
             return;
         }
 
-        // Initial load
-        refreshNotifications();
+        // Reset error count when user changes
+        consecutiveErrorsRef.current = 0;
+        setConsecutiveErrors(0);
 
-        // Poll every 30 seconds
-        const interval = setInterval(() => {
+        // Initial load with a small delay to avoid immediate fetch on mount
+        const initialTimer = setTimeout(() => {
             refreshNotifications();
-        }, 30000);
+        }, 1000);
 
-        return () => clearInterval(interval);
-    }, [user, refreshNotifications]);
+        // Poll every 60 seconds (increased from 30s to reduce server load)
+        const interval = setInterval(() => {
+            // Use refs to check current values without causing re-renders
+            if (consecutiveErrorsRef.current < 5 && !isFetchingRef.current) {
+                refreshNotifications();
+            }
+        }, 60000); // 60 seconds instead of 30
+
+        return () => {
+            clearInterval(interval);
+            clearTimeout(initialTimer);
+        };
+        // Only depend on user to avoid recreating interval unnecessarily
+        // refreshNotifications is stable due to useCallback
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]);
 
     const markAsRead = useCallback(async (id: string) => {
         try {
@@ -193,6 +265,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             }
         }
     }, [displayedNotifications.size]);
+
+    // Reset error count after 5 minutes to allow retry if backend comes back online
+    useEffect(() => {
+        if (consecutiveErrors >= 5) {
+            const resetTimer = setTimeout(() => {
+                consecutiveErrorsRef.current = 0;
+                setConsecutiveErrors(0);
+            }, 5 * 60 * 1000); // 5 minutes
+
+            return () => clearTimeout(resetTimer);
+        }
+    }, [consecutiveErrors]);
 
     return (
         <NotificationContext.Provider

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Template - Tạo Template với 2 Bài học và 2 Bài tập</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 2px solid #90caf9;
+        }
+        
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+            border: 2px solid #81c784;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border: 2px solid #ef5350;
+        }
+        
+        .status.warning {
+            background: #fff3e0;
+            color: #f57c00;
+            border: 2px solid #ffb74d;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .log-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-top: 20px;
+        }
+        
+        .log-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .log-container::-webkit-scrollbar-track {
+            background: #2d2d2d;
+        }
+        
+        .log-container::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+        
+        .log-line {
+            margin-bottom: 8px;
+            word-wrap: break-word;
+        }
+        
+        .log-success { color: #4caf50; }
+        .log-error { color: #f44336; }
+        .log-warning { color: #ff9800; }
+        .log-info { color: #2196f3; }
+        
+        .result-summary {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+        
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .result-label {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .result-value {
+            color: #666;
+        }
+        
+        .result-value.success {
+            color: #4caf50;
+            font-weight: 600;
+        }
+        
+        .result-value.error {
+            color: #f44336;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Tạo Template</h1>
+        <p class="subtitle">Tự động tạo template với 2 bài học và 2 bài tập</p>
+        
+        <div id="status" class="status info">
+            ⏳ Sẵn sàng để test. Nhấn nút bên dưới để bắt đầu.
+        </div>
+        
+        <button id="testBtn" onclick="runTest()">
+            🚀 Bắt đầu Test
+        </button>
+        
+        <div id="logContainer" class="log-container" style="display: none;">
+            <div id="logContent"></div>
+        </div>
+        
+        <div id="resultSummary" class="result-summary" style="display: none;">
+            <h3 style="margin-bottom: 15px;">📊 Kết quả Test</h3>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        let logs = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logLine = `[${timestamp}] ${message}`;
+            logs.push({ message: logLine, type });
+            
+            const logContent = document.getElementById('logContent');
+            const logContainer = document.getElementById('logContainer');
+            
+            if (logContent) {
+                const div = document.createElement('div');
+                div.className = `log-line log-${type}`;
+                div.textContent = logLine;
+                logContent.appendChild(div);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+            
+            console.log(logLine);
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.textContent = message;
+        }
+        
+        function updateResult(result) {
+            const resultSummary = document.getElementById('resultSummary');
+            const resultContent = document.getElementById('resultContent');
+            
+            if (result.error) {
+                resultContent.innerHTML = `
+                    <div class="result-item">
+                        <span class="result-label">Trạng thái:</span>
+                        <span class="result-value error">❌ Lỗi</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Chi tiết:</span>
+                        <span class="result-value error">${result.error}</span>
+                    </div>
+                `;
+            } else {
+                resultContent.innerHTML = `
+                    <div class="result-item">
+                        <span class="result-label">Template ID:</span>
+                        <span class="result-value">${result.templateId || 'N/A'}</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Số bài học:</span>
+                        <span class="result-value ${result.lessonsCount === 2 ? 'success' : 'error'}">
+                            ${result.lessonsCount}/2
+                        </span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Số bài tập:</span>
+                        <span class="result-value ${result.assignmentsCount === 2 ? 'success' : 'error'}">
+                            ${result.assignmentsCount}/2
+                        </span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Kết quả:</span>
+                        <span class="result-value ${result.success ? 'success' : 'error'}">
+                            ${result.success ? '✅ THÀNH CÔNG' : '⚠️ CHƯA HOÀN TẤT'}
+                        </span>
+                    </div>
+                `;
+            }
+            
+            resultSummary.style.display = 'block';
+        }
+        
+        async function runTest() {
+            const btn = document.getElementById('testBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Đang chạy test...';
+            
+            const logContainer = document.getElementById('logContainer');
+            logContainer.style.display = 'block';
+            document.getElementById('logContent').innerHTML = '';
+            logs = [];
+            
+            updateStatus('🔄 Đang kiểm tra authentication...', 'info');
+            log('🧪 Bắt đầu test tạo template với 2 bài học và 2 bài tập...', 'info');
+            
+            // Hàm đăng nhập tự động
+            async function login() {
+                log('🔐 Đang đăng nhập tự động...', 'info');
+                const loginData = {
+                    email: 'admin@school.com',
+                    password: 'password123'
+                };
+                
+                const loginRes = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(loginData)
+                });
+                
+                if (!loginRes.ok) {
+                    const errorText = await loginRes.text().catch(() => 'Unknown error');
+                    throw new Error(`Không thể đăng nhập: ${errorText}`);
+                }
+                
+                const loginResult = await loginRes.json();
+                const newToken = loginResult.access_token;
+                localStorage.setItem('auth_token', newToken);
+                localStorage.setItem('access_token', newToken);
+                log('✅ Đăng nhập thành công!', 'success');
+                return newToken;
+            }
+            
+            // Lấy token hoặc đăng nhập
+            let token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+            
+            // Kiểm tra token có hợp lệ không bằng cách thử request
+            if (token) {
+                log('🔍 Đang kiểm tra token...', 'info');
+                const testRes = await fetch(`${API_BASE_URL}/api/subjects/`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }).catch(() => ({ ok: false, status: 0 }));
+                
+                if (!testRes.ok || testRes.status === 401) {
+                    log('⚠️ Token không hợp lệ hoặc đã hết hạn. Đang đăng nhập lại...', 'warning');
+                    token = await login();
+                } else {
+                    log('✅ Token hợp lệ!', 'success');
+                }
+            } else {
+                log('⚠️ Không tìm thấy token. Đang đăng nhập...', 'warning');
+                token = await login();
+            }
+            
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+            
+            try {
+                // Bước 1: Lấy danh sách subjects và teachers
+                updateStatus('📋 Đang lấy danh sách môn học và giáo viên...', 'info');
+                log('📋 Bước 1: Lấy danh sách môn học và giáo viên...', 'info');
+                
+                const [subjectsRes, teachersRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/api/subjects/`, { headers }).catch(e => ({ ok: false, error: e })),
+                    fetch(`${API_BASE_URL}/api/teachers/`, { headers }).catch(e => ({ ok: false, error: e }))
+                ]);
+                
+                let subjects, teachers;
+                
+                if (!subjectsRes.ok) {
+                    const errorText = subjectsRes.error ? subjectsRes.error.message : await subjectsRes.text().catch(() => 'Unknown error');
+                    // Nếu vẫn lỗi 401, thử đăng nhập lại một lần nữa
+                    if (subjectsRes.status === 401 || (typeof errorText === 'string' && errorText.includes('credentials'))) {
+                        log('⚠️ Token vẫn không hợp lệ. Đang đăng nhập lại...', 'warning');
+                        token = await login();
+                        headers.Authorization = `Bearer ${token}`;
+                        // Thử lại cả subjects và teachers
+                        const [retrySubjectsRes, retryTeachersRes] = await Promise.all([
+                            fetch(`${API_BASE_URL}/api/subjects/`, { headers }),
+                            fetch(`${API_BASE_URL}/api/teachers/`, { headers })
+                        ]);
+                        if (!retrySubjectsRes.ok) {
+                            throw new Error(`Không thể lấy danh sách subjects sau khi đăng nhập lại: ${await retrySubjectsRes.text()}`);
+                        }
+                        if (!retryTeachersRes.ok) {
+                            throw new Error(`Không thể lấy danh sách teachers: ${await retryTeachersRes.text()}`);
+                        }
+                        subjects = await retrySubjectsRes.json();
+                        teachers = await retryTeachersRes.json();
+                        log(`✅ Tìm thấy ${subjects.length} môn học, ${teachers.length} giáo viên`, 'success');
+                    } else {
+                        throw new Error(`Không thể lấy danh sách subjects: ${errorText}`);
+                    }
+                } else {
+                    if (!teachersRes.ok) {
+                        const errorText = teachersRes.error ? teachersRes.error.message : await teachersRes.text().catch(() => 'Unknown error');
+                        throw new Error(`Không thể lấy danh sách teachers: ${errorText}`);
+                    }
+                    subjects = await subjectsRes.json();
+                    teachers = await teachersRes.json();
+                }
+                
+                const subjectId = subjects && subjects.length > 0 ? subjects[0].id : null;
+                const teacherId = teachers && teachers.length > 0 ? teachers[0].id : null;
+                
+                log(`✅ Tìm thấy ${subjects.length} môn học, ${teachers.length} giáo viên`, 'success');
+                
+                // Bước 2: Tạo template
+                updateStatus('📝 Đang tạo template...', 'info');
+                log('\n📝 Bước 2: Tạo template...', 'info');
+                
+                const templateData = {
+                    name: 'Template Test - Toán lớp 10',
+                    description: 'Template test với 2 bài học và 2 bài tập',
+                    capacity: 30,
+                    subject_id: subjectId
+                };
+                
+                const templateRes = await fetch(`${API_BASE_URL}/api/template-classrooms/`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(templateData)
+                });
+                
+                if (!templateRes.ok) {
+                    const error = await templateRes.text();
+                    throw new Error(`Lỗi tạo template: ${templateRes.status} - ${error}`);
+                }
+                
+                const template = await templateRes.json();
+                const templateId = template.id;
+                log(`✅ Template đã được tạo: ${template.name} (ID: ${templateId})`, 'success');
+                
+                // Bước 3: Tạo 2 bài học
+                updateStatus('📚 Đang tạo 2 bài học...', 'info');
+                log('\n📚 Bước 3: Tạo 2 bài học...', 'info');
+                
+                const lessons = [
+                    {
+                        title: 'Bài học 1: Giới thiệu về Toán học',
+                        description: 'Bài học giới thiệu các khái niệm cơ bản về toán học',
+                        sort_order: 1
+                    },
+                    {
+                        title: 'Bài học 2: Phép tính cơ bản',
+                        description: 'Học về các phép tính cộng, trừ, nhân, chia',
+                        sort_order: 2
+                    }
+                ];
+                
+                const createFakeFile = (name) => {
+                    const content = 'Fake PDF content for testing';
+                    return new Blob([content], { type: 'application/pdf' });
+                };
+                
+                let lessonsCreated = 0;
+                for (const lesson of lessons) {
+                    const formData = new FormData();
+                    formData.append('classroom_id', templateId);
+                    formData.append('title', lesson.title);
+                    formData.append('description', lesson.description);
+                    formData.append('sort_order', lesson.sort_order.toString());
+                    
+                    const fakeFile = createFakeFile(`${lesson.title}.pdf`);
+                    formData.append('files', fakeFile, `${lesson.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+                    
+                    const lessonRes = await fetch(`${API_BASE_URL}/api/lessons/upload`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+                    
+                    if (!lessonRes.ok) {
+                        const error = await lessonRes.text();
+                        log(`⚠️ Lỗi tạo bài học "${lesson.title}": ${lessonRes.status} - ${error}`, 'warning');
+                    } else {
+                        const lessonData = await lessonRes.json();
+                        log(`✅ Đã tạo bài học: ${lesson.title}`, 'success');
+                        lessonsCreated++;
+                    }
+                }
+                
+                // Bước 4: Tạo 2 bài tập
+                updateStatus('📝 Đang tạo 2 bài tập...', 'info');
+                log('\n📝 Bước 4: Tạo 2 bài tập...', 'info');
+                
+                const assignments = [
+                    {
+                        title: 'Bài tập 1: Trắc nghiệm Toán cơ bản',
+                        description: 'Bài tập trắc nghiệm về các phép tính cơ bản',
+                        assignment_type: 'multiple_choice',
+                        total_points: 100.0,
+                        time_limit_minutes: 60
+                    },
+                    {
+                        title: 'Bài tập 2: Tự luận - Giải bài toán',
+                        description: 'Bài tập tự luận yêu cầu giải các bài toán',
+                        assignment_type: 'essay',
+                        total_points: 100.0,
+                        time_limit_minutes: 0
+                    }
+                ];
+                
+                let assignmentsCreated = 0;
+                for (const assignment of assignments) {
+                    const assignmentData = {
+                        ...assignment,
+                        subject_id: subjectId,
+                        teacher_id: teacherId
+                    };
+                    
+                    const assignmentRes = await fetch(`${API_BASE_URL}/api/assignments/`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(assignmentData)
+                    });
+                    
+                    if (!assignmentRes.ok) {
+                        const error = await assignmentRes.text();
+                        log(`⚠️ Lỗi tạo bài tập "${assignment.title}": ${assignmentRes.status} - ${error}`, 'warning');
+                    } else {
+                        const assignmentResult = await assignmentRes.json();
+                        log(`✅ Đã tạo bài tập: ${assignment.title} (ID: ${assignmentResult.id})`, 'success');
+                        
+                        // Gán bài tập cho template
+                        const assignRes = await fetch(`${API_BASE_URL}/api/assignments/${assignmentResult.id}/classrooms`, {
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify([templateId])  // FastAPI sẽ parse List[str] từ JSON array
+                        });
+                        
+                        if (assignRes.ok) {
+                            log(`  ✅ Đã gán bài tập cho template`, 'success');
+                            assignmentsCreated++;
+                        } else {
+                            log(`  ⚠️ Không thể gán bài tập cho template`, 'warning');
+                        }
+                    }
+                }
+                
+                // Bước 5: Kiểm tra kết quả
+                updateStatus('🔍 Đang kiểm tra kết quả...', 'info');
+                log('\n🔍 Bước 5: Kiểm tra kết quả...', 'info');
+                
+                const [lessonsRes, assignmentsRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/api/template-classrooms/${templateId}/lessons`, { headers }),
+                    fetch(`${API_BASE_URL}/api/template-classrooms/${templateId}/assignments`, { headers })
+                ]);
+                
+                const templateLessons = await lessonsRes.json();
+                const templateAssignments = await assignmentsRes.json();
+                
+                log(`\n📊 KẾT QUẢ:`, 'info');
+                log(`✅ Template ID: ${templateId}`, 'success');
+                log(`✅ Số bài học: ${templateLessons.length}/2`, templateLessons.length === 2 ? 'success' : 'warning');
+                log(`✅ Số bài tập: ${templateAssignments.length}/2`, templateAssignments.length === 2 ? 'success' : 'warning');
+                
+                if (templateLessons.length > 0) {
+                    log(`\n📚 Danh sách bài học:`, 'info');
+                    templateLessons.forEach((lesson, index) => {
+                        log(`  ${index + 1}. ${lesson.title}`, 'info');
+                    });
+                }
+                
+                if (templateAssignments.length > 0) {
+                    log(`\n📝 Danh sách bài tập:`, 'info');
+                    templateAssignments.forEach((assignment, index) => {
+                        log(`  ${index + 1}. ${assignment.title} (${assignment.assignment_type})`, 'info');
+                    });
+                }
+                
+                const success = templateLessons.length === 2 && templateAssignments.length === 2;
+                
+                if (success) {
+                    updateStatus('🎉 TEST THÀNH CÔNG! Template đã có đủ 2 bài học và 2 bài tập.', 'success');
+                    log(`\n🎉 TEST THÀNH CÔNG! Template đã có đủ 2 bài học và 2 bài tập.`, 'success');
+                } else {
+                    updateStatus('⚠️ TEST CHƯA HOÀN TẤT. Cần kiểm tra lại.', 'warning');
+                    log(`\n⚠️ TEST CHƯA HOÀN TẤT. Cần kiểm tra lại.`, 'warning');
+                }
+                
+                log(`\n🔗 Xem template tại: http://localhost:3000/documents`, 'info');
+                log(`🔗 Xem chi tiết template tại: http://localhost:3000/classrooms/${templateId}`, 'info');
+                
+                updateResult({
+                    templateId,
+                    lessonsCount: templateLessons.length,
+                    assignmentsCount: templateAssignments.length,
+                    success
+                });
+                
+            } catch (error) {
+                updateStatus(`❌ Lỗi: ${error.message}`, 'error');
+                log(`❌ Lỗi trong quá trình test: ${error.message}`, 'error');
+                updateResult({ error: error.message });
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 Chạy lại Test';
+            }
+        }
+    </script>
+</body>
+</html>
+

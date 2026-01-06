@@ -200,7 +200,7 @@ async def get_classrooms(
         else:
             # Nếu không tìm thấy teacher profile, không cho phép filter theo teacher_id
             teacher_id = None
-    
+
     query = supabase.table("classrooms").select("*")
     if teacher_id:
         query = query.eq("teacher_id", teacher_id)
@@ -210,17 +210,144 @@ async def get_classrooms(
     return result.data or []
 
 
+@router.get("/next-code")
+async def get_next_class_code(
+    current_user = Depends(get_current_user),
+    supabase: Client = Depends(get_db),
+):
+    """Lấy mã lớp tiếp theo (admin và teacher)"""
+    if current_user.role not in ["admin", "teacher"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    # Lấy tất cả code dạng Class#### (giới hạn để an toàn)
+    codes_res = supabase.table("classrooms").select("code").ilike("code", "Class%").limit(1000).execute()
+    max_num = 0
+    if codes_res.data:
+        for row in codes_res.data:
+            code = (row.get("code") or "").strip()
+            if code.startswith("Class"):
+                suffix = code[5:]  # Lấy phần sau "Class"
+                if suffix.isdigit() and len(suffix) == 4:  # Đảm bảo đúng format 4 chữ số
+                    try:
+                        max_num = max(max_num, int(suffix))
+                    except Exception:
+                        pass
+
+    # Tìm mã tiếp theo có sẵn
+    attempt = 1
+    while True:
+        candidate = f"Class{attempt:04d}"
+        dup = supabase.table("classrooms").select("id").eq("code", candidate).execute()
+        if not dup.data:
+            return {"next_code": candidate}
+        attempt += 1
+
+
 @router.get("/{classroom_id}", response_model=ClassroomResponse)
 async def get_classroom(
     classroom_id: str,
     current_user = Depends(get_current_user),
     supabase: Client = Depends(get_db),
 ):
-    """Lấy thông tin một lớp học"""
-    result = supabase.table("classrooms").select("*").eq("id", classroom_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
-    return result.data[0]
+    """Lấy thông tin một lớp học
+    - Admin: có thể xem tất cả lớp học
+    - Teacher: có thể xem lớp của mình
+    - Student: có thể xem lớp mà mình đang học
+    """
+    try:
+        # Normalize role to lowercase for comparison
+        user_role = (current_user.role or "").lower()
+        
+        # Debug logging
+        print(f"[get_classroom] User ID: {current_user.id}, Role: {current_user.role} (normalized: {user_role}), Classroom ID: {classroom_id}")
+        
+        # Admin có thể xem tất cả
+        if user_role == "admin":
+            result = supabase.table("classrooms").select("*").eq("id", classroom_id).execute()
+            if not result.data:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+            return result.data[0]
+        
+        # Teacher chỉ có thể xem lớp của mình
+        if user_role == "teacher":
+            try:
+                # Lấy teacher_id của current_user
+                teacher_result = supabase.table("teachers").select("id").eq("user_id", current_user.id).execute()
+                if teacher_result.data:
+                    current_teacher_id = teacher_result.data[0]["id"]
+                    # Kiểm tra lớp có thuộc về giáo viên này không
+                    result = supabase.table("classrooms").select("*").eq("id", classroom_id).eq("teacher_id", current_teacher_id).execute()
+                    if not result.data:
+                        print(f"[get_classroom] Teacher {current_teacher_id} does not have access to classroom {classroom_id}")
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Bạn chỉ có thể xem các lớp mà bạn đang dạy"
+                        )
+                    return result.data[0]
+                else:
+                    print(f"[get_classroom] Teacher profile not found for user {current_user.id}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Teacher profile not found"
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                print(f"[get_classroom] Error checking teacher access: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error checking teacher access: {str(e)}"
+                )
+        
+        # Student chỉ có thể xem lớp mà mình đang học
+        if user_role == "student":
+            try:
+                # Lấy student_id của current_user
+                student_result = supabase.table("students").select("id, classroom_id").eq("user_id", current_user.id).execute()
+                if student_result.data:
+                    student_classroom_ids = [s["classroom_id"] for s in student_result.data if s.get("classroom_id")]
+                    if classroom_id not in student_classroom_ids:
+                        print(f"[get_classroom] Student {current_user.id} does not have access to classroom {classroom_id}. Student classrooms: {student_classroom_ids}")
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Bạn chỉ có thể xem các lớp mà bạn đang học"
+                        )
+                    # Lấy thông tin lớp
+                    result = supabase.table("classrooms").select("*").eq("id", classroom_id).execute()
+                    if not result.data:
+                        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+                    return result.data[0]
+                else:
+                    print(f"[get_classroom] Student profile not found for user {current_user.id}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Student profile not found"
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                print(f"[get_classroom] Error checking student access: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error checking student access: {str(e)}"
+                )
+        
+        # Role khác không được phép
+        print(f"[get_classroom] Unknown role: {user_role} for user {current_user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[get_classroom] Unexpected error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 
 @router.put("/{classroom_id}", response_model=ClassroomResponse)
@@ -301,38 +428,6 @@ async def delete_classroom(
 class ClassroomAssignStudents(BaseModel):
     student_ids: List[str]
 
-
-@router.get("/next-code")
-async def get_next_class_code(
-    current_user = Depends(get_current_user),
-    supabase: Client = Depends(get_db),
-):
-    """Lấy mã lớp tiếp theo (chỉ admin)"""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-
-    # Lấy tất cả code dạng Class#### (giới hạn để an toàn)
-    codes_res = supabase.table("classrooms").select("code").ilike("code", "Class%").limit(1000).execute()
-    max_num = 0
-    if codes_res.data:
-        for row in codes_res.data:
-            code = (row.get("code") or "").strip()
-            if code.startswith("Class"):
-                suffix = code[5:]  # Lấy phần sau "Class"
-                if suffix.isdigit() and len(suffix) == 4:  # Đảm bảo đúng format 4 chữ số
-                    try:
-                        max_num = max(max_num, int(suffix))
-                    except Exception:
-                        pass
-    
-    # Tìm mã tiếp theo có sẵn
-    attempt = 1
-    while True:
-        candidate = f"Class{attempt:04d}"
-        dup = supabase.table("classrooms").select("id").eq("code", candidate).execute()
-        if not dup.data:
-            return {"next_code": candidate}
-        attempt += 1
 
 @router.post("/{classroom_id}/students")
 async def add_students_to_classroom(

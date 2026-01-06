@@ -812,7 +812,7 @@ export default function FinancePage() {
     <PageWithBackground>
       <div className="flex min-h-screen w-full">
         <AdminSidebar currentPage="finance" onNavigate={(page) => router.push(page.startsWith('/') ? page : `/${page}`)} onLogout={logout} />
-        <div className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+        <div className={`flex-1 min-h-screen flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
         <div className="flex items-center justify-between p-6 pb-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Quản lý Tài chính</h1>

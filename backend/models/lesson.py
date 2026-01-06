@@ -1,92 +1,112 @@
-from pydantic import BaseModel
+"""
+Lesson Models
+Model cho bài học
+"""
+
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
-from uuid import UUID
 
 
 class LessonBase(BaseModel):
+    classroom_id: str
     title: str
     description: Optional[str] = None
-
-
-class LessonCreate(LessonBase):
-    classroom_id: UUID
-    sort_order: Optional[int] = None
-    shared_classroom_ids: Optional[List[str]] = None
+    file_urls: Optional[List[str]] = None
+    file_names: Optional[List[str]] = None
+    storage_paths: Optional[List[str]] = None
+    sort_order: int = 0
+    shared_classroom_ids: List[str] = []
     available_at: Optional[datetime] = None
-    assignment_id: Optional[UUID] = None
+    youtube_urls: List[dict] = []
 
-
-class LessonUpdate(LessonBase):
-    title: Optional[str] = None
-    description: Optional[str] = None
+    # Keep backward compatibility
     file_url: Optional[str] = None
     file_name: Optional[str] = None
     storage_path: Optional[str] = None
+
+    @field_validator('shared_classroom_ids', mode='before')
+    @classmethod
+    def validate_shared_classroom_ids(cls, v):
+        if v is None:
+            return []
+        return v
+
+    @field_validator('youtube_urls', mode='before')
+    @classmethod
+    def validate_youtube_urls(cls, v):
+        if v is None:
+            return []
+        # Convert string arrays to object arrays for backward compatibility
+        if isinstance(v, list) and len(v) > 0:
+            if isinstance(v[0], str):
+                return [{"url": url, "title": f"Video {i+1}"} for i, url in enumerate(v)]
+        return v
+
+
+class LessonCreate(LessonBase):
+    pass
+
+
+class LessonUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    file_urls: Optional[List[str]] = None
+    file_names: Optional[List[str]] = None
+    storage_paths: Optional[List[str]] = None
     sort_order: Optional[int] = None
     shared_classroom_ids: Optional[List[str]] = None
     available_at: Optional[datetime] = None
-    assignment_id: Optional[UUID] = None
+    youtube_urls: Optional[List[str]] = None
+    # Backward compatibility
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
+    storage_path: Optional[str] = None
 
 
 class Lesson(LessonBase):
-    id: UUID
-    classroom_id: UUID
-    file_url: str
-    file_name: Optional[str] = None
-    storage_path: Optional[str] = None
-    sort_order: Optional[int] = None
-    shared_classroom_ids: Optional[List[str]] = None
-    available_at: Optional[datetime] = None
-    assignment_id: Optional[UUID] = None
+    id: str
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
+    @field_validator('shared_classroom_ids', mode='before')
+    @classmethod
+    def validate_shared_classroom_ids(cls, v):
+        if v is None:
+            return []
+        return v
 
-class LessonProgressCreate(BaseModel):
-    classroom_id: UUID
+    @field_validator('youtube_urls', mode='before')
+    @classmethod
+    def validate_youtube_urls(cls, v):
+        if v is None:
+            return []
+        # Convert string arrays to object arrays for backward compatibility
+        if isinstance(v, list) and len(v) > 0:
+            if isinstance(v[0], str):
+                return [{"url": url, "title": f"Video {i+1}"} for i, url in enumerate(v)]
+        return v
 
+    @field_validator('file_urls', mode='before')
+    @classmethod
+    def validate_file_urls(cls, v):
+        if v is None:
+            return []
+        return v
 
-class LessonProgressResponse(BaseModel):
-    id: UUID
-    lesson_id: UUID
-    user_id: UUID
-    classroom_id: UUID
-    started_at: datetime
-    last_accessed_at: datetime
-    completed_at: Optional[datetime] = None
-    is_completed: bool
-    created_at: datetime
-    updated_at: datetime
+    @field_validator('file_names', mode='before')
+    @classmethod
+    def validate_file_names(cls, v):
+        if v is None:
+            return []
+        return v
 
-    class Config:
-        from_attributes = True
-
-
-class LessonFile(BaseModel):
-    id: UUID
-    lesson_id: UUID
-    file_url: str
-    file_name: str
-    storage_path: Optional[str] = None
-    file_size: Optional[int] = None
-    file_type: Optional[str] = None
-    sort_order: int = 0
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class LessonFileCreate(BaseModel):
-    file_url: str
-    file_name: str
-    storage_path: Optional[str] = None
-    file_size: Optional[int] = None
-    file_type: Optional[str] = None
-    sort_order: Optional[int] = 0
-
+    @field_validator('storage_paths', mode='before')
+    @classmethod
+    def validate_storage_paths(cls, v):
+        if v is None:
+            return []
+        return v

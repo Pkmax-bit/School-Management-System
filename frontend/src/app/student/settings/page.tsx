@@ -113,7 +113,7 @@ export default function StudentSettingsPage() {
             <StudentSidebar
                 currentPage="settings"
                 onNavigate={(path) => router.push(path)}
-                onLogout={() => { }}
+                onLogout={logout}
                 user={{ name: user?.name, email: user?.email }}
             />
 

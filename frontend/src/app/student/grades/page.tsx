@@ -717,6 +717,8 @@ export default function StudentGradesPage() {
 
     const loadGrades = async () => {
         try {
+            if (!user) return;
+
             setLoading(true);
             const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
 

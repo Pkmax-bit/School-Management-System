@@ -175,10 +175,18 @@ export default function StudentsPage() {
       setIsSubmitting(true);
       setErrors({}); // Clear previous errors
       
-      // Prepare data - only send password if provided
+      // Prepare data - handle empty optional fields
       const createData: CreateStudentData = {
-        ...formData,
-        password: formData.password && formData.password.trim() ? formData.password.trim() : undefined
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        role: formData.role,
+        password: formData.password && formData.password.trim() ? formData.password.trim() : undefined,
+        phone: formData.phone && formData.phone.trim() ? formData.phone.trim() : undefined,
+        address: formData.address && formData.address.trim() ? formData.address.trim() : undefined,
+        date_of_birth: formData.date_of_birth && formData.date_of_birth.trim() ? formData.date_of_birth.trim() : undefined,
+        parent_name: formData.parent_name && formData.parent_name.trim() ? formData.parent_name.trim() : undefined,
+        parent_phone: formData.parent_phone && formData.parent_phone.trim() ? formData.parent_phone.trim() : undefined,
+        classroom_id: formData.classroom_id && formData.classroom_id.trim() ? formData.classroom_id.trim() : undefined
       };
       
       const newStudent = await studentsApi.createStudent(createData);
@@ -369,7 +377,7 @@ export default function StudentsPage() {
     <PageWithBackground>
       <div className="flex min-h-screen">
         <AdminSidebar currentPage={currentPage} onNavigate={handleNavigate} onLogout={logout} />
-      <div className={`flex-1 h-screen flex flex-col p-4 lg:p-6 overflow-hidden transition-all duration-300 ml-0 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+      <div className={`flex-1 min-h-screen flex flex-col p-4 lg:p-6 overflow-y-auto transition-all duration-300 ml-0 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
         <div className="flex-1 flex flex-col">
           <div className="mb-8">
             <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-4 lg:p-6 text-white shadow-lg mb-4 lg:mb-6">

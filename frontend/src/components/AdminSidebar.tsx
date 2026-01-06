@@ -91,40 +91,56 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
         isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
         <div className="flex flex-col h-full overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white flex-shrink-0">
-            {!isCollapsed && (
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
-                  <GraduationCap className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="font-bold text-lg text-gray-800">School Admin</h1>
-                  <p className="text-xs text-gray-500">Quản trị hệ thống</p>
-                </div>
-              </div>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="hidden lg:flex"
-            >
-              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMobileOpen(false)}
-              className="lg:hidden"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* Search */}
+          {/* User Info Header */}
           {!isCollapsed && (
             <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3 flex-1">
+                  <Avatar className="w-10 h-10">
+                    <AvatarFallback className="bg-blue-600 text-white text-sm font-semibold">
+                      {initial}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{displayName || 'Administrator'}</p>
+                      <button
+                        onClick={() => onNavigate('/admin/notifications')}
+                        className="relative p-1 hover:bg-gray-100 rounded-full transition-colors"
+                        title="Thông báo"
+                      >
+                        <Bell className="w-4 h-4 text-gray-600" />
+                        {unreadCount > 0 && (
+                          <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold border-2 border-white">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </Badge>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">{displayEmail || ''}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    className="hidden lg:flex text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                  >
+                    {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsMobileOpen(false)}
+                    className="lg:hidden text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                 <input
@@ -133,6 +149,20 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-800 bg-gray-50 placeholder-gray-400 text-sm"
                 />
               </div>
+            </div>
+          )}
+
+          {/* Collapsed Header */}
+          {isCollapsed && (
+            <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0 flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
             </div>
           )}
 
@@ -208,50 +238,9 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
             </div>
           )}
 
-          {/* User Profile */}
-          <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
-            <div className="flex items-center gap-3 mb-3">
-              <Avatar className="w-9 h-9">
-                <AvatarFallback className="bg-blue-600 text-white text-sm font-semibold">
-                  {initial}
-                </AvatarFallback>
-              </Avatar>
-              {!isCollapsed && (
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{displayName || 'User'}</p>
-                    <button
-                      onClick={() => onNavigate('/admin/notifications')}
-                      className="relative p-1 hover:bg-gray-100 rounded-full transition-colors"
-                      title="Thông báo"
-                    >
-                      <Bell className="w-4 h-4 text-gray-600" />
-                      {unreadCount > 0 && (
-                        <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold border-2 border-white">
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </Badge>
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 truncate">{displayEmail || ''}</p>
-                </div>
-              )}
-              {isCollapsed && (
-                <button
-                  onClick={() => onNavigate('/admin/notifications')}
-                  className="relative p-1 hover:bg-gray-100 rounded-full transition-colors ml-auto"
-                  title="Thông báo"
-                >
-                  <Bell className="w-5 h-5 text-gray-600" />
-                  {unreadCount > 0 && (
-                    <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold border-2 border-white">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </Badge>
-                  )}
-                </button>
-              )}
-            </div>
-            {!isCollapsed && (
+          {/* Logout Button */}
+          {!isCollapsed && (
+            <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -261,8 +250,8 @@ export function AdminSidebar({ currentPage, onNavigate, onLogout, userName, user
                 <LogOut className="w-4 h-4 mr-2" />
                 Đăng xuất
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </aside>
 

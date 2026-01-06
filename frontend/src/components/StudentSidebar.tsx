@@ -84,6 +84,13 @@ export function StudentSidebar({ currentPage = 'dashboard', onNavigate, onLogout
             description: 'Điểm số'
         },
         {
+            id: 'notifications',
+            label: 'Thông báo',
+            icon: Bell,
+            path: '/student/notifications',
+            description: 'Thông báo của tôi'
+        },
+        {
             id: 'profile',
             label: 'Hồ sơ',
             icon: User,
@@ -166,8 +173,7 @@ export function StudentSidebar({ currentPage = 'dashboard', onNavigate, onLogout
                                         <p className="text-sm font-semibold truncate text-gray-800">{user.name || 'Học sinh'}</p>
                                         <button
                                             onClick={() => {
-                                                // Student có thể xem notifications qua toast hoặc có thể tạo trang riêng
-                                                // Tạm thời chỉ hiển thị icon
+                                                onNavigate('/student/notifications');
                                             }}
                                             className="relative p-1 hover:bg-gray-100 rounded-full transition-colors"
                                             title="Thông báo"
@@ -189,7 +195,7 @@ export function StudentSidebar({ currentPage = 'dashboard', onNavigate, onLogout
                         <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0 flex justify-center">
                             <button
                                 onClick={() => {
-                                    // Student có thể xem notifications qua toast
+                                    onNavigate('/student/notifications');
                                 }}
                                 className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
                                 title="Thông báo"

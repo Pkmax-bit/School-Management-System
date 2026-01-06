@@ -263,7 +263,7 @@ export default function SubjectsPage() {
           onLogout={logout}
         />
         <div
-          className={`flex-1 h-screen flex flex-col overflow-hidden transition-all duration-300 ml-0 ${
+          className={`flex-1 min-h-screen flex flex-col overflow-y-auto transition-all duration-300 ml-0 ${
             isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
           }`}
         >

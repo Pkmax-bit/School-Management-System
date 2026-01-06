@@ -1,50 +1,30 @@
-export interface LessonFile {
-  id: string;
-  lesson_id: string;
-  file_url: string;
-  file_name: string;
-  storage_path?: string;
-  file_size?: number;
-  file_type?: string;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Lesson {
   id: string;
-  classroom_id: string;
   title: string;
   description?: string;
-  file_url: string;
+  content?: string;
+  // Multiple files support
+  file_urls?: string[];
+  file_names?: string[];
+  storage_paths?: string[];
+  // Backward compatibility
+  file_url?: string;
   file_name?: string;
   storage_path?: string;
-  sort_order?: number;
-  shared_classroom_ids?: string[];
-  available_at?: string;
-  assignment_id?: string;
-  files?: LessonFile[];
+  video_url?: string;
+  youtube_urls?: (string | {url: string, title: string})[];
   created_at: string;
-  updated_at: string;
-}
-
-export interface LessonCreate {
-  classroom_id: string;
-  title: string;
-  description?: string;
-  files: FileList | File[];
-  sort_order?: number;
-  shared_classroom_ids?: string[];
   available_at?: string;
-  assignment_id?: string;
+  sort_order?: number;
+  classroom_id: string;
+  shared_classroom_ids?: string[];
+  subject?: {
+    id: string;
+    name: string;
+  };
+  teacher?: {
+    id: string;
+    name?: string;
+    email?: string;
+  };
 }
-
-export interface Assignment {
-  id: string;
-  title: string;
-  description?: string;
-  assignment_type: string;
-  total_points?: number;
-  due_date?: string;
-}
-

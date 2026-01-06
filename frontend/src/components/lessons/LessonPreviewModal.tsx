@@ -1,439 +1,297 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React from "react";
+import { X, Download, FileText, Video, Calendar, Lock, Eye } from "lucide-react";
 import { Lesson } from "@/types/lesson";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
-import { useRouter } from "next/navigation";
-import { X, Download, FileText, FileIcon, BookOpen, Calendar, Clock, CheckCircle2, Play, ExternalLink, ChevronDown, ChevronUp, Eye } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 interface LessonPreviewModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    lessons: Lesson[];
-    classroomName: string;
-    classroomId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  lessons: Lesson[];
+  classroomName: string;
+  classroomId: string;
 }
 
-export default function LessonPreviewModal({ isOpen, onClose, lessons, classroomName, classroomId }: LessonPreviewModalProps) {
-    const router = useRouter();
-    const [savingProgress, setSavingProgress] = useState<string | null>(null);
-    const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
-    // Check if lesson is available (available_at is null or has passed)
-    const isLessonAvailable = (lesson: Lesson): boolean => {
-        if (!lesson.available_at) return true; // No restriction, available immediately
-        const now = new Date();
-        const availableAt = new Date(lesson.available_at);
-        return now >= availableAt;
-    };
+const LessonPreviewModal: React.FC<LessonPreviewModalProps> = ({
+  isOpen,
+  onClose,
+  lessons,
+  classroomName,
+  classroomId,
+}) => {
+  const getFileExtension = (filename: string) => {
+    return filename.split('.').pop()?.toUpperCase() || 'FILE';
+  };
 
-    // Filter and sort lessons as students would see them
-    const studentViewLessons = useMemo(() => {
-        return lessons
-            .filter(lesson => isLessonAvailable(lesson)) // Only show available lessons
-            .sort((a, b) => {
-                // Sort by sort_order (ascending), then by created_at (descending)
-                const orderA = a.sort_order ?? 0;
-                const orderB = b.sort_order ?? 0;
-                if (orderA !== orderB) {
-                    return orderA - orderB;
-                }
-                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            });
-    }, [lessons]);
+  const isImageFile = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    return !!ext && ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext);
+  };
 
-    const getFileExtension = (filename: string) => {
-        return filename.split('.').pop()?.toUpperCase() || 'FILE';
-    };
+  const getFileIcon = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const iconClass = "w-5 h-5";
 
-    const isImageFile = (filename: string) => {
-        const ext = filename.split('.').pop()?.toLowerCase();
-        return !!ext && ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext);
-    };
+    switch (ext) {
+      case 'pdf':
+        return <FileText className={`${iconClass} text-red-500`} />;
+      case 'doc':
+      case 'docx':
+        return <FileText className={`${iconClass} text-blue-500`} />;
+      case 'xls':
+      case 'xlsx':
+        return <FileText className={`${iconClass} text-green-500`} />;
+      case 'ppt':
+      case 'pptx':
+        return <FileText className={`${iconClass} text-orange-500`} />;
+      default:
+        return <FileText className={`${iconClass} text-gray-500`} />;
+    }
+  };
 
-    const getFileIcon = (filename: string) => {
-        const ext = filename.split('.').pop()?.toLowerCase();
-        const iconClass = "w-6 h-6";
+  // Check if lesson is available (available_at is null or has passed)
+  const isLessonAvailable = (lesson: Lesson): boolean => {
+    if (!lesson.available_at) return true; // No restriction, available immediately
+    const now = new Date();
+    const availableAt = new Date(lesson.available_at);
+    return now >= availableAt;
+  };
 
-        switch (ext) {
-            case 'pdf':
-                return <FileText className={`${iconClass} text-red-500`} />;
-            case 'doc':
-            case 'docx':
-                return <FileText className={`${iconClass} text-blue-500`} />;
-            case 'xls':
-            case 'xlsx':
-                return <FileText className={`${iconClass} text-green-500`} />;
-            case 'ppt':
-            case 'pptx':
-                return <FileText className={`${iconClass} text-orange-500`} />;
-            default:
-                return <FileIcon className={`${iconClass} text-gray-500`} />;
-        }
-    };
+  if (!isOpen) return null;
 
-    const getFileTypeColor = (filename: string) => {
-        const ext = filename.split('.').pop()?.toLowerCase();
-        switch (ext) {
-            case 'pdf':
-                return 'bg-red-50 border-red-200 text-red-700';
-            case 'doc':
-            case 'docx':
-                return 'bg-blue-50 border-blue-200 text-blue-700';
-            case 'xls':
-            case 'xlsx':
-                return 'bg-green-50 border-green-200 text-green-700';
-            case 'ppt':
-            case 'pptx':
-                return 'bg-orange-50 border-orange-200 text-orange-700';
-            default:
-                return 'bg-gray-50 border-gray-200 text-gray-700';
-        }
-    };
-
-    const toggleLesson = (lessonId: string) => {
-        setExpandedLessons(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(lessonId)) {
-                newSet.delete(lessonId);
-            } else {
-                newSet.add(lessonId);
-            }
-            return newSet;
-        });
-    };
-
-    const handleStartLesson = async (lessonId: string) => {
-        const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
-        if (!token) return;
-
-        setSavingProgress(lessonId);
-        try {
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/lessons/${lessonId}/start`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        classroom_id: classroomId,
-                    }),
-                }
-            );
-
-            if (response.ok) {
-                // Open lesson file in new tab
-                const lesson = studentViewLessons.find(l => l.id === lessonId);
-                if (lesson) {
-                    window.open(lesson.file_url, '_blank');
-                }
-            }
-        } catch (err) {
-            console.error("Failed to save progress:", err);
-        } finally {
-            setSavingProgress(null);
-        }
-    };
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col">
-            {/* Header - Full width, LMS style */}
-            <header className="bg-white border-b border-gray-200 shadow-sm">
-                <div className="max-w-7xl mx-auto px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                                    <BookOpen className="w-6 h-6 text-white" />
-                                </div>
-                                <div>
-                                    <h1 className="text-xl font-bold text-gray-900">Tài liệu học tập</h1>
-                                    <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
-                                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                                        {classroomName}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="text-right hidden sm:block">
-                                <p className="text-sm font-medium text-gray-700">
-                                    {studentViewLessons.length} bài học
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                    {lessons.length - studentViewLessons.length > 0 && (
-                                        <span className="text-amber-600">
-                                            {lessons.length - studentViewLessons.length} bài chưa mở
-                                        </span>
-                                    )}
-                                </p>
-                            </div>
-                            <Button
-                                onClick={onClose}
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                            >
-                                <X className="w-4 h-4" />
-                                Đóng
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* Main Content - Full screen */}
-            <main className="flex-1 overflow-y-auto">
-                <div className="max-w-7xl mx-auto px-6 py-8">
-                    {studentViewLessons.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-20 space-y-6">
-                            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center">
-                                <BookOpen className="w-12 h-12 text-gray-400" />
-                            </div>
-                            <div className="text-center max-w-md">
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Chưa có bài học nào được mở</h3>
-                                <p className="text-gray-500">
-                                    Học sinh sẽ không thấy bài học nào cho đến khi đến thời gian mở đã được thiết lập.
-                                </p>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Progress Section */}
-                            <div className="mb-8">
-                                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h2 className="text-lg font-semibold text-gray-900">Tiến độ học tập</h2>
-                                        <span className="text-sm font-medium text-blue-600">
-                                            {studentViewLessons.length} / {lessons.length} bài học
-                                        </span>
-                                    </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                        <div
-                                            className="bg-gradient-to-r from-blue-500 to-blue-600 h-2.5 rounded-full transition-all duration-500"
-                                            style={{ width: `${(studentViewLessons.length / lessons.length) * 100}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Lessons List - Horizontal Layout (1 bài 1 hàng) */}
-                            <div className="space-y-4">
-                                {studentViewLessons.map((lesson, index) => {
-                                    const isExpanded = expandedLessons.has(lesson.id);
-                                    return (
-                                        <div
-                                            key={lesson.id}
-                                            className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
-                                        >
-                                            {/* Summary Row - Always Visible */}
-                                            <div className="p-5">
-                                                <div className="flex items-center gap-4">
-                                                    {/* Thứ tự */}
-                                                    <div className="flex-shrink-0">
-                                                        <div className="w-12 h-12 rounded-lg bg-blue-50 border-2 border-blue-200 flex items-center justify-center">
-                                                            <span className="text-lg font-bold text-blue-600">
-                                                                {typeof lesson.sort_order === "number" && !Number.isNaN(lesson.sort_order) 
-                                                                    ? lesson.sort_order 
-                                                                    : index + 1}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Icon và File Type */}
-                                                    <div className="flex-shrink-0">
-                                                        <div className="w-10 h-10 flex items-center justify-center">
-                                                            {getFileIcon(lesson.file_name || '')}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Thông tin chính */}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-start justify-between gap-4">
-                                                            <div 
-                                                                className="flex-1 min-w-0 cursor-pointer hover:text-blue-600 transition-colors"
-                                                                onClick={() => router.push(`/student/lessons/${lesson.id}`)}
-                                                            >
-                                                                <h3 className="text-lg font-semibold text-gray-900 mb-1 hover:text-blue-600">
-                                                                    {lesson.title}
-                                                                </h3>
-                                                                {lesson.description && (
-                                                                    <p className="text-sm text-gray-600 line-clamp-1">
-                                                                        {lesson.description}
-                                                                    </p>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex items-center gap-4 flex-shrink-0">
-                                                                {/* Ngày */}
-                                                                <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                                                                    <Calendar className="w-4 h-4" />
-                                                                    <span>
-                                                                        {format(new Date(lesson.created_at), "dd/MM/yyyy", { locale: vi })}
-                                                                    </span>
-                                                                </div>
-
-                                                                {/* Có bài tập hay không */}
-                                                                {lesson.assignment_id ? (
-                                                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                                                                        <BookOpen className="w-3.5 h-3.5" />
-                                                                        <span>Có bài tập</span>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">
-                                                                        <span>Không có bài tập</span>
-                                                                    </div>
-                                                                )}
-
-                                                                {/* View Detail Button */}
-                                                                <button
-                                                                    onClick={() => router.push(`/student/lessons/${lesson.id}`)}
-                                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors"
-                                                                >
-                                                                    <Eye className="w-4 h-4" />
-                                                                    <span>Xem</span>
-                                                                </button>
-
-                                                                {/* Expand Icon */}
-                                                                <button 
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        toggleLesson(lesson.id);
-                                                                    }}
-                                                                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-                                                                >
-                                                                    {isExpanded ? (
-                                                                        <ChevronUp className="w-5 h-5" />
-                                                                    ) : (
-                                                                        <ChevronDown className="w-5 h-5" />
-                                                                    )}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Expanded Details - Hiển thị khi click */}
-                                            {isExpanded && (
-                                                <div className="border-t border-gray-200 bg-gray-50">
-                                                    <div className="p-6 space-y-4">
-                                                        {/* Mô tả đầy đủ */}
-                                                        {lesson.description && (
-                                                            <div>
-                                                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Mô tả:</h4>
-                                                                <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                                                                    {lesson.description}
-                                                                </p>
-                                                            </div>
-                                                        )}
-
-                                                        {/* File Info */}
-                                                        {lesson.file_name && (
-                                                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                                <FileIcon className="w-4 h-4" />
-                                                                <span>{lesson.file_name}</span>
-                                                                <span className="text-xs text-gray-400">
-                                                                    ({getFileExtension(lesson.file_name)})
-                                                                </span>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Image Preview */}
-                                                        {lesson.file_url && lesson.file_name && isImageFile(lesson.file_name) && (
-                                                            <div className="rounded-lg overflow-hidden border border-gray-200">
-                                                                <img
-                                                                    src={lesson.file_url}
-                                                                    alt={lesson.title}
-                                                                    className="w-full max-h-64 object-contain bg-white"
-                                                                />
-                                                            </div>
-                                                        )}
-
-                                            {/* Action Buttons */}
-                                            <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        router.push(`/student/lessons/${lesson.id}`);
-                                                    }}
-                                                    className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium py-2.5 px-5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-                                                >
-                                                    <Play className="w-4 h-4" />
-                                                    <span>Xem chi tiết</span>
-                                                </button>
-                                                <a
-                                                    href={lesson.file_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="flex items-center gap-2 text-gray-600 hover:text-gray-800 font-medium py-2.5 px-5 rounded-lg transition-all duration-200 border border-gray-300 hover:bg-gray-50"
-                                                >
-                                                    <Download className="w-4 h-4" />
-                                                    <span>Tải xuống</span>
-                                                </a>
-                                            </div>
-
-                                                        {/* Link bài tập - Ở cuối */}
-                                                        {lesson.assignment_id && (
-                                                            <div className="pt-4 border-t border-gray-200">
-                                                                <a
-                                                                    href={`/student/assignments/${lesson.assignment_id}`}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                    className="flex items-center justify-center gap-2 w-full bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium py-3 px-5 rounded-lg transition-all duration-200 border border-purple-200"
-                                                                >
-                                                                    <ExternalLink className="w-4 h-4" />
-                                                                    <span>Làm bài tập liên kết</span>
-                                                                </a>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Locked Lessons Info */}
-                            {lessons.length > studentViewLessons.length && (
-                                <div className="mt-8 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-6">
-                                    <div className="flex items-start gap-4">
-                                        <div className="flex-shrink-0">
-                                            <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
-                                                <Clock className="w-6 h-6 text-amber-600" />
-                                            </div>
-                                        </div>
-                                        <div className="flex-1">
-                                            <h3 className="text-lg font-semibold text-amber-900 mb-2">
-                                                {lessons.length - studentViewLessons.length} bài học đang chờ mở
-                                            </h3>
-                                            <p className="text-sm text-amber-800">
-                                                Các bài học này sẽ tự động hiển thị cho học sinh khi đến thời gian mở đã được giáo viên thiết lập.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-            </main>
-
-            {/* Footer - Optional */}
-            <footer className="bg-white border-t border-gray-200 py-4">
-                <div className="max-w-7xl mx-auto px-6">
-                    <p className="text-center text-xs text-gray-500">
-                        Xem trước giao diện học sinh • {classroomName}
-                    </p>
-                </div>
-            </footer>
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-green-50 to-emerald-50">
+          <div className="flex items-center gap-3">
+            <Eye className="w-6 h-6 text-green-600" />
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">
+                Xem trước bài học - Học sinh
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Lớp: {classroomName}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-lg"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-    );
-}
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+          {lessons.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+                <FileText className="w-10 h-10 text-gray-400" />
+              </div>
+              <div className="text-center">
+                <p className="text-gray-600 font-medium">Chưa có bài học nào</p>
+                <p className="text-gray-500 text-sm mt-1">Hãy tải lên bài học đầu tiên cho lớp này</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {lessons.map((lesson) => (
+                <div
+                  key={lesson.id}
+                  className="bg-white border rounded-lg p-5 shadow-sm hover:shadow-md transition-all duration-200 group"
+                >
+                  {/* File Icon and Title */}
+                  <div className="flex items-start gap-3 mb-3">
+                    {getFileIcon(lesson.file_name || '')}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors" title={lesson.title}>
+                        {lesson.title}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                          {getFileExtension(lesson.file_name || '')}
+                        </span>
+                      </div>
+                      {lesson.file_name && (
+                        <p className="text-xs text-gray-500 truncate mt-1" title={lesson.file_name}>
+                          {lesson.file_name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  {lesson.description && (
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-2" title={lesson.description}>
+                      {lesson.description}
+                    </p>
+                  )}
+
+                  {/* Available At Status */}
+                  {lesson.available_at && !isLessonAvailable(lesson) && (
+                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Lock className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-amber-800 mb-1">Bài học chưa mở</p>
+                          <p className="text-xs text-amber-700">
+                            Sẽ mở vào: {format(new Date(lesson.available_at), "dd/MM/yyyy HH:mm", { locale: vi })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* File/Image Previews */}
+                  {(() => {
+                    // Handle both single files (backward compatibility) and multiple files
+                    const fileUrls = lesson.file_urls || (lesson.file_url ? [lesson.file_url] : []);
+                    const fileNames = lesson.file_names || (lesson.file_name ? [lesson.file_name] : []);
+                    const imageFiles = fileUrls.filter((_, index) => {
+                      const fileName = fileNames[index] || '';
+                      return isImageFile(fileName);
+                    });
+
+                    // Show first image if there are image files
+                    if (imageFiles.length > 0) {
+                      return (
+                        <a
+                          href={imageFiles[0]}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block mb-4"
+                        >
+                          <img
+                            src={imageFiles[0]}
+                            alt={lesson.title}
+                            className="w-full h-48 object-cover rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+                          />
+                        </a>
+                      );
+                    }
+
+                    // Show file count if there are files but no images
+                    if (fileUrls.length > 0) {
+                      return (
+                        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <FileText className="w-4 h-4" />
+                            <span>{fileUrls.length} file{fileUrls.length > 1 ? 's' : ''} đính kèm</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return null;
+                  })()}
+
+                  {/* YouTube Videos */}
+                  {lesson.youtube_urls && lesson.youtube_urls.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Video bài giảng</p>
+                      <div className="space-y-2">
+                        {lesson.youtube_urls.map((video, index) => {
+                          // Handle both string and object formats
+                          const videoUrl = typeof video === 'string' ? video : video.url;
+                          const videoTitle = typeof video === 'string' ? `Video ${index + 1}` : (video.title || `Video ${index + 1}`);
+
+                          return (
+                            <a
+                              key={index}
+                              href={videoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 p-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-colors"
+                            >
+                              <Video className="w-4 h-4" />
+                              <span className="text-sm font-medium">{videoTitle}</span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer with date and download */}
+                  <div className="flex justify-between items-center mt-auto pt-3 border-t border-gray-100">
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {format(new Date(lesson.created_at), "dd/MM/yyyy", { locale: vi })}
+                    </span>
+
+                    {isLessonAvailable(lesson) ? (
+                      (() => {
+                        // Handle multiple files
+                        const fileUrls = lesson.file_urls || (lesson.file_url ? [lesson.file_url] : []);
+
+                        if (fileUrls.length === 0) {
+                          return null;
+                        }
+
+                        if (fileUrls.length === 1) {
+                          // Single file - direct download
+                          return (
+                            <a
+                              href={fileUrls[0]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded-lg transition-colors"
+                              title="Tải xuống"
+                            >
+                              <Download className="w-4 h-4" />
+                              Tải xuống
+                            </a>
+                          );
+                        } else {
+                          // Multiple files
+                          return (
+                            <button
+                              onClick={() => {
+                                // Open all files in new tabs
+                                fileUrls.forEach(url => window.open(url, '_blank'));
+                              }}
+                              className="flex items-center gap-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded-lg transition-colors"
+                              title={`Tải xuống ${fileUrls.length} files`}
+                            >
+                              <Download className="w-4 h-4" />
+                              Tải xuống ({fileUrls.length})
+                            </button>
+                          );
+                        }
+                      })()
+                    ) : (
+                      <button
+                        disabled
+                        className="flex items-center gap-1.5 text-sm bg-gray-100 text-gray-400 font-medium py-1.5 px-3 rounded-lg cursor-not-allowed"
+                        title={`Bài học sẽ mở vào ${format(new Date(lesson.available_at!), "dd/MM/yyyy HH:mm", { locale: vi })}`}
+                      >
+                        <Lock className="w-4 h-4" />
+                        Chưa mở
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default LessonPreviewModal;

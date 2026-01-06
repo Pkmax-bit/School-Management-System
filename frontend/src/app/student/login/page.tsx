@@ -384,7 +384,7 @@ export default function StudentLoginPage() {
               Tài khoản test: <span className="font-mono">student@school.com</span> / <span className="font-mono">student123</span>
             </p>
             <p className="text-xs text-purple-600 font-medium">
-              💡 Hoặc sử dụng nút "Đăng nhập nhanh" phía trên
+              💡 Hoặc sử dụng nút &quot;Đăng nhập nhanh&quot; phía trên
             </p>
           </div>
         </form>

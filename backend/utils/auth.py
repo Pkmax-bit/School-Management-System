@@ -32,8 +32,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def verify_token(token: str) -> dict:
     """Verify JWT token and return payload"""
     try:
-        # Use Supabase JWT secret for verification
-        payload = jwt.decode(token, settings.SUPABASE_JWT_SECRET, algorithms=["HS256"])
+        # Use SECRET_KEY for verification (same as create_access_token)
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(

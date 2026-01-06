@@ -1675,7 +1675,7 @@ export default function SchedulePage() {
                             });
 
                             let currentMonth = -1;
-                            let rowIndex = 0;
+                            const rowIndex = 0;
 
                             return (
                               <div className="space-y-1">

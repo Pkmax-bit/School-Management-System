@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Loader2, Plus, Edit, Trash2, Search } from 'lucide-react';
+import { AlertCircle, Loader2, Plus, Edit, Trash2, Search, RefreshCw } from 'lucide-react';
 import { PageWithBackground } from '@/components/PageWithBackground';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { TeacherSidebar } from '@/components/TeacherSidebar';
@@ -95,7 +95,6 @@ export default function ClassroomsPage() {
   const handleOpenCreate = async () => {
     setEditing(null);
     setFormName('');
-    setFormCode('Class0001'); // Default fallback
     setFormCapacity(30);
     setFormTeacherId('');
     setFormSubjectId('');
@@ -109,8 +108,14 @@ export default function ClassroomsPage() {
     setAutoCode(true);
     setErrorMsg('');
     setSelectedStudentIds([]);
-    
-    // Lấy mã lớp tiếp theo trước khi mở dialog
+
+    // Tự động tạo mã lớp mới
+    await generateNextClassCode();
+
+    setIsDialogOpen(true);
+  };
+
+  const generateNextClassCode = async () => {
     try {
       const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
       const res = await fetch(`${API_BASE_URL}/api/classrooms/next-code`, {
@@ -118,29 +123,29 @@ export default function ClassroomsPage() {
           ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
         }
       });
-      
+
       if (res.ok) {
         const data = await res.json();
-        setFormCode(data.next_code || 'Class0001');
+        const nextCode = data.next_code || 'Class0001';
+        setFormCode(nextCode);
+        console.log('Generated next class code:', nextCode);
       } else {
-        setFormCode(getNextCodeFromList(items));
+        // Fallback to local calculation
+        const nextCode = getNextCodeFromList(items);
+        setFormCode(nextCode);
+        console.log('Generated fallback class code:', nextCode);
       }
     } catch (error) {
-      console.error('Error getting next class code:', error);
-      setFormCode(getNextCodeFromList(items));
+      console.error('Error generating next class code:', error);
+      // Final fallback
+      const nextCode = getNextCodeFromList(items);
+      setFormCode(nextCode);
     }
-    
-    setIsDialogOpen(true);
   };
-  const generateClassCode = (name: string): string => {
-    const base = (name || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]+/g, '')
-      .toUpperCase()
-      .slice(0, 10);
-    const suffix = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
-    return base ? `${base}` : `CLS${suffix}`;
+  const generateClassCode = (name?: string): string => {
+    // Luôn tạo mã ClassXXXX, không dựa trên tên
+    // Hàm này có thể được mở rộng sau để tạo mã thông minh hơn
+    return getNextCodeFromList(items);
   };
 
 
@@ -185,39 +190,23 @@ export default function ClassroomsPage() {
   const loadSubjects = async () => {
     try {
       setLoadingSubjects(true);
-      // Determine current role
-      const currentRole = (() => {
-        if (user?.role) return (user.role || '').toLowerCase().trim();
-        if (teacherAuth.user?.role) return (teacherAuth.user.role || '').toLowerCase().trim();
-        return '';
-      })();
-      
-      // Only load subjects if user is admin
-      if (currentRole !== 'admin') {
-        setSubjects([]);
-        setLoadingSubjects(false);
-        return;
-      }
-      
+
       const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+
       const res = await fetch(`${API_BASE_URL}/api/subjects?limit=1000`, {
         headers: {
           'Content-Type': 'application/json',
           ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
         },
       });
-      if (!res.ok) {
-        // Don't throw error for 403, just log and set empty array
-        if (res.status === 403) {
-          console.warn('No permission to load subjects');
-          setSubjects([]);
-          return;
-        }
-        throw new Error(`Failed to load subjects (${res.status})`);
+
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+        setSubjects(list);
+      } else {
+        setSubjects([]);
       }
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
-      setSubjects(list);
     } catch (e) {
       console.error('Failed to load subjects list', e);
       setSubjects([]);
@@ -238,30 +227,29 @@ export default function ClassroomsPage() {
       
       // Only load campuses if user is admin
       if (currentRole !== 'admin') {
+        console.warn('No permission to load campuses - currentRole:', currentRole);
         setCampuses([]);
         setLoadingCampuses(false);
         return;
       }
-      
+
+      // Simplified: just try to load campuses directly
       const jwt = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+
       const res = await fetch(`${API_BASE_URL}/api/campuses?limit=1000`, {
         headers: {
           'Content-Type': 'application/json',
           ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
         },
       });
-      if (!res.ok) {
-        // Don't throw error for 403, just log and set empty array
-        if (res.status === 403) {
-          console.warn('No permission to load campuses');
-          setCampuses([]);
-          return;
-        }
-        throw new Error(`Failed to load campuses (${res.status})`);
+
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+        setCampuses(list);
+      } else {
+        setCampuses([]);
       }
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
-      setCampuses(list);
     } catch (e) {
       console.error('Failed to load campuses list', e);
       setCampuses([]);
@@ -365,9 +353,9 @@ export default function ClassroomsPage() {
     if (user) {
       loadData();
       loadTeachers();
+      loadStudents();
       loadSubjects();
       loadCampuses();
-      loadStudents();
     }
   }, [user]);
 
@@ -411,7 +399,7 @@ export default function ClassroomsPage() {
             onLogout={logout}
           />
         )}
-        <div className={`flex-1 h-screen flex flex-col p-4 lg:p-6 overflow-hidden transition-all duration-300 ml-0 ${
+        <div className={`flex-1 min-h-screen flex flex-col p-4 lg:p-6 overflow-y-auto transition-all duration-300 ml-0 ${
           isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
         }`}>
           <div className="space-y-4 lg:space-y-6">
@@ -576,20 +564,48 @@ export default function ClassroomsPage() {
                 value={formName}
                 onChange={(e) => {
                   setFormName(e.target.value);
+                  // Tự động tạo mã mới dựa trên tên lớp nếu đang ở chế độ auto
+                  if (autoCode && e.target.value.trim()) {
+                    // Tạo mã từ tên lớp
+                    const generatedCode = generateClassCode(e.target.value);
+                    setFormCode(generatedCode);
+                  }
                 }}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="code">Mã lớp</Label>
-              <Input
-                id="code"
-                value={formCode}
-                onChange={(e) => {
-                  setFormCode(e.target.value.toUpperCase());
-                  setAutoCode(false);
-                }}
-                placeholder="Tự động tạo mã Class0001, Class0002... (gõ 'class' để tự động)"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="code"
+                  value={formCode}
+                  onChange={(e) => {
+                    const value = e.target.value.toUpperCase();
+                    setFormCode(value);
+                    setAutoCode(false);
+
+                    // Tự động tạo mã mới nếu user gõ 'class'
+                    if (value.toLowerCase() === 'class') {
+                      generateNextClassCode();
+                    }
+                  }}
+                  placeholder="Tự động tạo mã Class0001, Class0002... (gõ 'class' để tự động)"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={generateNextClassCode}
+                  title="Tạo mã lớp mới"
+                  className="px-3"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="text-xs text-gray-500">
+                💡 Mẹo: Gõ "class" hoặc click nút refresh để tự động tạo mã lớp mới
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="capacity">Sĩ số</Label>

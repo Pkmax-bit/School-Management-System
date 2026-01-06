@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useApiAuth } from '@/hooks/useApiAuth';
 import { useSidebar } from '@/contexts/SidebarContext';
-import { StudentSidebar } from '@/components/StudentSidebar';
+import { TeacherSidebar } from '@/components/TeacherSidebar';
+import { AdminSidebar } from '@/components/AdminSidebar';
+import { Lesson } from '@/types/lesson';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,76 +18,81 @@ import {
     FileText,
     Video,
     Download,
-    Eye
+    Eye,
+    ArrowLeft,
+    ChevronLeft,
+    ChevronRight,
+    CheckCircle,
+    Circle,
+    Lock,
+    Menu
 } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-interface Lesson {
-    id: string;
-    title: string;
-    description?: string;
-    content?: string;
-    file_url?: string;
-    video_url?: string;
-    created_at: string;
-    available_at?: string;
-    subject?: {
-        id: string;
-        name: string;
-    };
-    teacher?: {
-        id: string;
-        name?: string;
-        email?: string;
-    };
-}
-
 export default function StudentLessonsPage() {
-    const { user, loading: authLoading } = useApiAuth();
+    const { user, loading: authLoading, logout } = useApiAuth();
     const router = useRouter();
-    const { isCollapsed } = useSidebar();
+    const searchParams = useSearchParams();
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
     const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+    // Check if this is a teacher preview
+    const isTeacherPreview = searchParams.get('preview') === 'teacher';
+    const classroomId = searchParams.get('classroom');
+
+    // Sort lessons by sort_order
+    const sortedLessons = [...lessons].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+    // Update current lesson index when selected lesson changes
+    const currentLessonIndex = selectedLesson ? sortedLessons.findIndex(l => l.id === selectedLesson.id) : 0;
 
     useEffect(() => {
-        if (!authLoading && user && user.role === 'student') {
+        if (!authLoading && user && (user.role === 'student' || ((user.role === 'teacher' || user.role === 'admin') && isTeacherPreview))) {
             loadLessons();
         }
-    }, [user, authLoading]);
+    }, [user, authLoading, isTeacherPreview, classroomId]);
 
     const loadLessons = async () => {
         try {
+            if (!user) return;
+
             setLoading(true);
             const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
 
-            // Get student's classroom
-            const studentRes = await fetch(`${API_BASE_URL}/api/students?user_id=${user.id}`, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-            });
+            let targetClassroomId = classroomId;
 
-            if (studentRes.ok) {
-                const studentsData = await studentRes.json();
-                if (studentsData.length > 0) {
-                    const classroomId = studentsData[0].classroom_id;
+            // If not teacher preview, get student's classroom
+            if (!isTeacherPreview) {
+                const studentRes = await fetch(`${API_BASE_URL}/api/students?user_id=${user.id}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                });
 
-                    // Get lessons for the classroom
-                    const lessonsRes = await fetch(`${API_BASE_URL}/api/lessons?classroom_id=${classroomId}`, {
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                        },
-                    });
-
-                    if (lessonsRes.ok) {
-                        const lessonsData = await lessonsRes.json();
-                        setLessons(Array.isArray(lessonsData) ? lessonsData : []);
+                if (studentRes.ok) {
+                    const studentsData = await studentRes.json();
+                    if (studentsData.length > 0) {
+                        targetClassroomId = studentsData[0].classroom_id;
                     }
+                }
+            }
+
+            if (targetClassroomId) {
+                // Get lessons for the classroom
+                const lessonsRes = await fetch(`${API_BASE_URL}/api/lessons/classroom/${targetClassroomId}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                });
+
+                if (lessonsRes.ok) {
+                    const lessonsData = await lessonsRes.json();
+                    setLessons(Array.isArray(lessonsData) ? lessonsData : []);
                 }
             }
         } catch (error) {
@@ -95,10 +102,28 @@ export default function StudentLessonsPage() {
         }
     };
 
-    const filteredLessons = lessons.filter((lesson) =>
-        lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lesson.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const getYouTubeVideoId = (url: string): string => {
+        const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/;
+        const match = url.match(regex);
+        return match ? match[1] : "";
+    };
+
+    const isImageFile = (filename: string) => {
+        const ext = filename.split('.').pop()?.toLowerCase();
+        return !!ext && ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext);
+    };
+
+    const isVideoFile = (filename: string) => {
+        const ext = filename.split('.').pop()?.toLowerCase();
+        return !!ext && ['mp4', 'webm', 'ogg', 'avi', 'mov'].includes(ext);
+    };
+
+    const isLessonAvailable = (lesson: Lesson): boolean => {
+        if (!lesson.available_at) return true;
+        const now = new Date();
+        const availableAt = new Date(lesson.available_at);
+        return now >= availableAt;
+    };
 
     if (authLoading || loading) {
         return (
@@ -111,7 +136,7 @@ export default function StudentLessonsPage() {
         );
     }
 
-    if (!user || user.role !== 'student') {
+    if (!user || (!isTeacherPreview && user.role !== 'student') || (isTeacherPreview && user.role !== 'teacher' && user.role !== 'admin')) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
@@ -123,176 +148,143 @@ export default function StudentLessonsPage() {
     }
 
     return (
-        <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
-            <StudentSidebar
-                currentPage="lessons"
-                onNavigate={(path) => router.push(path)}
-                onLogout={() => { }}
-                user={{ name: user?.name, email: user?.email }}
-            />
-
-            <div
-                className={`flex-1 overflow-y-auto p-4 lg:p-6 transition-all duration-300 ml-0 ${isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
-                    }`}
-            >
-                <div className="max-w-7xl mx-auto space-y-6">
-                    {/* Header */}
-                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
-                        <h1 className="text-3xl font-bold mb-2">Bài học</h1>
-                        <p className="text-blue-100">Xem tài liệu và video bài giảng</p>
+        <div className="space-y-6">
+            {/* Top Navigation Bar */}
+            <div className="bg-white rounded-lg shadow-sm border p-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-900">
+                            {selectedLesson?.title || 'Chọn bài học để học'}
+                        </h1>
+                        <p className="text-sm text-gray-500">
+                            {selectedLesson ? 'Đang học bài giảng' : 'Click vào một bài học trong sidebar để bắt đầu'}
+                        </p>
                     </div>
 
-                    {/* Search */}
-                    <Card>
-                        <CardContent className="p-4">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <Input
-                                    placeholder="Tìm kiếm bài học..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-10"
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Lessons Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filteredLessons.map((lesson) => (
-                            <Card key={lesson.id} className="hover:shadow-lg transition-shadow">
-                                <CardHeader>
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <CardTitle className="text-lg mb-2">{lesson.title}</CardTitle>
-                                            {lesson.subject && (
-                                                <Badge variant="secondary" className="mb-2">
-                                                    {lesson.subject.name}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        {lesson.video_url && (
-                                            <Video className="w-5 h-5 text-blue-600" />
-                                        )}
-                                    </div>
-                                    {lesson.description && (
-                                        <CardDescription className="line-clamp-2">
-                                            {lesson.description}
-                                        </CardDescription>
-                                    )}
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        {lesson.available_at && (
-                                            <div className="flex items-center gap-2 text-sm text-slate-600">
-                                                <Calendar className="w-4 h-4" />
-                                                <span>
-                                                    {new Date(lesson.available_at).toLocaleDateString('vi-VN')}
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        <div className="flex gap-2">
-                                            <Button
-                                                onClick={() => setSelectedLesson(lesson)}
-                                                variant="default"
-                                                className="flex-1"
-                                            >
-                                                <Eye className="w-4 h-4 mr-2" />
-                                                Xem chi tiết
-                                            </Button>
-                                            {lesson.file_url && (
-                                                <Button
-                                                    onClick={() => window.open(lesson.file_url, '_blank')}
-                                                    variant="outline"
-                                                >
-                                                    <Download className="w-4 h-4" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                        {filteredLessons.length === 0 && (
-                            <Card className="col-span-full">
-                                <CardContent className="p-12 text-center">
-                                    <BookOpen className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                    <p className="text-slate-500">Chưa có bài học nào</p>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </div>
-
-                    {/* Lesson Detail Modal */}
-                    {selectedLesson && (
-                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                                <CardHeader>
-                                    <div className="flex items-start justify-between">
-                                        <div>
-                                            <CardTitle className="text-2xl mb-2">{selectedLesson.title}</CardTitle>
-                                            {selectedLesson.subject && (
-                                                <Badge variant="secondary">
-                                                    {selectedLesson.subject.name}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <Button
-                                            onClick={() => setSelectedLesson(null)}
-                                            variant="ghost"
-                                            size="sm"
-                                        >
-                                            ✕
-                                        </Button>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    {selectedLesson.description && (
-                                        <div>
-                                            <h3 className="font-semibold mb-2">Mô tả</h3>
-                                            <p className="text-slate-600">{selectedLesson.description}</p>
-                                        </div>
-                                    )}
-
-                                    {selectedLesson.video_url && (
-                                        <div>
-                                            <h3 className="font-semibold mb-2">Video bài giảng</h3>
-                                            <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                                                <video
-                                                    src={selectedLesson.video_url}
-                                                    controls
-                                                    className="w-full h-full"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {selectedLesson.content && (
-                                        <div>
-                                            <h3 className="font-semibold mb-2">Nội dung</h3>
-                                            <div className="prose max-w-none">
-                                                <p className="text-slate-600 whitespace-pre-wrap">{selectedLesson.content}</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {selectedLesson.file_url && (
-                                        <div>
-                                            <h3 className="font-semibold mb-2">Tài liệu đính kèm</h3>
-                                            <Button
-                                                onClick={() => window.open(selectedLesson.file_url, '_blank')}
-                                                variant="outline"
-                                            >
-                                                <Download className="w-4 h-4 mr-2" />
-                                                Tải xuống tài liệu
-                                            </Button>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
+                    {/* Navigation Controls for teacher preview */}
+                    {isTeacherPreview && selectedLesson && (
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    const prevIndex = currentLessonIndex - 1;
+                                    if (prevIndex >= 0 && isLessonAvailable(sortedLessons[prevIndex])) {
+                                        setSelectedLesson(sortedLessons[prevIndex]);
+                                    }
+                                }}
+                                disabled={currentLessonIndex === 0}
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </Button>
+                            <span className="text-sm text-gray-600 px-2">
+                                {currentLessonIndex + 1} / {sortedLessons.length}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    const nextIndex = currentLessonIndex + 1;
+                                    if (nextIndex < sortedLessons.length && isLessonAvailable(sortedLessons[nextIndex])) {
+                                        setSelectedLesson(sortedLessons[nextIndex]);
+                                    }
+                                }}
+                                disabled={currentLessonIndex === sortedLessons.length - 1}
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </Button>
                         </div>
                     )}
+                </div>
+
+                {/* Progress Bar for teacher preview */}
+                {isTeacherPreview && selectedLesson && (
+                    <div className="bg-white rounded-lg shadow-sm border p-4">
+                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>Tiến độ học tập</span>
+                            <span>{Math.round(((currentLessonIndex + 1) / sortedLessons.length) * 100)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                                className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${((currentLessonIndex + 1) / sortedLessons.length) * 100}%` }}
+                            ></div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* Lessons Sidebar */}
+                <div className="lg:col-span-1">
+                    <div className="bg-white rounded-lg shadow-sm border p-4">
+                        <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                            <BookOpen className="w-5 h-5 text-blue-600" />
+                            Danh sách bài học
+                        </h3>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {sortedLessons.map((lesson, index) => (
+                                <button
+                                    key={lesson.id}
+                                    onClick={() => setSelectedLesson(lesson)}
+                                    disabled={!isLessonAvailable(lesson) && !isTeacherPreview}
+                                    className={`w-full text-left p-3 rounded-lg transition-all duration-200 ${
+                                        selectedLesson?.id === lesson.id
+                                            ? 'bg-blue-100 border-l-4 border-blue-500'
+                                            : isLessonAvailable(lesson) || isTeacherPreview
+                                            ? 'hover:bg-gray-100'
+                                            : 'opacity-60 cursor-not-allowed'
+                                    }`}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                            isLessonAvailable(lesson)
+                                                ? selectedLesson?.id === lesson.id ? 'bg-blue-500 text-white' : 'bg-green-100 text-green-600'
+                                                : 'bg-gray-100 text-gray-400'
+                                        }`}>
+                                            {isLessonAvailable(lesson) ? (
+                                                selectedLesson?.id === lesson.id ? <CheckCircle className="w-4 h-4" /> : <Circle className="w-3 h-3" />
+                                            ) : (
+                                                <Lock className="w-3 h-3" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className={`font-medium text-sm truncate ${
+                                                selectedLesson?.id === lesson.id ? 'text-blue-700' : 'text-gray-700'
+                                            }`}>
+                                                {lesson.title}
+                                            </p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                {lesson.video_url && (
+                                                    <Video className="w-3 h-3 text-red-500" />
+                                                )}
+                                                {lesson.file_url && (
+                                                    <FileText className="w-3 h-3 text-blue-500" />
+                                                )}
+                                                {!isLessonAvailable(lesson) && !isTeacherPreview && (
+                                                    <Badge variant="secondary" className="text-xs px-1 py-0">
+                                                        <Lock className="w-2 h-2 mr-1" />
+                                                        Chưa mở
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* Content Area */}
+                <div className="lg:col-span-3 space-y-6">
+                    <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+                        <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-gray-600 mb-2">Chọn bài học để bắt đầu học</h3>
+                        <p className="text-gray-500">Click vào một bài học trong sidebar để bắt đầu học tập</p>
+                    </div>
                 </div>
             </div>
         </div>
